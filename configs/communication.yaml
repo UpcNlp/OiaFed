@@ -1,0 +1,144 @@
+# configs/communication.yaml
+# 通信系统配置示例
+
+# 网络接口配置
+network:
+  # 最大连接数
+  max_connections: 100
+  
+  # 最大工作线程数
+  max_workers: 10
+  
+  # 连接超时时间（秒）
+  connection_timeout: 30.0
+  
+  # 套接字监听队列大小
+  socket_backlog: 5
+  
+  # 是否启用SSL
+  use_ssl: false
+  
+  # SSL配置（当use_ssl为true时生效）
+  ssl_config:
+    # SSL验证模式: 'none', 'optional', 'required'
+    ssl_verify_mode: 'required'
+    
+    # SSL证书文件路径
+    ssl_cert_file: null
+    
+    # SSL私钥文件路径
+    ssl_key_file: null
+
+# 消息协议配置
+message_protocol:
+  # 协议版本
+  version: "1.0"
+  
+  # 消息编码
+  encoding: "utf-8"
+  
+  # 支持的消息类型
+  supported_message_types:
+    - "model_update"
+    - "global_model"
+    - "client_ready"
+    - "training_complete"
+    - "heartbeat"
+    - "error_report"
+    - "shutdown"
+    - "client_registration"
+    - "registration_ack"
+    - "round_complete"
+    - "experiment_end"
+    - "client_disconnect"
+    - "feature_transfer"
+    - "gradient_return"
+
+# 数据序列化配置
+data_serializer:
+  # 压缩级别 (0-9)，0为不压缩，9为最大压缩
+  compression_level: 6
+  
+  # 是否启用数据完整性检查
+  enable_checksum: true
+
+# 连接池配置
+connection_pool:
+  # 连接清理间隔（秒）
+  cleanup_interval: 60.0
+  
+  # 连接超时时间（秒）
+  connection_timeout: 300.0
+  
+  # 心跳检测间隔（秒）
+  heartbeat_interval: 30.0
+
+# 服务器配置
+server:
+  # 服务器监听地址
+  host: "0.0.0.0"
+  
+  # 服务器监听端口
+  port: 8080
+  
+  # 是否启用多线程处理
+  enable_multithreading: true
+  
+  # 最大并发客户端数
+  max_concurrent_clients: 50
+
+# 客户端配置
+client:
+  # 服务器地址
+  server_host: "127.0.0.1"
+  
+  # 服务器端口
+  server_port: 8080
+  
+  # 自动重连间隔（秒）
+  reconnect_interval: 5.0
+  
+  # 最大重连次数
+  max_reconnect_attempts: 10
+  
+  # 客户端ID前缀
+  client_id_prefix: "fedcl_client"
+
+# 安全配置
+security:
+  # 是否启用消息加密
+  enable_encryption: false
+  
+  # 加密算法
+  encryption_algorithm: "AES-256-GCM"
+  
+  # 是否启用身份验证
+  enable_authentication: false
+  
+  # 认证方式: 'token', 'certificate'
+  authentication_method: "token"
+
+# 性能配置
+performance:
+  # 发送缓冲区大小（字节）
+  send_buffer_size: 65536
+  
+  # 接收缓冲区大小（字节）
+  receive_buffer_size: 65536
+  
+  # 是否启用TCP_NODELAY
+  tcp_nodelay: true
+  
+  # 是否启用SO_KEEPALIVE
+  so_keepalive: true
+
+# 日志配置
+logging:
+  # 是否记录网络通信日志
+  enable_network_logging: true
+  
+  # 是否记录消息详细内容
+  log_message_content: false
+  
+  # 日志级别
+  log_level: "INFO"
