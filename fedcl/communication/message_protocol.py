@@ -56,13 +56,25 @@ class Message:
             str: 消息的MD5校验和
         """
         try:
+            # 处理时间戳字段，确保它有正确的格式
+            if hasattr(self.timestamp, 'isoformat'):
+                # datetime 对象
+                timestamp_str = self.timestamp.isoformat()
+            elif isinstance(self.timestamp, (int, float)):
+                # 数字时间戳，转换为 datetime 再格式化
+                from datetime import datetime
+                timestamp_str = datetime.fromtimestamp(self.timestamp).isoformat()
+            else:
+                # 其他类型，直接转字符串
+                timestamp_str = str(self.timestamp)
+            
             # 创建消息内容的字符串表示（不包括checksum字段）
             content_dict = {
                 'message_id': self.message_id,
                 'message_type': self.message_type,
                 'sender': self.sender,
                 'receiver': self.receiver,
-                'timestamp': self.timestamp.isoformat(),
+                'timestamp': timestamp_str,
                 'metadata': self.metadata
             }
             
@@ -87,7 +99,19 @@ class Message:
         """
         try:
             result = asdict(self)
-            result['timestamp'] = self.timestamp.isoformat()
+            
+            # 处理时间戳字段，确保与 calculate_checksum 方法一致
+            if hasattr(self.timestamp, 'isoformat'):
+                # datetime 对象
+                result['timestamp'] = self.timestamp.isoformat()
+            elif isinstance(self.timestamp, (int, float)):
+                # 数字时间戳，转换为 datetime 再格式化
+                from datetime import datetime
+                result['timestamp'] = datetime.fromtimestamp(self.timestamp).isoformat()
+            else:
+                # 其他类型，直接转字符串
+                result['timestamp'] = str(self.timestamp)
+                
             return result
         except Exception as e:
             logger.error(f"Failed to convert message to dict: {e}")

@@ -49,7 +49,7 @@ class SecurityModule:
         self._master_key: Optional[bytes] = None
         self._signing_key: Optional[bytes] = None
         
-        logger.info(f"SecurityModule initialized with {self.encryption_algorithm} encryption")
+        logger.debug(f"SecurityModule initialized with {self.encryption_algorithm} encryption")
     
     def encrypt_data(self, data: bytes, key: Optional[bytes] = None) -> bytes:
         """
@@ -188,7 +188,7 @@ class SecurityModule:
             # 比较签名
             is_valid = hmac.compare_digest(signature, expected_signature)
             
-            logger.debug(f"Signature verification: {'successful' if is_valid else 'failed'}")
+            logger.debug(f"Signature verification: {'successful' if is_valid else '失败'}")
             return is_valid
             
         except Exception as e:

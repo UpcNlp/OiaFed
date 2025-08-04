@@ -49,7 +49,7 @@ class HeartbeatMonitor:
             self.running = True
             self.thread = threading.Thread(target=self._monitor_loop, daemon=True)
             self.thread.start()
-            logger.info(f"Heartbeat monitor started with interval {self.interval}s")
+            logger.debug(f"Heartbeat monitor started with interval {self.interval}s")
     
     def stop(self) -> None:
         """停止心跳监控"""
@@ -59,7 +59,7 @@ class HeartbeatMonitor:
                 self.thread.join(timeout=2.0)
                 if self.thread.is_alive():
                     logger.warning("Heartbeat monitor thread did not stop gracefully")
-            logger.info("Heartbeat monitor stopped")
+            logger.debug("Heartbeat monitor 已停止")
     
     def _monitor_loop(self) -> None:
         """监控循环"""
@@ -123,7 +123,7 @@ class CommunicationManager:
         self._pending_updates: Dict[str, List[Dict[str, torch.Tensor]]] = {}
         self._update_lock = threading.Lock()
         
-        logger.info(f"CommunicationManager initialized on {self.host}:{self.port}")
+        logger.debug(f"CommunicationManager initialized on {self.host}:{self.port}")
     
     def send_data(self, source: str, target: str, data: Any, data_type: str) -> None:
         """
@@ -238,7 +238,7 @@ class CommunicationManager:
             results = self.handler.broadcast_message(message, targets)
             
             successful_count = sum(1 for success in results.values() if success)
-            logger.info(f"Model broadcast completed: {successful_count}/{len(targets)} successful")
+            logger.debug(f"Model broadcast completed: {successful_count}/{len(targets)} successful")
             
             return results
             
@@ -311,7 +311,7 @@ class CommunicationManager:
                     status="active"
                 )
             
-            logger.info(f"Connection established with client {client_id} at {address}")
+            logger.debug(f"Connection established with client {client_id} at {address}")
             return True
             
         except Exception as e:
@@ -479,7 +479,7 @@ class CommunicationManager:
         with self._client_lock:
             client_ids = list(self._clients.keys())
             if client_ids:
-                logger.info(f"Disconnecting {len(client_ids)} clients")
+                logger.info(f"Disconnecting {len(client_ids)} 客户端")
             # 在锁内标记所有客户端为断开状态
             for client_id in client_ids:
                 if client_id in self._clients:
@@ -511,4 +511,135 @@ class CommunicationManager:
         except Exception as e:
             logger.error(f"Error shutting down executor: {e}")
         
-        logger.info("CommunicationManager shutdown completed")
+        logger.info("CommunicationManager shutdown 完成")
+
+
+class SimpleCommunicationManager:
+    """
+    简化的通信管理器
+    
+    用于同进程内的客户端-服务器通信，支持实际的消息传递
+    """
+    
+    # 全局消息中心，用于不同实例间的通信
+    _message_center = {
+        'server_instance': None,
+        'client_instances': {},
+        'server_messages': [],
+        'client_messages': {}
+    }
+    _center_lock = threading.Lock()
+    
+    def __init__(self, config: Optional[DictConfig] = None, role: str = "client", component_id: str = "unknown"):
+        """
+        初始化简化通信管理器
+        
+        Args:
+            config: 通信配置（可选）
+            role: 角色 ("server" 或 "client")
+            component_id: 组件ID
+        """
+        self.config = config or {}
+        self.role = role
+        self.component_id = component_id
+        self.logger = logger.bind(component=f"SimpleCommunicationManager[{role}:{component_id}]")
+        self.message_handlers = {}
+        
+        # 注册到全局消息中心
+        with self._center_lock:
+            if role == "server":
+                self._message_center['server_instance'] = self
+                self._message_center['server_messages'] = []
+            else:
+                self._message_center['client_instances'][component_id] = self
+                self._message_center['client_messages'][component_id] = []
+        
+        self.logger.debug(f"SimpleCommunicationManager initialized: {role}:{component_id}")
+    
+    def register_message_handler(self, message_type: str, handler):
+        """注册消息处理器"""
+        self.message_handlers[message_type] = handler
+        self.logger.debug(f"Registered handler for message type: {message_type}")
+    
+    def send_message_to_server(self, message: Dict[str, Any]):
+        """发送消息到服务端"""
+        with self._center_lock:
+            server_instance = self._message_center['server_instance']
+            if server_instance:
+                # 添加到服务器消息队列
+                self._message_center['server_messages'].append(message)
+                # 记录详细日志
+                msg_type = message.get('type', 'unknown')
+                sender = message.get('sender', 'unknown')
+                self.logger.debug(f"Message sent to server: type='{msg_type}', sender='{sender}', full_message={message}")
+                # 立即处理消息
+                server_instance._handle_received_message(message)
+            else:
+                self.logger.warning("No server instance available")
+    
+    def send_message_to_client(self, client_id: str, message: Dict[str, Any]):
+        """发送消息到指定客户端"""
+        with self._center_lock:
+            client_instance = self._message_center['client_instances'].get(client_id)
+            if client_instance:
+                # 添加到客户端消息队列
+                if client_id not in self._message_center['client_messages']:
+                    self._message_center['client_messages'][client_id] = []
+                self._message_center['client_messages'][client_id].append(message)
+                # 立即处理消息
+                client_instance._handle_received_message(message)
+                self.logger.debug(f"Message sent to client {client_id}: {message.get('type', 'unknown')}")
+            else:
+                self.logger.warning(f"Client {client_id} not found")
+    
+    def broadcast_to_clients(self, message: Dict[str, Any]):
+        """广播消息到所有客户端"""
+        with self._center_lock:
+            for client_id in self._message_center['client_instances']:
+                self.send_message_to_client(client_id, message)
+    
+    def _handle_received_message(self, message: Dict[str, Any]):
+        """处理接收到的消息"""
+        message_type = message.get('type', 'unknown')
+        
+        # 查找对应的处理器
+        handler = self.message_handlers.get(message_type)
+        if handler:
+            try:
+                # 调用处理器
+                if callable(handler):
+                    handler(message)
+                else:
+                    self.logger.warning(f"Handler for {message_type} is not callable")
+            except Exception as e:
+                self.logger.error(f"Error handling message {message_type}: {e}")
+        else:
+            self.logger.debug(f"No handler found for message type: {message_type}")
+    
+    def get_server_messages(self) -> List[Dict[str, Any]]:
+        """获取服务端收到的消息"""
+        with self._center_lock:
+            return self._message_center['server_messages'].copy()
+    
+    def get_client_messages(self, client_id: str) -> List[Dict[str, Any]]:
+        """获取指定客户端收到的消息"""
+        with self._center_lock:
+            return self._message_center['client_messages'].get(client_id, []).copy()
+    
+    def clear_messages(self):
+        """清空所有消息"""
+        with self._center_lock:
+            self._message_center['server_messages'].clear()
+            for client_id in self._message_center['client_messages']:
+                self._message_center['client_messages'][client_id].clear()
+    
+    @classmethod
+    def reset_message_center(cls):
+        """重置消息中心（用于测试）"""
+        with cls._center_lock:
+            cls._message_center = {
+                'server_instance': None,
+                'client_instances': {},
+                'server_messages': [],
+                'client_messages': {}
+            }

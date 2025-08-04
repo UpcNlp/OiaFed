@@ -18,13 +18,15 @@ from .component_registry import ComponentRegistry
 from ..config.config_manager import DictConfig
 from ..config.schema_validator import ValidationResult, ValidationError
 from ..core.execution_context import ExecutionContext
-from ..core.exceptions import (
+from ..exceptions import (
     FedCLError, ConfigurationError, ResourceError
 )
 from ..core.base_learner import BaseLearner
 from ..core.base_aggregator import BaseAggregator
 from ..core.base_evaluator import BaseEvaluator
 from ..core.hook import Hook
+from ..implementations.factory import ModelFactory
+
 
 logger = logger
 
@@ -172,13 +174,13 @@ class ComponentComposer:
         self._instance_cache: Dict[str, Any] = {}
         self._dependency_graph: Dict[str, List[str]] = defaultdict(list)
         self._creation_order: List[str] = []
-        self._component_specs: Dict[str, ComponentSpec] = {}
+        self._component_specs: Dict[str, 'ComponentSpec'] = {}
         
         # 线程安全锁
         self._lock = RLock()
         self._cache_lock = Lock()
         
-        logger.info("ComponentComposer initialized")
+        logger.debug("ComponentComposer initialized")
     
     def compose_experiment(self, config: DictConfig, context: ExecutionContext) -> ExperimentComponents:
         """
@@ -196,7 +198,7 @@ class ComponentComposer:
         """
         with self._lock:
             try:
-                logger.info("Starting experiment composition")
+                logger.debug("Starting experiment composition")
                 
                 # 清理缓存
                 self._instance_cache.clear()
@@ -204,36 +206,88 @@ class ComponentComposer:
                 self._creation_order.clear()
                 self._component_specs.clear()
                 
-                # 解析配置创建组件规格
-                specs = self._parse_component_specs(config)
+                # 创建组件集合
+                components = ExperimentComponents(context=context)
                 
-                # 构建依赖图
-                self._build_dependency_graph(specs)
+                # 1. 首先创建辅助组件（在核心组件之前）
+                self._create_auxiliary_components(components, context)
                 
-                # 检查循环依赖
-                self._check_circular_dependencies()
-                
-                # 确定创建顺序
-                self._determine_creation_order()
-                
-                # 创建组件
-                components = self._create_components(context)
+                # 2. 创建核心组件
+                self._create_core_components(components, context)
                 
                 # 验证组件完整性
                 if not components.validate():
                     raise ComponentCompositionError("Component composition validation failed")
                 
-                logger.info("Experiment composition completed successfully")
+                logger.debug("Experiment composition 成功完成")
                 return components
                 
             except Exception as e:
                 logger.error(f"Experiment composition failed: {e}")
                 raise ComponentCompositionError(f"Failed to compose experiment: {str(e)}") from e
+    def _create_core_components(self, components: ExperimentComponents, 
+                              context: ExecutionContext) -> None:
+        """
+        创建核心组件
+        
+        包括learner、aggregator和evaluator。这些组件在辅助组件之后创建，
+        可以使用已创建的辅助组件。
+        
+        Args:
+            components: 实验组件集合
+            context: 执行上下文
+        """
+        # 创建learner
+        components.learner = self.create_learner(context.config, context)
+        
+        # 创建aggregator
+        components.aggregator = self.create_aggregator(context.config, context)
+        
+        # 创建evaluator
+        components.evaluator = self.create_evaluator(context.config, context)
+
+    
+    
+    def _create_auxiliary_components(self, components: ExperimentComponents, 
+                                   context: ExecutionContext) -> None:
+        """
+        创建辅助组件
+        
+        包括辅助模型、损失函数和钩子函数。这些组件需要在核心组件之前创建，
+        因为核心组件可能依赖这些辅助组件。
+        
+        Args:
+            components: 实验组件集合
+            context: 执行上下文
+        """
+        # 1. 创建辅助模型
+        aux_model_configs = context.config.get('auxiliary_models', {})
+        if aux_model_configs:
+            auxiliary_models = self.create_auxiliary_models(aux_model_configs, context)
+            components.auxiliary_models = auxiliary_models
+            # 将辅助模型注册到上下文中，供其他组件使用
+            context.set_state('auxiliary_models', auxiliary_models)
+            logger.debug(f"Created {len(auxiliary_models)} auxiliary models")
+        
+        # 2. 创建损失函数
+        loss_configs = context.config.get('loss_functions', {})
+        if loss_configs:
+            loss_functions = self.prepare_loss_functions(loss_configs)
+            components.loss_functions = loss_functions
+            context.set_state('loss_functions', loss_functions)
+            logger.debug(f"Created {len(loss_functions)} loss functions")
+        
+        # 3. 创建钩子函数
+        hooks = self.create_hooks(context.config, context)
+        components.hooks = hooks
+        logger.debug(f"Created hooks for {len(hooks)} phases")
     
     def create_auxiliary_models(self, model_configs: Dict[str, Dict], 
                                context: ExecutionContext) -> Dict[str, Any]:
         """
-        创建辅助模型
+        创建辅助模型 - 简化版本
+        
+        只通过registry创建模型，移除ModelFactory的复杂性。
         
         Args:
             model_configs: 模型配置字典
@@ -246,7 +300,7 @@ class ComponentComposer:
         
         for model_name, model_config in model_configs.items():
             try:
-                # 获取模型类
+                # 通过registry创建模型
                 model_class_name = model_config.get('class', model_name)
                 model_class = self.registry.get_component('auxiliary_model', model_class_name)
                 
@@ -260,13 +314,17 @@ class ComponentComposer:
                 # 注册到上下文
                 context.register_auxiliary_model(model_name, model_instance)
                 
-                logger.info(f"Created auxiliary model: {model_name}")
+                logger.debug(f"Created auxiliary model: {model_name}")
                 
             except Exception as e:
                 logger.error(f"Failed to create auxiliary model {model_name}: {e}")
-                raise ComponentCreationError(f"Failed to create auxiliary model {model_name}: {str(e)}") from e
+                raise ComponentCreationError(
+                    f"Failed to create auxiliary model {model_name}: {str(e)}"
+                ) from e
         
         return auxiliary_models
+    
+    
     
     def prepare_loss_functions(self, loss_configs: Dict[str, Dict]) -> Dict[str, Any]:
         """
@@ -288,19 +346,23 @@ class ComponentComposer:
                 
                 # 创建损失函数包装器（如果需要配置）
                 if 'params' in loss_config:
-                    loss_functions[loss_name] = self._create_loss_wrapper(loss_function, loss_config['params'])
+                    loss_functions[loss_name] = self._create_loss_wrapper(
+                        loss_function, loss_config['params']
+                    )
                 else:
                     loss_functions[loss_name] = loss_function
                 
-                logger.info(f"Prepared loss function: {loss_name}")
+                logger.debug(f"Prepared loss function: {loss_name}")
                 
             except Exception as e:
                 logger.error(f"Failed to prepare loss function {loss_name}: {e}")
-                raise ComponentCreationError(f"Failed to prepare loss function {loss_name}: {str(e)}") from e
+                raise ComponentCreationError(
+                    f"Failed to prepare loss function {loss_name}: {str(e)}"
+                ) from e
         
         return loss_functions
     
-    def create_learner(self, config: DictConfig, context: ExecutionContext):
+    def create_learner(self, config: DictConfig, context: ExecutionContext) -> Any:
         """
         创建学习器
         
@@ -321,39 +383,71 @@ class ComponentComposer:
             # 获取学习器类
             learner_class = self.registry.get_component('learner', learner_class_name)
             
-            # 准备初始化参数
-            init_kwargs = self._prepare_init_kwargs(learner_config, context, 'learner')
+            # 准备初始化参数（支持新的模型初始化方式）
+            init_kwargs = self._prepare_learner_init_kwargs(learner_config, context)
             
             # 创建学习器实例
             learner = learner_class(**init_kwargs)
             
-            logger.info(f"Created learner: {learner_class_name}")
+            logger.debug(f"Created learner: {learner_class_name}")
             return learner
             
         except Exception as e:
             logger.error(f"Failed to create learner: {e}")
             raise ComponentCreationError(f"Failed to create learner: {str(e)}") from e
     
-    def create_aggregator(self, config: DictConfig, context: ExecutionContext):
+    def _prepare_learner_init_kwargs(self, config: Dict, context: ExecutionContext) -> Dict[str, Any]:
+        """
+        为learner准备初始化参数
+        
+        支持新的模型初始化方式，传入auxiliary_models等参数。
+        
+        Args:
+            config: learner配置
+            context: 执行上下文
+            
+        Returns:
+            初始化参数字典
+        """
+        init_kwargs = {
+            'context': context,
+            'config': DictConfig(config)
+        }
+        
+        # 传入辅助模型（用于模型初始化）
+        auxiliary_models = context.get_state('auxiliary_models') or {}
+        if auxiliary_models:
+            init_kwargs['auxiliary_models'] = auxiliary_models
+            logger.debug(f"Passing {len(auxiliary_models)} auxiliary models to learner")
+        
+        # 传入损失函数（如果有）
+        loss_functions = context.get_state('loss_functions') or {}
+        if loss_functions:
+            init_kwargs['loss_functions'] = loss_functions
+            logger.debug(f"Passing {len(loss_functions)} loss functions to learner")
+        
+        return init_kwargs
+    
+    def create_aggregator(self, config: DictConfig, context: ExecutionContext) -> Any:
         """创建聚合器"""
         try:
             aggregator_config = config.get('aggregator', {})
             aggregator_class_name = aggregator_config.get('class')
             
             if not aggregator_class_name:
-                raise ComponentCreationError("Aggregator class not specified in config")
+                raise ComponentCreationError("聚合器 class not specified in config")
             
             aggregator_class = self.registry.get_component('aggregator', aggregator_class_name)
             init_kwargs = self._prepare_init_kwargs(aggregator_config, context, 'aggregator')
             aggregator = aggregator_class(**init_kwargs)
             
-            logger.info(f"Created aggregator: {aggregator_class_name}")
+            logger.debug(f"Created aggregator: {aggregator_class_name}")
             return aggregator
             
         except Exception as e:
             raise ComponentCreationError(f"Failed to create aggregator: {str(e)}") from e
     
-    def create_evaluator(self, config: DictConfig, context: ExecutionContext):
+    def create_evaluator(self, config: DictConfig, context: ExecutionContext) -> Any:
         """创建评估器"""
         try:
             evaluator_config = config.get('evaluator', {})
@@ -366,12 +460,12 @@ class ComponentComposer:
             init_kwargs = self._prepare_init_kwargs(evaluator_config, context, 'evaluator')
             evaluator = evaluator_class(**init_kwargs)
             
-            logger.info(f"Created evaluator: {evaluator_class_name}")
+            logger.debug(f"Created evaluator: {evaluator_class_name}")
             return evaluator
             
         except Exception as e:
             raise ComponentCreationError(f"Failed to create evaluator: {str(e)}") from e
-    
+        
     def create_hooks(self, config: DictConfig, context: ExecutionContext) -> Dict[str, List[Any]]:
         """
         创建钩子函数
@@ -392,12 +486,22 @@ class ComponentComposer:
                     hook_class = hook_info['class']
                     priority = hook_info['priority']
                     
-                    # 检查配置中是否有特定的钩子配置
-                    hook_config = config.get('hooks', {}).get(hook_class.__name__, {})
+                    # 构建默认配置
+                    hook_config = {
+                        'phase': phase,
+                        'priority': priority,
+                        'enabled': False,  # 默认不启用
+                        'name': hook_info.get('name', hook_class.__name__),
+                        'class_name': hook_class.__name__
+                    }
+                    
+                    # 检查用户配置中是否有特定的钩子配置
+                    user_config = config.get('hooks', {}).get(hook_class.__name__, {})
+                    hook_config.update(user_config)
                     
                     # 如果钩子被禁用，跳过
-                    if not hook_config.get('enabled', True):
-                        logger.info(f"Hook {hook_class.__name__} disabled in config")
+                    if not hook_config.get('enabled', False):
+                        logger.debug(f"Hook {hook_class.__name__} disabled in config")
                         continue
                     
                     # 准备初始化参数
@@ -432,14 +536,21 @@ class ComponentComposer:
         for component_type in ['learner', 'aggregator', 'evaluator']:
             comp_config = config.get(component_type, {})
             if comp_config:
-                class_name = comp_config.get('class')
+                if isinstance(comp_config, dict):
+                    class_name = comp_config.get('class')  
+                    dependencies = comp_config.get('dependencies', [])
+                    comp_config_ = comp_config
+                else:
+                    class_name = comp_config
+                    dependencies = []  
+                    comp_config_ = {} 
                 if class_name:
                     spec = ComponentSpec(
                         name=component_type,
                         component_type=component_type,
                         class_name=class_name,
-                        config=comp_config,
-                        dependencies=comp_config.get('dependencies', [])
+                        config=comp_config_,
+                        dependencies=dependencies
                     )
                     specs[component_type] = spec
         
@@ -532,10 +643,13 @@ class ComponentComposer:
         self._creation_order = order
     
     def _create_components(self, context: ExecutionContext) -> ExperimentComponents:
-        """创建组件"""
+        """创建组件 - 修复版本"""
         components = ExperimentComponents(context=context)
         
-        # 按顺序创建组件
+        # 重要：首先创建辅助组件（包括模型）
+        self._create_additional_components(components, context)
+        
+        # 然后按顺序创建核心组件（它们可能依赖辅助模型）
         for spec_name in self._creation_order:
             spec = self._component_specs[spec_name]
             
@@ -550,14 +664,12 @@ class ComponentComposer:
                 logger.error(f"Failed to create component {spec_name}: {e}")
                 raise ComponentCreationError(f"Failed to create component {spec_name}: {str(e)}") from e
         
-        # 创建其他类型的组件
-        self._create_additional_components(components, context)
-        
         return components
     
     def _create_component_instance(self, spec: ComponentSpec, context: ExecutionContext) -> Any:
         """创建组件实例"""
         try:
+            print(spec)
             # 获取组件类
             component_class = self.registry.get_component(spec.component_type, spec.class_name)
             
@@ -570,34 +682,65 @@ class ComponentComposer:
             # 创建实例
             instance = component_class(**init_kwargs)
             
-            logger.info(f"Created component: {spec.name} ({spec.class_name})")
+            logger.debug(f"Created component: {spec.name} ({spec.class_name})")
             return instance
             
         except Exception as e:
             raise ComponentCreationError(f"Failed to create {spec.name}: {str(e)}") from e
     
+    def _find_hook_info(self, hook_class_name: str, config: Dict) -> Optional[Dict]:
+        """查找hook信息"""
+        try:
+            # 方案1: 如果配置中指定了phase
+            specified_phase = config.get('phase')
+            if specified_phase:
+                for hook_info in self.registry._hooks.get(specified_phase, []):
+                    if hook_info['class'].__name__ == hook_class_name:
+                        return hook_info
+            
+            # 方案2: 如果没有指定phase，查找第一个匹配的
+            for phase, hook_list in self.registry._hooks.items():
+                for hook_info in hook_list:
+                    if hook_info['class'].__name__ == hook_class_name:
+                        return hook_info
+            
+            return None
+        except Exception as e:
+            logger.error(f"Failed to find hook info for {hook_class_name}: {e}")
+            return None
+    
     def _prepare_init_kwargs(self, config: Dict, context: ExecutionContext, 
                            component_type: str) -> Dict[str, Any]:
-        """准备初始化参数"""
+        """
+        准备初始化参数
+        
+        Args:
+            config: 组件配置
+            context: 执行上下文
+            component_type: 组件类型
+            
+        Returns:
+            初始化参数字典
+        """
         init_kwargs = {}
         
-        # 根据FedCL框架的标准，核心组件使用(context, config)参数模式
+        # 根据组件类型准备不同的参数
         if component_type in ['learner', 'aggregator', 'evaluator']:
-            # 对于核心组件，直接传递context和config
+            # 对于核心组件，传递context和config
             init_kwargs = {
                 'context': context,
-                'config': DictConfig(config)  # 确保config是DictConfig类型
+                'config': DictConfig(config)
             }
         elif component_type == 'hook':
-            # 钩子函数通常接受config和context参数，但顺序可能不同
-            init_kwargs.update(config.get('params', {}))
-            init_kwargs['config'] = config
-            init_kwargs['context'] = context
+            init_kwargs.update({
+                'phase': config.get('phase', 'default'),
+                'priority': config.get('priority', 0),
+                'enabled': config.get('enabled', False),
+                'name': config.get('name', 'None')
+            })
         else:
-            # 对于其他组件（auxiliary_models等），只传递直接配置参数
+            # 对于其他组件（auxiliary_models等），传递直接配置参数
             init_kwargs.update(config.get('params', {}))
-            
-            # 传递配置对象，但不传递context（除非组件明确需要）
             init_kwargs['config'] = config
         
         return init_kwargs
@@ -630,18 +773,35 @@ class ComponentComposer:
     def _create_additional_components(self, components: ExperimentComponents, 
                                     context: ExecutionContext):
         """创建其他类型的组件"""
-        # 创建钩子函数
+        # 1. 首先创建辅助模型（在其他组件之前）
+        aux_model_configs = context.config.get('auxiliary_models', {})
+        if aux_model_configs:
+            auxiliary_models = self.create_auxiliary_models(aux_model_configs, context)
+            components.auxiliary_models = auxiliary_models
+            # 重要：将辅助模型注册到上下文中，供其他组件使用
+            context.set_state('auxiliary_models', auxiliary_models)
+        
+        # 2. 创建钩子函数
         hooks = self.create_hooks(context.config, context)
         components.hooks = hooks
         
-        # 创建损失函数
+        # 3. 创建损失函数
         loss_configs = context.config.get('loss_functions', {})
         if loss_configs:
             loss_functions = self.prepare_loss_functions(loss_configs)
             components.loss_functions = loss_functions
     
     def _create_loss_wrapper(self, loss_function: callable, params: Dict) -> callable:
-        """创建损失函数包装器"""
+        """
+        创建损失函数包装器
+        
+        Args:
+            loss_function: 原始损失函数
+            params: 参数字典
+            
+        Returns:
+            包装后的损失函数
+        """
         def wrapped_loss(*args, **kwargs):
             # 合并参数
             merged_kwargs = {**params, **kwargs}
@@ -653,215 +813,14 @@ class ComponentComposer:
         """获取缓存的实例"""
         return self._instance_cache.get(component_name)
     
-    def clear_cache(self):
+    def clear_cache(self) -> None:
         """清理缓存"""
         self._instance_cache.clear()
         self._dependency_graph.clear()
         self._creation_order.clear()
         self._component_specs.clear()
         
-        logger.info("Component composer cache cleared")
-    
-    def resolve_dependencies(self, components: List[str]) -> List[str]:
-        """
-        解析组件依赖顺序
-        
-        Args:
-            components: 组件名称列表
-            
-        Returns:
-            按依赖顺序排列的组件列表
-            
-        Raises:
-            DependencyResolutionError: 依赖解析失败
-        """
-        try:
-            # 构建子图，只包含指定的组件
-            subgraph = {}
-            for component in components:
-                if component in self._component_specs:
-                    spec = self._component_specs[component]
-                    # 只包含在components列表中的依赖
-                    filtered_deps = [dep for dep in spec.dependencies if dep in components]
-                    subgraph[component] = filtered_deps
-                else:
-                    # 如果组件不在规格中，假设它没有依赖
-                    subgraph[component] = []
-            
-            # 执行拓扑排序
-            in_degree = {comp: 0 for comp in components}
-            for comp in subgraph:
-                for dep in subgraph[comp]:
-                    if dep in in_degree:
-                        in_degree[comp] += 1
-            
-            queue = deque([comp for comp in components if in_degree[comp] == 0])
-            resolved_order = []
-            
-            while queue:
-                current = queue.popleft()
-                resolved_order.append(current)
-                
-                # 减少依赖当前组件的其他组件的入度
-                for comp in subgraph:
-                    if current in subgraph[comp]:
-                        in_degree[comp] -= 1
-                        if in_degree[comp] == 0:
-                            queue.append(comp)
-            
-            if len(resolved_order) != len(components):
-                missing = set(components) - set(resolved_order)
-                raise DependencyResolutionError(f"Circular dependency detected among: {missing}")
-            
-            return resolved_order
-            
-        except Exception as e:
-            logger.error(f"Failed to resolve dependencies for components {components}: {e}")
-            raise DependencyResolutionError(f"Failed to resolve dependencies: {str(e)}") from e
-    
-    def validate_configuration(self, config: DictConfig) -> ValidationResult:
-        """
-        验证组件配置
-        
-        Args:
-            config: 配置对象
-            
-        Returns:
-            验证结果
-        """
-        errors = []
-        warnings = []
-        
-        try:
-            # 检查必需的核心组件
-            required_components = ['learner', 'aggregator', 'evaluator']
-            for comp_type in required_components:
-                comp_config = config.get(comp_type)
-                if not comp_config:
-                    errors.append(ValidationError(
-                        field=comp_type,
-                        message=f"Required component {comp_type} not found in config",
-                        value=None
-                    ))
-                    continue
-                
-                # 检查组件类是否指定
-                class_name = comp_config.get('class')
-                if not class_name:
-                    errors.append(ValidationError(
-                        field=f"{comp_type}.class",
-                        message=f"Component class not specified for {comp_type}",
-                        value=comp_config
-                    ))
-                    continue
-                
-                # 验证组件是否已注册
-                try:
-                    component_class = self.registry.get_component(comp_type, class_name)
-                    if not component_class:
-                        errors.append(ValidationError(
-                            field=f"{comp_type}.class",
-                            message=f"Component {class_name} not found in registry",
-                            value=class_name
-                        ))
-                except Exception as e:
-                    errors.append(ValidationError(
-                        field=f"{comp_type}.class",
-                        message=f"Failed to validate component {class_name}: {str(e)}",
-                        value=class_name
-                    ))
-            
-            # 验证辅助模型配置
-            aux_models = config.get('auxiliary_models', {})
-            for model_name, model_config in aux_models.items():
-                class_name = model_config.get('class', model_name)
-                try:
-                    model_class = self.registry.get_component('auxiliary_model', class_name)
-                    if not model_class:
-                        warnings.append(ValidationError(
-                            field=f"auxiliary_models.{model_name}",
-                            message=f"Auxiliary model {class_name} not found in registry",
-                            value=class_name
-                        ))
-                except Exception:
-                    warnings.append(ValidationError(
-                        field=f"auxiliary_models.{model_name}",
-                        message=f"Failed to validate auxiliary model {class_name}",
-                        value=class_name
-                    ))
-            
-            # 验证损失函数配置
-            loss_functions = config.get('loss_functions', {})
-            for loss_name, loss_config in loss_functions.items():
-                func_name = loss_config.get('function', loss_name)
-                try:
-                    loss_func = self.registry.get_component('loss_function', func_name)
-                    if not loss_func:
-                        warnings.append(ValidationError(
-                            field=f"loss_functions.{loss_name}",
-                            message=f"Loss function {func_name} not found in registry",
-                            value=func_name
-                        ))
-                except Exception:
-                    warnings.append(ValidationError(
-                        field=f"loss_functions.{loss_name}",
-                        message=f"Failed to validate loss function {func_name}",
-                        value=func_name
-                    ))
-            
-            return ValidationResult(
-                is_valid=len(errors) == 0,
-                errors=errors,
-                warnings=warnings
-            )
-            
-        except Exception as e:
-            logger.error(f"Configuration validation failed: {e}")
-            return ValidationResult(
-                is_valid=False,
-                errors=[ValidationError(
-                    field="config",
-                    message=f"Validation failed: {str(e)}",
-                    value=config
-                )],
-                warnings=warnings
-            )
-    
-    def get_instance_cache(self) -> Dict[str, Any]:
-        """
-        获取实例缓存
-        
-        Returns:
-            实例缓存字典的副本
-        """
-        with self._cache_lock:
-            return self._instance_cache.copy()
-    
-    def clear_instance_cache(self) -> None:
-        """
-        清理实例缓存
-        """
-        with self._cache_lock:
-            self._instance_cache.clear()
-            logger.info("Instance cache cleared")
-    
-    def register_instance(self, name: str, instance: Any) -> None:
-        """
-        注册实例到缓存
-        
-        Args:
-            name: 实例名称
-            instance: 实例对象
-            
-        Raises:
-            ValueError: 名称为空时抛出
-        """
-        if not name:
-            raise ValueError("Instance name cannot be empty")
-        
-        with self._cache_lock:
-            self._instance_cache[name] = instance
-            logger.debug(f"Registered instance: {name} ({type(instance).__name__})")
+        logger.debug("Component composer cache cleared")
     
     def get_composition_stats(self) -> Dict:
         """获取组合统计信息"""

@@ -21,7 +21,7 @@ from torchvision.transforms import functional as TF
 from loguru import logger
 
 from ..config.config_manager import DictConfig
-from ..core.exceptions import FedCLError
+from ..exceptions import FedCLError
 from .dataset import Dataset, DatasetError, DatasetValidationError
 from .split_strategy import SplitStrategy, IIDSplitStrategy, NonIIDSplitStrategy
 
@@ -92,7 +92,7 @@ class DataProcessor:
         self._transform_cache: Dict[str, Any] = {}
         self._stats_cache: Dict[str, Dict[str, Any]] = {}
         
-        logger.info(f"DataProcessor initialized with {len(self.transforms)} transforms "
+        logger.debug(f"DataProcessor initialized with {len(self.transforms)} transforms "
                    f"and {len(self.augmentations)} augmentations")
     
     def _validate_config(self) -> None:
@@ -208,7 +208,7 @@ class DataProcessor:
             DataProcessorError: 预处理失败时抛出
         """
         try:
-            logger.info(f"Preprocessing dataset: {getattr(raw_data, 'name', 'Unknown')}")
+            logger.debug(f"Preprocessing dataset: {getattr(raw_data, 'name', 'Unknown')}")
             
             # 验证输入数据
             if not isinstance(raw_data, Dataset):
@@ -230,7 +230,7 @@ class DataProcessor:
                 transform=raw_data.transform
             )
             
-            logger.info(f"Preprocessing completed for dataset: {raw_data.name}")
+            logger.debug(f"Preprocessing completed for dataset: {raw_data.name}")
             return processed_dataset
             
         except Exception as e:
@@ -380,13 +380,13 @@ class DataProcessor:
             DataProcessorError: 分割失败时抛出
         """
         try:
-            logger.info(f"Splitting dataset {dataset.name} for {num_clients} clients using {strategy} strategy")
+            logger.debug(f"Splitting dataset {dataset.name} for {num_clients} clients using {strategy} strategy")
             
             if num_clients <= 0:
                 raise DataProcessorError("Number of clients must be positive")
             
             if len(dataset) < num_clients:
-                raise DataProcessorError("Dataset size must be >= number of clients")
+                raise DataProcessorError("Dataset size must be >= number of 客户端")
             
             # 选择分割策略
             if strategy.lower() == "iid":
@@ -410,7 +410,7 @@ class DataProcessor:
             # 执行分割
             client_datasets = split_strategy.split_data(dataset, num_clients)
             
-            logger.info(f"Successfully split dataset into {len(client_datasets)} client datasets")
+            logger.debug(f"Successfully split dataset into {len(client_datasets)} client datasets")
             return client_datasets
             
         except Exception as e:
@@ -431,7 +431,7 @@ class DataProcessor:
             DataProcessorError: 平衡失败时抛出
         """
         try:
-            logger.info(f"Balancing data for {len(client_datasets)} clients")
+            logger.debug(f"Balancing data for {len(client_datasets)} 客户端")
             
             if not client_datasets:
                 logger.warning("No client datasets provided for balancing")
@@ -460,7 +460,7 @@ class DataProcessor:
                     
                 logger.debug(f"Client {client_id}: {len(balanced_datasets[client_id])} samples")
             
-            logger.info("Data balancing completed")
+            logger.debug("Data balancing 完成")
             return balanced_datasets
             
         except Exception as e:
@@ -485,7 +485,7 @@ class DataProcessor:
             logger.debug(f"Augmenting dataset: {dataset.name}")
             
             if not augmentation_config.get('enable', False):
-                logger.info("Data augmentation disabled")
+                logger.debug("Data augmentation disabled")
                 return dataset
             
             # 创建增强函数
@@ -537,7 +537,7 @@ class DataProcessor:
                 transform=dataset.transform
             )
             
-            logger.info(f"Data augmentation completed: {len(dataset)} -> {len(augmented_dataset)} samples")
+            logger.debug(f"Data augmentation completed: {len(dataset)} -> {len(augmented_dataset)} samples")
             return augmented_dataset
             
         except Exception as e:
@@ -611,7 +611,7 @@ class DataProcessor:
                 transform=dataset.transform
             )
             
-            logger.info(f"Data normalization completed using {method} method")
+            logger.debug(f"Data normalization completed using {method} method")
             return normalized_dataset
             
         except Exception as e:
@@ -711,7 +711,7 @@ class DataProcessor:
                 validation_results['errors'].append("Targets should be 1-dimensional")
                 validation_results['passed'] = False
             
-            logger.info(f"Data quality validation completed for {dataset.name}: "
+            logger.debug(f"Data quality validation completed for {dataset.name}: "
                        f"{'PASSED' if validation_results['passed'] else 'FAILED'}")
             
             return validation_results
@@ -800,7 +800,7 @@ class DataProcessor:
             # 缓存结果
             self._stats_cache[cache_key] = stats
             
-            logger.info(f"Statistics computed for {dataset.name}: "
+            logger.debug(f"Statistics computed for {dataset.name}: "
                        f"{stats['total_samples']} samples, "
                        f"{stats['target_stats']['num_classes']} classes")
             

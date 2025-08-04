@@ -20,7 +20,7 @@ from loguru import logger
 from ..config.config_manager import DictConfig
 from ..config.exceptions import ConfigValidationError
 from .dataset import Dataset
-from ..core.exceptions import FedCLError
+from ..exceptions import FedCLError
 
 
 class SplitStrategyError(FedCLError):
@@ -47,7 +47,7 @@ class SplitStatistics:
         """转换为字典格式"""
         return {
             'total_samples': self.total_samples,
-            'num_clients': self.num_clients,
+            'num_客户端': self.num_clients,
             'samples_per_client': self.samples_per_client,
             'class_distribution': self.class_distribution,
             'iid_score': self.iid_score,
@@ -77,7 +77,7 @@ class SplitStrategy(ABC):
         random.seed(self.random_seed)
         np.random.seed(self.random_seed)
         
-        logger.info(f"Initialized {self.__class__.__name__} with seed {self.random_seed}")
+        logger.debug(f"Initialized {self.__class__.__name__} with seed {self.random_seed}")
     
     @abstractmethod
     def split_data(self, dataset: Dataset, num_clients: int) -> Dict[str, Dataset]:
@@ -150,7 +150,7 @@ class SplitStrategy(ABC):
                 balance_score=balance_score
             )
             
-            logger.info(f"Split statistics: IID={iid_score:.3f}, Balance={balance_score:.3f}")
+            logger.debug(f"Split statistics: IID={iid_score:.3f}, Balance={balance_score:.3f}")
             return stats
             
         except Exception as e:
@@ -234,7 +234,7 @@ Std Samples: {np.std(samples):.1f}
             
             if save_path:
                 plt.savefig(save_path, dpi=300, bbox_inches='tight')
-                logger.info(f"Split visualization saved to {save_path}")
+                logger.debug(f"Split visualization saved to {save_path}")
             else:
                 plt.show()
                 
@@ -361,7 +361,7 @@ Std Samples: {np.std(samples):.1f}
                     'statistics': self.get_split_statistics(split_data).to_dict()
                 }, f)
             
-            logger.info(f"Split data saved to {save_path}")
+            logger.debug(f"Split data saved to {save_path}")
             
         except Exception as e:
             logger.error(f"Failed to save split data: {e}")
@@ -412,7 +412,7 @@ class IIDSplitStrategy(SplitStrategy):
         self.stratified = config.get('stratified', True)
         self.shuffle = config.get('shuffle', True)
         
-        logger.info(f"IID strategy initialized: stratified={self.stratified}")
+        logger.debug(f"IID strategy initialized: stratified={self.stratified}")
     
     def split_data(self, dataset: Dataset, num_clients: int) -> Dict[str, Dataset]:
         """
@@ -430,9 +430,9 @@ class IIDSplitStrategy(SplitStrategy):
                 raise ValueError("Number of clients must be positive")
             
             if len(dataset) < num_clients:
-                raise ValueError("Dataset size must be >= number of clients")
+                raise ValueError("Dataset size must be >= number of 客户端")
             
-            logger.info(f"Starting IID split: {len(dataset)} samples -> {num_clients} clients")
+            logger.debug(f"Starting IID split: {len(dataset)} samples -> {num_clients} 客户端")
             
             if self.stratified:
                 return self.stratified_split(dataset, num_clients)
@@ -484,7 +484,7 @@ class IIDSplitStrategy(SplitStrategy):
                 subset = dataset.create_subset(client_indices)
                 split_datasets[client_id] = subset
             
-            logger.info(f"Random split completed: {len(split_datasets)} clients created")
+            logger.debug(f"Random split completed: {len(split_datasets)} clients created")
             return split_datasets
             
         except Exception as e:
@@ -541,7 +541,7 @@ class IIDSplitStrategy(SplitStrategy):
                     subset = dataset.create_subset(indices)
                     split_datasets[client_id] = subset
             
-            logger.info(f"Stratified split completed: {len(split_datasets)} clients created")
+            logger.debug(f"Stratified split completed: {len(split_datasets)} clients created")
             return split_datasets
             
         except Exception as e:
@@ -575,7 +575,7 @@ class IIDSplitStrategy(SplitStrategy):
                 logger.warning(f"IID score {stats.iid_score:.3f} below threshold {iid_threshold}")
                 return False
             
-            logger.info(f"IID validation passed: score={stats.iid_score:.3f}")
+            logger.debug(f"IID validation passed: score={stats.iid_score:.3f}")
             return True
             
         except Exception as e:
@@ -630,7 +630,7 @@ class NonIIDSplitStrategy(SplitStrategy):
         self.shards_per_client = config.get('shards_per_client', 2)
         self.num_classes_per_client = config.get('num_classes_per_client', 2)
         
-        logger.info(f"Non-IID strategy initialized: method={self.method}, alpha={self.alpha}")
+        logger.debug(f"Non-IID strategy initialized: method={self.method}, alpha={self.alpha}")
     
     def split_data(self, dataset: Dataset, num_clients: int) -> Dict[str, Dataset]:
         """
@@ -650,7 +650,7 @@ class NonIIDSplitStrategy(SplitStrategy):
             if len(dataset) < num_clients * self.min_samples_per_client:
                 raise ValueError("Dataset too small for required constraints")
             
-            logger.info(f"Starting Non-IID split: method={self.method}, {len(dataset)} samples -> {num_clients} clients")
+            logger.debug(f"Starting Non-IID split: method={self.method}, {len(dataset)} samples -> {num_clients} 客户端")
             
             if self.method == 'dirichlet':
                 return self.dirichlet_split(dataset, self.alpha, num_clients)
@@ -723,7 +723,7 @@ class NonIIDSplitStrategy(SplitStrategy):
                     subset = dataset.create_subset(indices)
                     split_datasets[f"client_{i}"] = subset
             
-            logger.info(f"Dirichlet split completed: {len(split_datasets)} clients created")
+            logger.debug(f"Dirichlet split completed: {len(split_datasets)} clients created")
             return split_datasets
             
         except Exception as e:
@@ -797,7 +797,7 @@ class NonIIDSplitStrategy(SplitStrategy):
                     subset = dataset.create_subset(indices)
                     split_datasets[f"client_{i}"] = subset
             
-            logger.info(f"Pathological split completed: {len(split_datasets)} clients created")
+            logger.debug(f"Pathological split completed: {len(split_datasets)} clients created")
             return split_datasets
             
         except Exception as e:
@@ -860,7 +860,7 @@ class NonIIDSplitStrategy(SplitStrategy):
                     subset = dataset.create_subset(indices)
                     split_datasets[f"client_{i}"] = subset
             
-            logger.info(f"Label skew split completed: {len(split_datasets)} clients created")
+            logger.debug(f"Label skew split completed: {len(split_datasets)} clients created")
             return split_datasets
             
         except Exception as e:
@@ -914,7 +914,7 @@ class NonIIDSplitStrategy(SplitStrategy):
                 logger.warning(f"Data too IID for Non-IID split: score={stats.iid_score:.3f}")
                 return False
             
-            logger.info(f"Non-IID validation passed: score={stats.iid_score:.3f}")
+            logger.debug(f"Non-IID validation passed: score={stats.iid_score:.3f}")
             return True
             
         except Exception as e:

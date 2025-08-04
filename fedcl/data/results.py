@@ -372,7 +372,7 @@ class ExperimentResults:
                 'num_tasks': len(self.task_results),
                 'num_checkpoints': len(self.checkpoints),
                 'num_artifacts': len(self.artifacts),
-                'status': 'completed' if self.end_time else 'ongoing'
+                'status': '完成' if self.end_time else 'ongoing'
             }
             
             # Task-level statistics
@@ -659,6 +659,679 @@ class ExperimentResults:
     
     def __repr__(self) -> str:
         """String representation of ExperimentResults."""
-        status = "completed" if self.end_time else "ongoing"
+        status = "完成" if self.end_time else "ongoing"
         return (f"ExperimentResults(id='{self.experiment_id}', tasks={len(self.task_results)}, "
                 f"status={status})")
+
+
+@dataclass
+class RoundResults:
+    """
+    Container for results from a single federation round.
+    
+    This class stores all relevant metrics and metadata for a single federation round's
+    training and aggregation results.
+    """
+    round_number: int
+    aggregated_metrics: Dict[str, float] = field(default_factory=dict)
+    participating_clients: List[str] = field(default_factory=list)
+    convergence_metrics: Dict[str, float] = field(default_factory=dict)
+    round_duration: float = 0.0
+    client_updates_received: int = 0
+    client_updates_expected: int = 0
+    client_results: Dict[str, Dict[str, Any]] = field(default_factory=dict)
+    is_successful: bool = True
+    error_message: Optional[str] = None
+    timestamp: datetime = field(default_factory=datetime.now)
+    
+    def get_metric(self, metric_name: str, default: float = 0.0) -> float:
+        """
+        Get a specific aggregated metric.
+        
+        Args:
+            metric_name: Name of the metric
+            default: Default value if metric not found
+            
+        Returns:
+            Metric value
+        """
+        return self.aggregated_metrics.get(metric_name, default)
+    
+    def add_client_result(self, client_id: str, result: Dict[str, Any]) -> None:
+        """
+        Add client result to this round.
+        
+        Args:
+            client_id: ID of the client
+            result: Client training result
+        """
+        self.client_results[client_id] = result
+    
+    def to_dict(self) -> Dict[str, Any]:
+        """Convert to dictionary representation."""
+        return asdict(self)
+
+
+@dataclass  
+class FederationResults:
+    """
+    Container for overall federation learning results.
+    
+    This class stores all relevant metrics and metadata for the entire federation
+    learning process across all rounds.
+    """
+    federation_state: Any  # Should be FederationState enum
+    total_rounds: int
+    best_round: int = 0
+    best_metrics: Dict[str, float] = field(default_factory=dict)
+    final_metrics: Dict[str, float] = field(default_factory=dict)
+    round_results: List[RoundResults] = field(default_factory=list)
+    convergence_achieved: bool = False
+    start_time: Optional[datetime] = None
+    end_time: Optional[datetime] = None
+    
+    def get_best_metric(self, metric_name: str) -> Optional[float]:
+        """
+        Get the best value for a specific metric across all rounds.
+        
+        Args:
+            metric_name: Name of the metric
+            
+        Returns:
+            Best metric value or None if not found
+        """
+        if not self.round_results:
+            return None
+        
+        values = [
+            round_result.aggregated_metrics.get(metric_name)
+            for round_result in self.round_results
+            if metric_name in round_result.aggregated_metrics
+        ]
+        
+        return max(values) if values else None
+    
+    def get_final_metric(self, metric_name: str) -> Optional[float]:
+        """
+        Get the final value for a specific metric.
+        
+        Args:
+            metric_name: Name of the metric
+            
+        Returns:
+            Final metric value or None if not found
+        """
+        return self.final_metrics.get(metric_name)
+    
+    def add_round_result(self, round_result: RoundResults) -> None:
+        """
+        Add a round result to the federation results.
+        
+        Args:
+            round_result: Round result to add
+        """
+        self.round_results.append(round_result)
+        
+        # Update best metrics if this round is better
+        for metric_name, value in round_result.aggregated_metrics.items():
+            if (metric_name not in self.best_metrics or 
+                value > self.best_metrics[metric_name]):
+                self.best_metrics[metric_name] = value
+                if metric_name == "accuracy":  # Primary metric for best round
+                    self.best_round = round_result.round_number
+    
+    def to_dict(self) -> Dict[str, Any]:
+        """Convert to dictionary representation."""
+        return asdict(self)
+    
+
+# 在您的 fedcl/data/results.py 文件末尾添加以下内容：
+
+@dataclass
+class SweepResults:
+    """
+    Container for parameter sweep experiment results.
+    
+    This class manages results from parameter sweep experiments, providing functionality
+    for parameter analysis, best result discovery, and performance comparison.
+    
+    Attributes:
+        sweep_id: Unique identifier for the sweep
+        base_config: Base configuration used for all experiments
+        sweep_config: Parameter sweep configuration
+        experiment_results: Dictionary mapping parameter combinations to results
+        failed_experiments: Dictionary mapping parameter combinations to error messages
+        best_result: Best experiment result found so far
+        best_parameters: Parameters that produced the best result
+        start_time: When the sweep started
+        end_time: When the sweep ended (None if ongoing)
+    """
+    
+    sweep_id: str
+    base_config: DictConfig
+    sweep_config: Dict[str, List[Any]]
+    experiment_results: Dict[str, ExperimentResults] = field(default_factory=dict)
+    failed_experiments: Dict[str, str] = field(default_factory=dict)
+    best_result: Optional[ExperimentResults] = None
+    best_parameters: Optional[Dict[str, Any]] = None
+    start_time: datetime = field(default_factory=lambda: datetime.now(timezone.utc))
+    end_time: Optional[datetime] = None
+    
+    def __post_init__(self):
+        """Post-initialization validation and setup."""
+        if not self.sweep_id or not isinstance(self.sweep_id, str):
+            raise ValueError(f"Sweep ID must be a non-empty string, got {self.sweep_id}")
+        
+        if not self.sweep_config:
+            raise ValueError("Sweep config cannot be empty")
+        
+        logger.debug(f"SweepResults initialized for sweep '{self.sweep_id}'")
+    
+    def add_experiment_result(self, parameters: Dict[str, Any], result: ExperimentResults) -> None:
+        """
+        Add experiment result for a specific parameter combination.
+        
+        Args:
+            parameters: Parameter combination used for this experiment
+            result: Experiment results
+            
+        Raises:
+            ResultsError: If adding experiment result fails
+        """
+        if not isinstance(result, ExperimentResults):
+            raise ResultsError(f"Expected ExperimentResults, got {type(result)}")
+        
+        try:
+            param_key = self._parameters_to_key(parameters)
+            self.experiment_results[param_key] = result
+            
+            # Update best result if this is better
+            self._update_best_result(parameters, result)
+            
+            logger.debug(f"Added experiment result for parameters: {parameters}")
+            
+        except Exception as e:
+            logger.error(f"Failed to add experiment result: {e}")
+            raise ResultsError(f"Failed to add experiment result: {e}")
+    
+    def add_failed_experiment(self, parameters: Dict[str, Any], error_message: str) -> None:
+        """
+        Add failed experiment for a specific parameter combination.
+        
+        Args:
+            parameters: Parameter combination that failed
+            error_message: Error message describing the failure
+        """
+        try:
+            param_key = self._parameters_to_key(parameters)
+            self.failed_experiments[param_key] = error_message
+            
+            logger.debug(f"Added failed experiment for parameters: {parameters}")
+            
+        except Exception as e:
+            logger.error(f"Failed to add failed experiment: {e}")
+    
+    def get_best_result(self, metric: str = 'accuracy', maximize: bool = True) -> Tuple[Optional[Dict[str, Any]], Optional[ExperimentResults]]:
+        """
+        Get the best experiment result based on a specific metric.
+        
+        Args:
+            metric: Metric name to optimize
+            maximize: If True, find maximum value; if False, find minimum
+            
+        Returns:
+            Tuple of (best_parameters, best_experiment_result)
+        """
+        if not self.experiment_results:
+            return None, None
+        
+        try:
+            best_params = None
+            best_result = None
+            best_value = float('-inf') if maximize else float('inf')
+            
+            for param_key, result in self.experiment_results.items():
+                # Get metric value from the experiment result
+                metric_value = None
+                
+                # Try to get from final metrics first
+                if hasattr(result, 'task_results') and result.task_results:
+                    final_task = result.task_results[-1]
+                    metric_value = final_task.get_metric(metric)
+                
+                # If not found, try summary metrics
+                if metric_value is None:
+                    summary = result.generate_summary()
+                    metric_summaries = summary.get('metric_summaries', {})
+                    if metric in metric_summaries:
+                        metric_value = metric_summaries[metric].get('final_value')
+                
+                if metric_value is not None:
+                    if (maximize and metric_value > best_value) or (not maximize and metric_value < best_value):
+                        best_value = metric_value
+                        best_params = self._key_to_parameters(param_key)
+                        best_result = result
+            
+            logger.debug(f"Found best result for metric '{metric}': {best_value}")
+            return best_params, best_result
+            
+        except Exception as e:
+            logger.error(f"Failed to find best result: {e}")
+            return None, None
+    
+    def get_sorted_results(self, metric: str = 'accuracy', maximize: bool = True) -> List[Tuple[Dict[str, Any], ExperimentResults, float]]:
+        """
+        Get experiment results sorted by a specific metric.
+        
+        Args:
+            metric: Metric name to sort by
+            maximize: If True, sort in descending order; if False, ascending
+            
+        Returns:
+            List of (parameters, result, metric_value) tuples sorted by metric
+        """
+        results_with_metrics = []
+        
+        try:
+            for param_key, result in self.experiment_results.items():
+                # Get metric value
+                metric_value = None
+                
+                if hasattr(result, 'task_results') and result.task_results:
+                    final_task = result.task_results[-1]
+                    metric_value = final_task.get_metric(metric)
+                
+                if metric_value is None:
+                    summary = result.generate_summary()
+                    metric_summaries = summary.get('metric_summaries', {})
+                    if metric in metric_summaries:
+                        metric_value = metric_summaries[metric].get('final_value')
+                
+                if metric_value is not None:
+                    params = self._key_to_parameters(param_key)
+                    results_with_metrics.append((params, result, metric_value))
+            
+            # Sort by metric value
+            results_with_metrics.sort(key=lambda x: x[2], reverse=maximize)
+            
+            logger.debug(f"Sorted {len(results_with_metrics)} results by metric '{metric}'")
+            return results_with_metrics
+            
+        except Exception as e:
+            logger.error(f"Failed to sort results: {e}")
+            return []
+    
+    def get_parameter_analysis(self, metric: str = 'accuracy') -> Dict[str, Dict[str, Any]]:
+        """
+        Analyze the impact of different parameters on the specified metric.
+        
+        Args:
+            metric: Metric name to analyze
+            
+        Returns:
+            Dictionary with parameter analysis results
+        """
+        analysis = {}
+        
+        try:
+            # Group results by parameter values
+            for param_name in self.sweep_config.keys():
+                param_analysis = {}
+                param_groups = {}
+                
+                # Group experiments by this parameter value
+                for param_key, result in self.experiment_results.items():
+                    params = self._key_to_parameters(param_key)
+                    param_value = params.get(param_name)
+                    
+                    if param_value is not None:
+                        if param_value not in param_groups:
+                            param_groups[param_value] = []
+                        
+                        # Get metric value
+                        metric_value = None
+                        if hasattr(result, 'task_results') and result.task_results:
+                            final_task = result.task_results[-1]
+                            metric_value = final_task.get_metric(metric)
+                        
+                        if metric_value is not None:
+                            param_groups[param_value].append(metric_value)
+                
+                # Calculate statistics for each parameter value
+                for param_value, metric_values in param_groups.items():
+                    if metric_values:
+                        param_analysis[str(param_value)] = {
+                            'mean': np.mean(metric_values),
+                            'std': np.std(metric_values),
+                            'min': np.min(metric_values),
+                            'max': np.max(metric_values),
+                            'count': len(metric_values)
+                        }
+                
+                analysis[param_name] = param_analysis
+            
+            logger.debug(f"Generated parameter analysis for metric '{metric}'")
+            return analysis
+            
+        except Exception as e:
+            logger.error(f"Failed to generate parameter analysis: {e}")
+            return {}
+    
+    def generate_summary(self) -> Dict[str, Any]:
+        """
+        Generate a comprehensive summary of the sweep results.
+        
+        Returns:
+            Dictionary containing sweep summary
+        """
+        try:
+            duration = None
+            if self.end_time:
+                duration = (self.end_time - self.start_time).total_seconds()
+            
+            total_experiments = len(self.experiment_results) + len(self.failed_experiments)
+            success_rate = len(self.experiment_results) / total_experiments if total_experiments > 0 else 0
+            
+            summary = {
+                'sweep_id': self.sweep_id,
+                'start_time': self.start_time.isoformat(),
+                'end_time': self.end_time.isoformat() if self.end_time else None,
+                'duration_seconds': duration,
+                'total_experiments': total_experiments,
+                'successful_experiments': len(self.experiment_results),
+                'failed_experiments': len(self.failed_experiments),
+                'success_rate': success_rate,
+                'sweep_parameters': list(self.sweep_config.keys()),
+                'parameter_space_size': self._calculate_parameter_space_size(),
+                'status': '完成' if self.end_time else 'ongoing'
+            }
+            
+            # Add best result summary if available
+            if self.best_result and self.best_parameters:
+                summary['best_parameters'] = self.best_parameters
+                summary['best_result_summary'] = self.best_result.generate_summary()
+            
+            # Add parameter statistics
+            param_stats = {}
+            for param_name, param_values in self.sweep_config.items():
+                param_stats[param_name] = {
+                    'num_values': len(param_values),
+                    'values': param_values
+                }
+            summary['parameter_statistics'] = param_stats
+            
+            logger.debug(f"Generated summary for sweep '{self.sweep_id}'")
+            return summary
+            
+        except Exception as e:
+            logger.error(f"Failed to generate summary: {e}")
+            return {'error': str(e), 'sweep_id': self.sweep_id}
+    
+    def plot_parameter_impact(self, metric: str = 'accuracy', save_path: Optional[Path] = None) -> None:
+        """
+        Plot the impact of different parameters on the specified metric.
+        
+        Args:
+            metric: Metric name to analyze
+            save_path: Path to save the plot (if None, display only)
+            
+        Raises:
+            ResultsVisualizationError: If plotting fails
+        """
+        try:
+            analysis = self.get_parameter_analysis(metric)
+            
+            if not analysis:
+                logger.warning("No parameter analysis data available for plotting")
+                return
+            
+            # Create subplots for each parameter
+            n_params = len(analysis)
+            n_cols = min(3, n_params)
+            n_rows = (n_params + n_cols - 1) // n_cols
+            
+            fig, axes = plt.subplots(n_rows, n_cols, figsize=(5 * n_cols, 4 * n_rows))
+            if n_params == 1:
+                axes = [axes]
+            elif n_rows == 1:
+                axes = axes if n_params > 1 else [axes]
+            else:
+                axes = axes.flatten()
+            
+            # Plot each parameter's impact
+            for i, (param_name, param_data) in enumerate(analysis.items()):
+                ax = axes[i]
+                
+                param_values = []
+                means = []
+                stds = []
+                
+                for param_value, stats in param_data.items():
+                    param_values.append(param_value)
+                    means.append(stats['mean'])
+                    stds.append(stats['std'])
+                
+                # Create bar plot with error bars
+                x_pos = range(len(param_values))
+                bars = ax.bar(x_pos, means, yerr=stds, capsize=5, alpha=0.7)
+                
+                ax.set_title(f'Impact of {param_name} on {metric}')
+                ax.set_xlabel(param_name)
+                ax.set_ylabel(f'{metric} (mean ± std)')
+                ax.set_xticks(x_pos)
+                ax.set_xticklabels(param_values, rotation=45)
+                ax.grid(True, alpha=0.3)
+                
+                # Add value labels on bars
+                for bar, mean in zip(bars, means):
+                    height = bar.get_height()
+                    ax.text(bar.get_x() + bar.get_width()/2., height + max(stds) * 0.01,
+                           f'{mean:.3f}', ha='center', va='bottom', fontsize=8)
+            
+            # Hide unused subplots
+            for i in range(n_params, len(axes)):
+                axes[i].set_visible(False)
+            
+            plt.suptitle(f'Parameter Impact Analysis - Sweep {self.sweep_id}', fontsize=16)
+            plt.tight_layout()
+            
+            # Save or display
+            if save_path:
+                save_path = Path(save_path)
+                save_path.parent.mkdir(parents=True, exist_ok=True)
+                plt.savefig(save_path, dpi=300, bbox_inches='tight')
+                logger.debug(f"Saved parameter impact plot to {save_path}")
+            else:
+                plt.show()
+            
+            plt.close()
+            
+        except Exception as e:
+            logger.error(f"Failed to plot parameter impact: {e}")
+            raise ResultsVisualizationError(f"Failed to plot parameter impact: {e}")
+    
+    def save_to_file(self, path: Path) -> None:
+        """
+        Save sweep results to file.
+        
+        Args:
+            path: Path to save the results
+            
+        Raises:
+            ResultsSerializationError: If saving fails
+        """
+        try:
+            path = Path(path)
+            path.parent.mkdir(parents=True, exist_ok=True)
+            
+            # Prepare data for serialization
+            save_data = {
+                'sweep_id': self.sweep_id,
+                'base_config': self._serialize_for_json(self.base_config),
+                'sweep_config': self.sweep_config,
+                'start_time': self.start_time.isoformat(),
+                'end_time': self.end_time.isoformat() if self.end_time else None,
+                'failed_experiments': self.failed_experiments,
+                'experiment_results': {},
+                'best_parameters': self.best_parameters,
+                'summary': self.generate_summary()
+            }
+            
+            # Serialize experiment results (save only summaries to reduce file size)
+            for param_key, result in self.experiment_results.items():
+                save_data['experiment_results'][param_key] = {
+                    'experiment_id': result.experiment_id,
+                    'summary': result.generate_summary(),
+                    'parameters': self._key_to_parameters(param_key)
+                }
+            
+            # Save based on file extension
+            if path.suffix.lower() == '.json':
+                with open(path, 'w') as f:
+                    json.dump(save_data, f, indent=2, ensure_ascii=False)
+            else:
+                # Default to pickle for full data preservation
+                with open(path, 'wb') as f:
+                    pickle.dump(save_data, f)
+            
+            logger.debug(f"Saved sweep results to {path}")
+            
+        except Exception as e:
+            logger.error(f"Failed to save sweep results to {path}: {e}")
+            raise ResultsSerializationError(f"Failed to save sweep results: {e}")
+    
+    @classmethod
+    def load_from_file(cls, path: Path) -> 'SweepResults':
+        """
+        Load sweep results from file.
+        
+        Args:
+            path: Path to load the results from
+            
+        Returns:
+            SweepResults instance
+            
+        Raises:
+            ResultsSerializationError: If loading fails
+        """
+        try:
+            path = Path(path)
+            if not path.exists():
+                raise FileNotFoundError(f"Sweep results file not found: {path}")
+            
+            # Load based on file extension
+            if path.suffix.lower() == '.json':
+                with open(path, 'r') as f:
+                    data = json.load(f)
+            else:
+                with open(path, 'rb') as f:
+                    data = pickle.load(f)
+            
+            # Reconstruct SweepResults
+            sweep = cls(
+                sweep_id=data['sweep_id'],
+                base_config=DictConfig(data.get('base_config', {})),
+                sweep_config=data.get('sweep_config', {}),
+                failed_experiments=data.get('failed_experiments', {}),
+                best_parameters=data.get('best_parameters'),
+                start_time=datetime.fromisoformat(data['start_time']),
+                end_time=datetime.fromisoformat(data['end_time']) if data.get('end_time') else None
+            )
+            
+            # Note: For JSON files, we only have summaries, not full ExperimentResults
+            # For pickle files, we could have full data
+            logger.debug(f"Loaded sweep results from {path}")
+            return sweep
+            
+        except Exception as e:
+            logger.error(f"Failed to load sweep results from {path}: {e}")
+            raise ResultsSerializationError(f"Failed to load sweep results: {e}")
+    
+    def finalize(self) -> None:
+        """Mark the sweep as completed."""
+        if self.end_time is None:
+            self.end_time = datetime.now(timezone.utc)
+            logger.debug(f"Sweep '{self.sweep_id}' finalized")
+    
+    def _parameters_to_key(self, parameters: Dict[str, Any]) -> str:
+        """Convert parameter dictionary to a unique string key."""
+        # Sort parameters by key for consistent ordering
+        sorted_params = sorted(parameters.items())
+        return json.dumps(sorted_params, sort_keys=True, default=str)
+    
+    def _key_to_parameters(self, key: str) -> Dict[str, Any]:
+        """Convert string key back to parameter dictionary."""
+        try:
+            sorted_params = json.loads(key)
+            return dict(sorted_params)
+        except Exception as e:
+            logger.error(f"Failed to convert key to parameters: {e}")
+            return {}
+    
+    def _update_best_result(self, parameters: Dict[str, Any], result: ExperimentResults) -> None:
+        """Update best result if this result is better."""
+        try:
+            # Use accuracy as the primary metric for determining best result
+            current_accuracy = None
+            if hasattr(result, 'task_results') and result.task_results:
+                final_task = result.task_results[-1]
+                current_accuracy = final_task.get_metric('accuracy')
+            
+            if current_accuracy is not None:
+                if self.best_result is None:
+                    self.best_result = result
+                    self.best_parameters = parameters
+                else:
+                    # Compare with current best
+                    best_accuracy = None
+                    if hasattr(self.best_result, 'task_results') and self.best_result.task_results:
+                        best_final_task = self.best_result.task_results[-1]
+                        best_accuracy = best_final_task.get_metric('accuracy')
+                    
+                    if best_accuracy is None or current_accuracy > best_accuracy:
+                        self.best_result = result
+                        self.best_parameters = parameters
+                        logger.debug(f"Updated best result with accuracy: {current_accuracy}")
+            
+        except Exception as e:
+            logger.error(f"Failed to update best result: {e}")
+    
+    def _calculate_parameter_space_size(self) -> int:
+        """Calculate the total size of the parameter space."""
+        size = 1
+        for param_values in self.sweep_config.values():
+            size *= len(param_values)
+        return size
+    
+    def _serialize_for_json(self, obj):
+        """Serialize object for JSON compatibility (same as ExperimentResults)."""
+        try:
+            from omegaconf import DictConfig, OmegaConf
+            
+            if isinstance(obj, DictConfig):
+                return OmegaConf.to_container(obj, resolve=True)
+            elif hasattr(obj, 'to_dict') and callable(getattr(obj, 'to_dict')):
+                return obj.to_dict()
+            elif isinstance(obj, (list, tuple)):
+                return [self._serialize_for_json(item) for item in obj]
+            elif isinstance(obj, dict):
+                return {key: self._serialize_for_json(value) for key, value in obj.items()}
+            elif hasattr(obj, '__dict__'):
+                return {key: self._serialize_for_json(value) 
+                    for key, value in obj.__dict__.items() 
+                    if not key.startswith('_')}
+            else:
+                if hasattr(obj, 'item'):  # numpy scalar
+                    return obj.item()
+                return obj
+                
+        except Exception as e:
+            logger.warning(f"Failed to serialize {type(obj)}: {e}, falling back to string")
+            return str(obj)
+    
+    def __repr__(self) -> str:
+        """String representation of SweepResults."""
+        status = "完成" if self.end_time else "ongoing"
+        success_rate = len(self.experiment_results) / (len(self.experiment_results) + len(self.failed_experiments)) if (len(self.experiment_results) + len(self.failed_experiments)) > 0 else 0
+        return (f"SweepResults(id='{self.sweep_id}', experiments={len(self.experiment_results)}, "
+                f"success_rate={success_rate:.2%}, status={status})")

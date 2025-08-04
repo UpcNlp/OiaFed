@@ -376,7 +376,7 @@ class ConnectionPool:
                 self.remove_connection(client_id)
                 
         if stale_connections:
-            logger.info(f"Cleaned up {len(stale_connections)} stale connections")
+            logger.debug(f"Cleaned up {len(stale_connections)} stale connections")
     
     def _cleanup_worker(self) -> None:
         """清理工作线程"""
@@ -432,7 +432,7 @@ class ConnectionPool:
                 logger.warning(f"Reduced connections from {len(self.connections) + excess_count} "
                              f"to {len(self.connections)} due to max_connections change")
             
-            logger.info(f"Max connections changed from {old_max} to {max_connections}")
+            logger.debug(f"Max connections changed from {old_max} to {max_connections}")
 
 
 class NetworkInterface:
@@ -514,7 +514,7 @@ class NetworkInterface:
                     server_socket, server_side=True
                 )
             
-            logger.info(f"Server socket created and listening on {host}:{port}")
+            logger.debug(f"Server socket created and listening on {host}:{port}")
             return server_socket
             
         except Exception as e:
@@ -549,7 +549,7 @@ class NetworkInterface:
                     client_socket, server_hostname=host
                 )
             
-            logger.info(f"Client socket connected to {host}:{port}")
+            logger.debug(f"Client socket connected to {host}:{port}")
             return client_socket
             
         except Exception as e:
@@ -687,7 +687,7 @@ class NetworkInterface:
             # 关闭线程池
             self.executor.shutdown(wait=True)
             
-            logger.info("NetworkInterface shutdown completed")
+            logger.debug("NetworkInterface shutdown 完成")
             
         except Exception as e:
             logger.error(f"Error during NetworkInterface shutdown: {e}")

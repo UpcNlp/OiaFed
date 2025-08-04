@@ -1,0 +1,75 @@
+# 解决评估器-数据集映射问题的配置示例
+
+# 测试数据集
+test_datas:
+  test_data:
+    type: "StandardDataLoader"
+    dataset: "mnist_test"
+    batch_size: 100
+    
+  validation_data:
+    type: "StandardDataLoader"
+    dataset: "mnist_validation"
+    batch_size: 100
+    
+  challenge_data:
+    type: "StandardDataLoader"
+    dataset: "mnist_challenge"
+    batch_size: 50
+
+# 评估器
+evaluators:
+  accuracy_evaluator:
+    type: "accuracy_evaluator"
+    metrics: ["accuracy"]
+    
+  loss_evaluator:
+    type: "loss_evaluator"
+    metrics: ["loss"]
+    
+  comprehensive_evaluator:
+    type: "comprehensive_evaluator"
+    metrics: ["accuracy", "precision", "recall"]
+
+# 评估配置 - 4种方式解决映射问题
+evaluation:
+  learners:
+    # 🎯 方式1: 单个配置 - 最简单
+    simple_learner:
+      evaluator: "accuracy_evaluator"
+      test_dataset: "test_data"
+      
+    # 🎯 方式2: 评估任务列表 - 最精确的控制
+    precise_learner:
+      evaluation_tasks:
+        - evaluator: "accuracy_evaluator"
+          test_dataset: "test_data"
+          name: "test_accuracy"
+        - evaluator: "accuracy_evaluator"
+          test_dataset: "validation_data"
+          name: "validation_accuracy"
+        - evaluator: "loss_evaluator"
+          test_dataset: "test_data"
+          name: "test_loss"
+        - evaluator: "comprehensive_evaluator"
+          test_dataset: "challenge_data"
+          name: "challenge_eval"
+          
+    # 🎯 方式3: 评估器映射 - 为每个评估器指定数据集
+    mapping_learner:
+      evaluator_mapping:
+        accuracy_evaluator: ["test_data", "validation_data"]     # accuracy用于测试和验证
+        loss_evaluator: ["test_data"]                            # loss只用于测试
+        comprehensive_evaluator: ["challenge_data"]              # comprehensive只用于挑战数据
+        
+    # 🎯 方式4: 向后兼容 - 所有组合（谨慎使用）
+    compatible_learner:
+      evaluators: ["accuracy_evaluator", "loss_evaluator"]
+      test_datasets: ["test_data", "validation_data"]
+      # 注意：这会生成 2×2=4 个评估任务
+
+# 📊 结果说明：
+# simple_learner     -> 1个任务：accuracy_evaluator + test_data
+# precise_learner    -> 4个任务：完全自定义
+# mapping_learner    -> 4个任务：accuracy×2 + loss×1 + comprehensive×1
+# compatible_learner -> 4个任务：所有组合

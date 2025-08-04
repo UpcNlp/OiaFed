@@ -15,7 +15,7 @@ from loguru import logger
 
 from .hook import Hook, HookPhase
 from .execution_context import ExecutionContext
-from .exceptions import HookExecutionError, ConfigurationError
+from ..exceptions import HookExecutionError, ConfigurationError
 
 
 class MetricsHook(Hook):
@@ -87,7 +87,7 @@ class MetricsHook(Hook):
         # 系统监控
         self.process = psutil.Process()
         
-        logger.info(f"MetricsHook初始化完成 - phase: {phase}, config: {dict(metrics_config)}")
+        logger.debug(f"MetricsHook初始化完成 - phase: {phase}, config: {dict(metrics_config)}")
     
     def execute(self, context: ExecutionContext, **kwargs) -> None:
         """
@@ -437,14 +437,14 @@ class MetricsHook(Hook):
         self.metric_history.clear()
         self.metrics_logged_count = 0
         self.last_system_log_time = 0.0
-        logger.info("度量历史已重置")
+        logger.debug("度量历史已重置")
     
     def cleanup(self) -> None:
         """清理资源"""
         try:
             # 输出最终摘要
             summary = self.get_metric_summary()
-            logger.info(f"MetricsHook度量摘要: {summary}")
+            logger.debug(f"MetricsHook度量摘要: {summary}")
             
             # 清理历史数据
             self.reset_metrics()

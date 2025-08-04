@@ -1,0 +1,73 @@
+# 完整的checkpoint配置示例
+# 可以同时保存聚合模型和客户端模型
+
+# 实验配置
+experiment:
+  name: "mnist_comprehensive_checkpoint_test"
+  save_checkpoints: true
+  log_level: "DEBUG"
+
+# Hook配置 - 支持多个CheckpointHook
+hooks:
+  enabled: true
+  
+  # Hook 1: 保存聚合后的全局模型
+  global_model_checkpoint:
+    class: "CheckpointHook"
+    enabled: true
+    phase: "after_round"  # 每轮联邦学习后
+    priority: 0
+    config:
+      save_frequency: 1
+      save_model: true
+      save_optimizer: true
+      save_experiment_state: true
+      checkpoint_dir: "./checkpoints/global_models"
+      naming_pattern: "global_model_round_{round}"
+      include_timestamp: true
+      max_checkpoints: 5
+      best_metric: "accuracy"
+      best_mode: "max"
+  
+  # Hook 2: 保存客户端本地模型
+  client_model_checkpoint:
+    class: "CheckpointHook"
+    enabled: true
+    phase: "after_epoch"  # 每个客户端epoch后
+    priority: 1
+    config:
+      save_frequency: 3  # 每3个epoch保存一次（即每轮的最后一个epoch）
+      save_model: true
+      save_optimizer: false
+      save_experiment_state: false
+      checkpoint_dir: "./checkpoints/client_models"
+      naming_pattern: "client_model_round_{round}_epoch_{epoch}"
+      include_timestamp: false
+      max_checkpoints: 10
+  
+  # Hook 3: 保存最终任务模型
+  final_model_checkpoint:
+    class: "CheckpointHook"
+    enabled: true
+    phase: "after_task"  # 整个任务完成后
+    priority: 0
+    config:
+      save_frequency: 1
+      save_model: true
+      save_optimizer: true
+      save_experiment_state: true
+      checkpoint_dir: "./checkpoints/final_models"
+      naming_pattern: "final_model_task_{task}"
+      include_timestamp: true
+      max_checkpoints: 3
+      compress: true
+
+# CheckpointHook总配置
+checkpoint:
+  enabled: true
+  save_model: true
+  save_optimizer: true
+  save_scheduler: true
+  save_experiment_state: true
+  checkpoint_dir: "./checkpoints"
+  max_checkpoints: 15

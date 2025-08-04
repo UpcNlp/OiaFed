@@ -22,12 +22,8 @@ FedCL配置管理模块
             print(f"错误: {error}")
 """
 
-from .schema_validator import (
-    SchemaValidator,
-    ValidationResult,
-    ValidationError,
-    ValidationWarning
-)
+from .config_manager import ConfigManager, DictConfig
+from .schema_validator import SchemaValidator, ValidationResult, ValidationError, ValidationWarning
 
 # 版本信息
 __version__ = "1.0.0"
@@ -35,13 +31,16 @@ __author__ = "FedCL Team"
 
 # 导出的公共接口
 __all__ = [
-    "SchemaValidator",
-    "ValidationResult", 
-    "ValidationError",
-    "ValidationWarning"
-]
-
-# 默认配置路径
+    # 核心配置管理
+    'ConfigManager',
+    'DictConfig',
+    
+    # 配置验证
+    'SchemaValidator', 
+    'ValidationResult',
+    'ValidationError',
+    'ValidationWarning'
+]# 默认配置路径
 DEFAULT_SCHEMA_PATH = None
 DEFAULT_CONFIG_DIR = "configs"
 

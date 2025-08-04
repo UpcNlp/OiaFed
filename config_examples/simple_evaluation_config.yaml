@@ -1,0 +1,53 @@
+# 改进的评估配置示例 - 解决评估器和数据集的映射问题
+
+# 测试数据集 (使用 test_datas 而不是 evaluation_datasets)
+test_datas:
+  test_data:
+    type: "StandardDataLoader"
+    dataset: "mnist_test"
+    batch_size: 100
+    
+  validation_data:
+    type: "StandardDataLoader"  
+    dataset: "mnist_validation"
+    batch_size: 100
+
+# 评估器
+evaluators:
+  accuracy_evaluator:
+    type: "accuracy_evaluator"
+    metrics: ["accuracy"]
+    
+  loss_evaluator:
+    type: "loss_evaluator"
+    metrics: ["loss"]
+
+# 评估配置 - 多种配置方式
+evaluation:
+  learners:
+    # 方式1: 单个评估器和测试数据集
+    learner_1:
+      evaluator: "accuracy_evaluator"     # 单个评估器
+      test_dataset: "test_data"           # 单个测试数据集
+      
+    # 方式2: 评估任务列表 - 明确指定每个评估器使用哪个数据集
+    learner_2:
+      evaluation_tasks:
+        - evaluator: "accuracy_evaluator"
+          test_dataset: "test_data"
+        - evaluator: "accuracy_evaluator" 
+          test_dataset: "validation_data"
+        - evaluator: "loss_evaluator"
+          test_dataset: "test_data"
+          
+    # 方式3: 评估器映射 - 为每个评估器指定数据集
+    learner_3:
+      evaluator_mapping:
+        accuracy_evaluator: ["test_data", "validation_data"]    # accuracy_evaluator使用两个数据集
+        loss_evaluator: ["test_data"]                           # loss_evaluator只使用test_data
+        
+    # 方式4: 保持兼容 - 所有评估器使用所有数据集（原行为）
+    learner_4:
+      evaluators: ["accuracy_evaluator", "loss_evaluator"]  # 多个评估器
+      test_datasets: ["test_data", "validation_data"]       # 多个测试数据集
+      # 这将创建所有评估器和数据集的笛卡尔积

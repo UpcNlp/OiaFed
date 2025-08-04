@@ -83,7 +83,7 @@ class CommunicationHandler:
         self._pending_messages: Dict[str, List[Message]] = {}
         self._message_lock = threading.Lock()
         
-        logger.info("CommunicationHandler initialized")
+        logger.debug("CommunicationHandler initialized")
     
     def send_message(self, target: str, message: Message) -> bool:
         """
@@ -237,7 +237,7 @@ class CommunicationHandler:
                 results[target] = False
         
         successful_sends = sum(1 for success in results.values() if success)
-        logger.info(f"Broadcast completed: {successful_sends}/{len(targets)} successful")
+        logger.debug(f"Broadcast completed: {successful_sends}/{len(targets)} successful")
         
         return results
     
@@ -267,7 +267,7 @@ class CommunicationHandler:
                 self.stats.total_connections += 1
                 self.stats.active_connections += 1
             
-            logger.info(f"Connection established to {address}")
+            logger.debug(f"Connection established to {address}")
             return connection
             
         except Exception as e:
@@ -308,7 +308,7 @@ class CommunicationHandler:
         
         # 根据错误类型决定处理策略
         if isinstance(error, ConnectionTimeoutError):
-            logger.info(f"Connection {connection_id} timed out, will retry later")
+            logger.debug(f"Connection {connection_id} timed out, will retry later")
         elif isinstance(error, NetworkError):
             logger.warning(f"Network error on {connection_id}, connection removed")
         else:
@@ -440,4 +440,4 @@ class CommunicationHandler:
         # 关闭线程池
         self._executor.shutdown(wait=True)
         
-        logger.info("CommunicationHandler shutdown completed")
+        logger.debug("CommunicationHandler shutdown 完成")

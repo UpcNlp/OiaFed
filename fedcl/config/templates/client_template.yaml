@@ -1,0 +1,29 @@
+# fedcl/config/templates/client_template.yaml
+# 客户端配置模板
+
+client:
+  # 服务端连接配置
+  server:
+    host: "localhost"
+    port: 8080
+    
+  # 学习器配置
+  learner:
+    type: "default_learner"
+    model: "resnet18"
+    
+  # 训练配置
+  training:
+    epochs: 5
+    batch_size: 32
+    learning_rate: 0.01
+    
+  # 数据配置
+  data:
+    client_id: 0
+    data_path: "./data/client_0"
+    
+  # 钩子配置
+  hooks:
+    training: "default_training_hook"
+    evaluation: "default_eval_hook"

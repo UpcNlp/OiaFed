@@ -74,7 +74,8 @@ __all__ = [
     'evaluator',
     'hook',
     'loss_function',
-    'auxiliary_model'
+    'auxiliary_model',
+    'dispatch_hook'  # 新增下发钩子装饰器
 ]
 
 # 从全局registry导出装饰器方法，方便直接使用
@@ -84,6 +85,7 @@ evaluator = registry.evaluator
 hook = registry.hook
 loss_function = registry.loss_function
 auxiliary_model = registry.auxiliary_model
+dispatch_hook = registry.dispatch_hook  # 新增下发钩子装饰器
 
 # 模块级别的便捷函数
 def get_component(component_type: str, name: str):

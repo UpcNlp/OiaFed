@@ -13,7 +13,7 @@ from omegaconf import DictConfig
 from loguru import logger
 
 from .execution_context import ExecutionContext
-from .exceptions import AggregationError, ConfigurationError
+from ..exceptions import AggregationError, ConfigurationError
 
 
 class BaseAggregator(ABC):
@@ -54,7 +54,7 @@ class BaseAggregator(ABC):
         self.aggregation_history: List[Dict[str, Any]] = []
         self.client_weights_cache: Dict[str, float] = {}
         
-        logger.info(f"Initialized {self.__class__.__name__} with device: {self.device}")
+        logger.debug(f"Initialized {self.__class__.__name__} with device: {self.device}")
     
     @abstractmethod
     def aggregate(self, client_updates: List[Dict[str, torch.Tensor]]) -> Dict[str, torch.Tensor]:
@@ -136,7 +136,7 @@ class BaseAggregator(ABC):
             Dict[str, Any]: 聚合统计信息字典
         """
         return {
-            "total_rounds": len(self.aggregation_history),
+            "total_轮次": len(self.aggregation_history),
             "device": str(self.device),
             "aggregator_type": self.__class__.__name__,
             "last_client_count": len(self.client_weights_cache) if self.client_weights_cache else 0
@@ -322,7 +322,7 @@ class BaseAggregator(ABC):
         """
         self.aggregation_history.clear()
         self.client_weights_cache.clear()
-        logger.info("Aggregation history reset")
+        logger.debug("Aggregation history reset")
     
     def get_memory_usage(self) -> Dict[str, float]:
         """
@@ -350,11 +350,11 @@ class BaseAggregator(ABC):
         if torch.cuda.is_available():
             torch.cuda.empty_cache()
             
-        logger.info("Aggregator resources cleaned up")
+        logger.debug("聚合器 resources cleaned up")
     
     def __repr__(self) -> str:
         """字符串表示"""
         return (f"{self.__class__.__name__}("
                 f"device={self.device}, "
-                f"rounds={len(self.aggregation_history)}, "
+                f"轮次={len(self.aggregation_history)}, "
                 f"partial_participation={self.supports_partial_participation()})")

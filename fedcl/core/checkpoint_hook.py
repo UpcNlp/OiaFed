@@ -16,7 +16,7 @@ from loguru import logger
 
 from .hook import Hook, HookPhase
 from .execution_context import ExecutionContext
-from .exceptions import HookExecutionError, ConfigurationError
+from ..exceptions import HookExecutionError, ConfigurationError
 
 
 class CheckpointHook(Hook):
@@ -89,7 +89,7 @@ class CheckpointHook(Hook):
         self.best_checkpoint_path: Optional[Path] = None
         self.last_save_time = 0.0
         
-        logger.info(f"CheckpointHook初始化完成 - phase: {phase}, dir: {self.checkpoint_dir}")
+        logger.debug(f"CheckpointHook初始化完成 - phase: {phase}, dir: {self.checkpoint_dir}")
     
     def execute(self, context: ExecutionContext, **kwargs) -> None:
         """
@@ -152,7 +152,7 @@ class CheckpointHook(Hook):
             
             self.last_save_time = time.time()
             
-            logger.info(f"检查点已保存: {checkpoint_path}")
+            logger.debug(f"检查点已保存: {checkpoint_path}")
             
         except Exception as e:
             logger.error(f"CheckpointHook执行失败: {e}")
@@ -299,7 +299,7 @@ class CheckpointHook(Hook):
                     self.saved_checkpoints.remove(checkpoint_info)
             
             if to_remove:
-                logger.info(f"已清理 {len(to_remove)} 个旧检查点")
+                logger.debug(f"已清理 {len(to_remove)} 个旧检查点")
                 
         except Exception as e:
             logger.error(f"清理旧检查点失败: {e}")
@@ -398,7 +398,7 @@ class CheckpointHook(Hook):
                         if value is not None:
                             context.set_state(key, value, 'global')
             
-            logger.info(f"检查点加载完成: {checkpoint_path}")
+            logger.debug(f"检查点加载完成: {checkpoint_path}")
             return loaded_data
             
         except Exception as e:
@@ -488,7 +488,7 @@ class CheckpointHook(Hook):
             if is_better:
                 self.best_metric_value = current_value
                 self.best_checkpoint_path = Path(checkpoint_info['path'])
-                logger.info(f"发现更好的检查点: {self.best_metric}={current_value}")
+                logger.debug(f"发现更好的检查点: {self.best_metric}={current_value}")
     
     def _serialize_state(self, state: Dict[str, Any]) -> Dict[str, Any]:
         """序列化状态数据"""
@@ -545,7 +545,7 @@ class CheckpointHook(Hook):
         try:
             # 输出检查点摘要
             summary = self.get_checkpoint_summary()
-            logger.info(f"CheckpointHook摘要: {summary}")
+            logger.debug(f"CheckpointHook摘要: {summary}")
             
             super().cleanup()
             

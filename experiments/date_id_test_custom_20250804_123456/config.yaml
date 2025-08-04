@@ -1,0 +1,37 @@
+data:
+  batch_size: 32
+  dataset: MNIST
+  download: true
+  num_workers: 2
+  train_split: 0.8
+  type: DataLoaderFactory
+experiment:
+  log_base_dir: ./logs
+  log_level: INFO
+  name: date_id_test
+  seed: 42
+federation:
+  aggregator:
+    type: FedAvgAggregator
+  clients:
+    num_clients: 1
+    type: MultiLearnerClient
+  server:
+    config:
+      aggregator: FedAvgAggregator
+      clients_per_round: 1
+      port: 8080
+      rounds: 1
+    type: ImprovedFederatedServer
+  type: federated
+training:
+  epochs: 1
+  learning_rate: 0.01
+  model:
+    config:
+      hidden_size: 64
+      input_size: 784
+      output_size: 10
+    type: SimpleMLP
+  momentum: 0.9
+  optimizer: SGD

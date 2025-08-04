@@ -9,12 +9,13 @@ Hook系统和异常处理等核心功能。
 from .base_aggregator import BaseAggregator
 from .base_evaluator import BaseEvaluator
 from .base_learner import BaseLearner
+from .base_dispatcher import BaseDispatcher  # 新增下发钩子基类
 from .execution_context import ExecutionContext
 from .hook import Hook, HookPhase, HookPriority
 from .hook_executor import HookExecutor
 from .metrics_hook import MetricsHook
 from .checkpoint_hook import CheckpointHook
-from .exceptions import (
+from ..exceptions import (
     FedCLError,
     ConfigurationError,
     HookExecutionError,
@@ -33,6 +34,7 @@ __all__ = [
     'BaseAggregator',
     'BaseEvaluator', 
     'BaseLearner',
+    'BaseDispatcher',  # 新增下发钩子基类
     
     # 执行上下文
     'ExecutionContext',

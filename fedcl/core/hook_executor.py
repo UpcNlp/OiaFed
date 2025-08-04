@@ -20,7 +20,7 @@ from omegaconf import DictConfig
 
 from .hook import Hook, HookPhase
 from .execution_context import ExecutionContext
-from .exceptions import HookExecutionError
+from ..exceptions import HookExecutionError
 from ..registry.component_registry import ComponentRegistry
 
 
@@ -117,7 +117,7 @@ class HookExecutor:
             'monitoring', {}
         ).get('max_execution_time', 10.0)
         
-        logger.info(f"HookExecutor initialized with error_policy={self._error_policy}")
+        logger.debug(f"HookExecutor initialized with error_policy={self._error_policy}")
     
     def execute_hooks(self, phase: str, context: ExecutionContext, **kwargs) -> List[Any]:
         """
@@ -346,7 +346,7 @@ class HookExecutor:
             # 按优先级排序
             self._hooks[phase].sort(key=lambda h: h.get_priority())
             
-            logger.info(f"Registered hook {hook.get_name()} with ID {hook_id} for phase {phase}")
+            logger.debug(f"Registered hook {hook.get_name()} with ID {hook_id} for phase {phase}")
             return hook_id
     
     def unregister_hook(self, hook_id: str) -> bool:
@@ -376,7 +376,7 @@ class HookExecutor:
             # 从禁用列表中移除（如果存在）
             self._disabled_hooks.discard(hook_id)
             
-            logger.info(f"Unregistered hook {hook.get_name()} with ID {hook_id}")
+            logger.debug(f"Unregistered hook {hook.get_name()} with ID {hook_id}")
             return True
     
     def get_hooks(self, phase: str) -> List[Hook]:
@@ -476,7 +476,7 @@ class HookExecutor:
             raise ValueError(f"Invalid error policy: {policy}. Must be one of {valid_policies}")
         
         self._error_policy = policy
-        logger.info(f"Error policy set to: {policy}")
+        logger.debug(f"Error policy set to: {policy}")
     
     def get_execution_stats(self) -> Dict[str, Any]:
         """
@@ -524,7 +524,7 @@ class HookExecutor:
             if hook_id in self._hook_instances:
                 self._disabled_hooks.discard(hook_id)
                 self._hook_instances[hook_id].enable()
-                logger.info(f"Enabled hook with ID: {hook_id}")
+                logger.debug(f"Enabled hook with ID: {hook_id}")
             else:
                 logger.warning(f"Hook with ID {hook_id} not found")
     
@@ -539,7 +539,7 @@ class HookExecutor:
             if hook_id in self._hook_instances:
                 self._disabled_hooks.add(hook_id)
                 self._hook_instances[hook_id].disable()
-                logger.info(f"Disabled hook with ID: {hook_id}")
+                logger.debug(f"Disabled hook with ID: {hook_id}")
             else:
                 logger.warning(f"Hook with ID {hook_id} not found")
     
@@ -556,7 +556,7 @@ class HookExecutor:
                 self._hooks.clear()
                 self._hook_instances.clear()
                 self._disabled_hooks.clear()
-                logger.info("Cleared all hooks")
+                logger.debug("Cleared all hooks")
             else:
                 # 清理指定阶段的钩子
                 if phase in self._hooks:
@@ -568,7 +568,7 @@ class HookExecutor:
                             self._disabled_hooks.discard(hook_id)
                     
                     self._hooks[phase].clear()
-                    logger.info(f"Cleared hooks for phase: {phase}")
+                    logger.debug(f"Cleared hooks for phase: {phase}")
     
     def _get_enabled_hooks(self, phase: str) -> List[Hook]:
         """获取启用的钩子"""
@@ -621,7 +621,7 @@ class HookExecutor:
                 'hook_count': hook_count,
                 'execution_time': execution_time,
                 'successful': successful,
-                'failed': failed,
+                '失败': failed,
                 'timestamp': time.time()
             })
     

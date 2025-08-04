@@ -6,7 +6,7 @@
 """
 
 from typing import Optional, Any
-from fedcl.core.exceptions import FedCLError
+from fedcl.exceptions import FedCLError
 
 
 class CommunicationError(FedCLError):

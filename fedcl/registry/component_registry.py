@@ -16,8 +16,8 @@ import time
 from functools import wraps
 
 from ..config.schema_validator import ValidationResult
-from ..core.exceptions import (
-    FedCLError, ConfigurationError
+from ..exceptions import (
+    FedCLError
 )
 
 
@@ -77,7 +77,7 @@ class ComponentRegistry:
     # 支持的组件类型
     COMPONENT_TYPES = {
         'learner', 'aggregator', 'evaluator', 'hook', 
-        'loss_function', 'auxiliary_model'
+        'loss_function', 'auxiliary_model', 'dispatcher'
     }
     
     # 组件接口要求
@@ -85,7 +85,8 @@ class ComponentRegistry:
         'learner': 'BaseLearner',
         'aggregator': 'BaseAggregator', 
         'evaluator': 'BaseEvaluator',
-        'hook': 'Hook'
+        'hook': 'Hook',
+        'dispatcher': 'BaseDispatcher'
     }
     
     def __init__(self):
@@ -99,6 +100,7 @@ class ComponentRegistry:
         self._hooks: Dict[str, List[Type]] = defaultdict(list)
         self._loss_functions: Dict[str, Callable] = {}
         self._auxiliary_models: Dict[str, Type] = {}
+        self._dispatchers: Dict[str, Type] = {}  # 新增：下发钩子存储
         
         # 元数据存储
         self._metadata: Dict[str, ComponentMetadata] = {}
@@ -106,7 +108,7 @@ class ComponentRegistry:
         # 查询统计
         self._query_stats = {'total_queries': 0, 'cache_hits': 0}
         
-        logger.info("ComponentRegistry initialized")
+        logger.debug("ComponentRegistry initialized")
     
     def register_learner(self, name: str, learner_class: Type, 
                         metadata: Optional[Dict] = None) -> Callable:
@@ -146,7 +148,7 @@ class ComponentRegistry:
                 meta = self._create_metadata(name, 'learner', cls, metadata)
                 self._metadata[f"learner:{name}"] = meta
                 
-                logger.info(f"Registered learner: {name}")
+                logger.debug(f"Registered learner: {name}")
                 return cls
                 
         return decorator
@@ -175,14 +177,14 @@ class ComponentRegistry:
                 if not validation_result.is_valid:
                     error_messages = [f"{error.field}: {error.message}" for error in validation_result.errors]
                     raise ComponentValidationError(
-                        f"Aggregator {name} validation failed: {'; '.join(error_messages)}"
+                        f"聚合器 {name} validation failed: {'; '.join(error_messages)}"
                     )
                 
                 self._aggregators[name] = cls
                 meta = self._create_metadata(name, 'aggregator', cls, metadata)
                 self._metadata[f"aggregator:{name}"] = meta
                 
-                logger.info(f"Registered aggregator: {name}")
+                logger.debug(f"Registered aggregator: {name}")
                 return cls
                 
         return decorator
@@ -218,23 +220,25 @@ class ComponentRegistry:
                 meta = self._create_metadata(name, 'evaluator', cls, metadata)
                 self._metadata[f"evaluator:{name}"] = meta
                 
-                logger.info(f"Registered evaluator: {name}")
+                logger.debug(f"Registered evaluator: {name}")
                 return cls
                 
         return decorator
     
-    def register_hook(self, phase: str, priority: int = 0) -> Callable:
+    def register_hook(self, phase: str, priority: int = 0, metadata: Optional[Dict] = None) -> Callable:
         """
         注册钩子函数
         
         Args:
             phase: 钩子阶段
             priority: 优先级
+            metadata: 额外的元数据
             
         Returns:
             装饰器函数
         """
         def decorator(hook_class: Type):
+            
             with self._lock:
                 self._validate_registration('hook', f"{phase}:{hook_class.__name__}", hook_class)
                 
@@ -256,13 +260,16 @@ class ComponentRegistry:
                 self._hooks[phase].sort(key=lambda x: x['priority'], reverse=True)
                 
                 # 创建元数据
+                hook_metadata = {'phase': phase, 'priority': priority}
+                if metadata:
+                    hook_metadata.update(metadata)
+                
                 meta = self._create_metadata(
-                    f"{phase}:{hook_class.__name__}", 'hook', hook_class,
-                    {'phase': phase, 'priority': priority}
+                    f"{phase}:{hook_class.__name__}", 'hook', hook_class, hook_metadata
                 )
                 self._metadata[f"hook:{phase}:{hook_class.__name__}"] = meta
                 
-                logger.info(f"Registered hook: {hook_class.__name__} for phase {phase}")
+                logger.debug(f"Registered hook: {hook_class.__name__} for phase {phase}")
                 return hook_class
                 
         return decorator
@@ -295,7 +302,7 @@ class ComponentRegistry:
                 )
                 self._metadata[f"loss_function:{name}"] = meta
                 
-                logger.info(f"Registered loss function: {name}")
+                logger.debug(f"Registered loss function: {name}")
                 return loss_func
                 
         return decorator
@@ -323,11 +330,88 @@ class ComponentRegistry:
                 )
                 self._metadata[f"auxiliary_model:{name}"] = meta
                 
-                logger.info(f"Registered auxiliary model: {name}")
+                logger.debug(f"Registered auxiliary model: {name}")
                 return model_class
                 
         return decorator
     
+    def register_dispatcher(self, name: str, dispatcher_class: Type = None,
+                           metadata: Optional[Dict] = None) -> Callable:
+        """
+        注册下发钩子
+        
+        Args:
+            name: 下发钩子名称
+            dispatcher_class: 下发钩子类
+            metadata: 元数据
+            
+        Returns:
+            装饰器函数
+            
+        Raises:
+            ComponentRegistrationError: 注册失败
+        """
+        def decorator(cls=None):
+            if cls is None:
+                cls = dispatcher_class
+                
+            with self._lock:
+                self._validate_registration('dispatcher', name, cls)
+                
+                # 验证下发钩子类
+                validation_result = self.validate_component(cls, 'dispatcher')
+                if not validation_result.is_valid:
+                    error_messages = [f"{error.field}: {error.message}" for error in validation_result.errors]
+                    raise ComponentValidationError(
+                        f"Dispatcher {name} validation failed: {'; '.join(error_messages)}"
+                    )
+                
+                self._dispatchers[name] = cls
+                meta = self._create_metadata(name, 'dispatcher', cls, metadata)
+                self._metadata[f"dispatcher:{name}"] = meta
+                
+                logger.debug(f"Registered dispatcher: {name}")
+                return cls
+                
+        return decorator
+    
+    def dispatch_hook(self, name: str, metadata: Optional[Dict] = None) -> Callable:
+        """
+        下发钩子装饰器，与现有装饰器保持一致的风格
+        
+        Args:
+            name: 下发钩子名称
+            metadata: 元数据
+            
+        Returns:
+            装饰器函数
+        """
+        return self.register_dispatcher(name, metadata=metadata)
+    
+    def get_dispatcher(self, name: str) -> Type:
+        """
+        获取下发钩子类
+        
+        Args:
+            name: 下发钩子名称
+            
+        Returns:
+            下发钩子类
+            
+        Raises:
+            ComponentNotFoundError: 下发钩子未找到
+        """
+        return self.get_component('dispatcher', name)
+    
+    def list_dispatchers(self) -> List[str]:
+        """
+        列出所有下发钩子
+        
+        Returns:
+            下发钩子名称列表
+        """
+        return self.list_components('dispatcher')
+
     def get_component(self, component_type: str, name: str) -> Type:
         """
         获取组件类
@@ -565,9 +649,43 @@ class ComponentRegistry:
         """评估器装饰器"""
         return self.register_evaluator(name, None, metadata)
     
-    def hook(self, phase: str, priority: int = 0) -> Callable:
+    def hook(self, phase: str, priority: int = 0, enable=False, **metadata) -> Callable:
         """钩子装饰器"""
-        return self.register_hook(phase, priority)
+        def decorator(hook_class: Type):
+            with self._lock:
+                self._validate_registration('hook', f"{phase}:{hook_class.__name__}", hook_class)
+                
+                validation_result = self.validate_component(hook_class, 'hook')
+                if not validation_result.is_valid:
+                    error_messages = [f"{error.field}: {error.message}" for error in validation_result.errors]
+                    raise ComponentValidationError(
+                        f"Hook {hook_class.__name__} validation failed: {'; '.join(error_messages)}"
+                    )
+                
+                # 将钩子添加到对应阶段，按优先级排序
+                hook_info = {
+                    'class': hook_class,
+                    'priority': priority,
+                    'phase': phase,
+                    "enabled": enable
+                }
+                
+                self._hooks[phase].append(hook_info)
+                self._hooks[phase].sort(key=lambda x: x['priority'], reverse=True)
+                
+                # 创建元数据（合并额外的metadata）
+                hook_metadata = {'phase': phase, 'priority': priority, 'enabled': enable}
+                hook_metadata.update(metadata)
+                
+                meta = self._create_metadata(
+                    f"{phase}:{hook_class.__name__}", 'hook', hook_class, hook_metadata
+                )
+                self._metadata[f"hook:{phase}:{hook_class.__name__}"] = meta
+                
+                logger.debug(f"Registered hook: {hook_class.__name__} for phase {phase}")
+                return hook_class
+                
+        return decorator
     
     def loss_function(self, name: str, scope: str = "task") -> Callable:
         """损失函数装饰器"""
@@ -603,7 +721,7 @@ class ComponentRegistry:
             self._metadata.clear()
             self._query_stats = {'total_queries': 0, 'cache_hits': 0}
             
-            logger.info("Registry cleared")
+            logger.debug("Registry cleared")
     
     def __repr__(self) -> str:
         stats = self.get_registry_stats()

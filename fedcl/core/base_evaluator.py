@@ -17,7 +17,7 @@ from loguru import logger
 import datetime
 
 from .execution_context import ExecutionContext
-from .exceptions import EvaluationError, ConfigurationError
+from ..exceptions import EvaluationError, ConfigurationError
 
 
 class BaseEvaluator(ABC):
@@ -58,7 +58,7 @@ class BaseEvaluator(ABC):
         self.evaluation_history: List[Dict[str, Any]] = []
         self.task_performance_history: Dict[int, List[float]] = {}
         
-        logger.info(f"Initialized {self.__class__.__name__} with device: {self.device}")
+        logger.debug(f"Initialized {self.__class__.__name__} with device: {self.device}")
     
     @abstractmethod
     def evaluate(self, model: nn.Module, data: DataLoader) -> Dict[str, float]:
@@ -306,7 +306,7 @@ class BaseEvaluator(ABC):
                         evaluation_results["continual_metrics"]["avg_forgetting"] = np.mean(forgetting_values)
                         evaluation_results["continual_metrics"]["max_forgetting"] = np.max(forgetting_values)
             
-            logger.info(f"Completed continual learning evaluation for task {task_id}")
+            logger.debug(f"Completed continual learning evaluation for task {task_id}")
             return evaluation_results
             
         except Exception as e:
@@ -412,7 +412,7 @@ class BaseEvaluator(ABC):
         """
         self.evaluation_history.clear()
         self.task_performance_history.clear()
-        logger.info("Evaluation history reset")
+        logger.debug("Evaluation history reset")
     
     def get_memory_usage(self) -> Dict[str, float]:
         """
@@ -440,7 +440,7 @@ class BaseEvaluator(ABC):
         if torch.cuda.is_available():
             torch.cuda.empty_cache()
             
-        logger.info("Evaluator resources cleaned up")
+        logger.debug("Evaluator resources cleaned up")
     
     def __repr__(self) -> str:
         """字符串表示"""

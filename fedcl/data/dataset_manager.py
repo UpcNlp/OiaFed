@@ -33,7 +33,7 @@ from .dataset import Dataset, DatasetError, DatasetValidationError
 from .dataloader import DataLoader
 from .task import Task, TaskType
 from .task_generator import TaskGenerator, TaskGeneratorError
-from ..core.exceptions import FedCLError
+from ..exceptions import FedCLError
 
 
 class DatasetManagerError(FedCLError):
@@ -192,7 +192,7 @@ class DatasetCache:
         self.current_size = 0
         self._lock = threading.RLock()
         
-        logger.info(f"Dataset cache initialized with max size: {max_size}")
+        logger.debug(f"Dataset cache initialized with max size: {max_size}")
     
     def _parse_size(self, size_str: str) -> int:
         """Parse size string to bytes"""
@@ -252,7 +252,7 @@ class DatasetCache:
             self.cache[key] = entry
             self.current_size += dataset_size
             
-            logger.info(f"Dataset {key} cached ({dataset_size} bytes)")
+            logger.debug(f"Dataset {key} cached ({dataset_size} bytes)")
     
     def _calculate_dataset_size(self, dataset: Dataset) -> int:
         """Calculate approximate memory size of dataset"""
@@ -283,13 +283,13 @@ class DatasetCache:
             if pattern is None:
                 self.cache.clear()
                 self.current_size = 0
-                logger.info("Cache cleared completely")
+                logger.debug("Cache cleared completely")
             else:
                 keys_to_remove = [key for key in self.cache.keys() if pattern in key]
                 for key in keys_to_remove:
                     entry = self.cache.pop(key)
                     self.current_size -= entry['size']
-                logger.info(f"Cleared {len(keys_to_remove)} cache entries matching pattern: {pattern}")
+                logger.debug(f"Cleared {len(keys_to_remove)} cache entries matching pattern: {pattern}")
     
     def get_stats(self) -> Dict[str, Any]:
         """Get cache statistics"""
@@ -358,7 +358,7 @@ class DatasetManager:
             'validation_errors': 0
         }
         
-        logger.info("DatasetManager initialized successfully")
+        logger.debug("DatasetManager initialized successfully")
     
     def _init_cache(self) -> None:
         """Initialize dataset cache"""
@@ -368,7 +368,7 @@ class DatasetManager:
             self.cache = DatasetCache(max_size, strategy)
         else:
             self.cache = None
-            logger.info("Dataset caching disabled")
+            logger.debug("Dataset caching disabled")
     
     def load_dataset(self, name: str, config: DictConfig) -> Dataset:
         """
@@ -385,14 +385,14 @@ class DatasetManager:
             DatasetNotFoundError: If dataset cannot be found or loaded
             DatasetValidationError: If dataset validation fails
         """
-        logger.info(f"Loading dataset: {name}")
+        logger.debug(f"Loading dataset: {name}")
         
         # Check cache first
         if self.cache:
             cached_dataset = self.cache.get(name)
             if cached_dataset is not None:
                 self.stats['cache_hits'] += 1
-                logger.info(f"Dataset {name} loaded from cache")
+                logger.debug(f"Dataset {name} loaded from cache")
                 return cached_dataset
             else:
                 self.stats['cache_misses'] += 1
@@ -426,7 +426,7 @@ class DatasetManager:
                 self.cache.put(name, dataset, metadata)
             
             self.stats['datasets_loaded'] += 1
-            logger.info(f"Dataset {name} loaded successfully")
+            logger.debug(f"Dataset {name} loaded successfully")
             return dataset
             
         except Exception as e:
@@ -560,7 +560,7 @@ class DatasetManager:
             if self.cache:
                 self.cache.put(name, dataset, self.metadata[name])
             
-            logger.info(f"Dataset {name} registered successfully")
+            logger.debug(f"Dataset {name} registered successfully")
     
     def create_task_sequence(self, dataset_name: str, num_tasks: int) -> List[Task]:
         """
@@ -606,7 +606,7 @@ class DatasetManager:
                     dataset, self.task_generator.classes_per_task
                 )
             
-            logger.info(f"Created {len(tasks)} tasks from dataset {dataset_name}")
+            logger.debug(f"Created {len(tasks)} tasks from dataset {dataset_name}")
             return tasks
             
         except Exception as e:
@@ -654,7 +654,7 @@ class DatasetManager:
         """
         if self.cache:
             self.cache.put(name, dataset)
-            logger.info(f"Dataset {name} cached")
+            logger.debug(f"Dataset {name} cached")
         else:
             logger.warning("Caching is disabled")
     
@@ -668,10 +668,10 @@ class DatasetManager:
         if self.cache:
             if dataset_name:
                 self.cache.clear(dataset_name)
-                logger.info(f"Cache cleared for dataset: {dataset_name}")
+                logger.debug(f"Cache cleared for dataset: {dataset_name}")
             else:
                 self.cache.clear()
-                logger.info("All dataset cache cleared")
+                logger.debug("All dataset cache cleared")
         else:
             logger.warning("Caching is disabled")
     
@@ -735,7 +735,7 @@ class DatasetManager:
                 try:
                     download_path.mkdir(parents=True, exist_ok=True)
                     dataset_class(root=str(download_path), download=True)
-                    logger.info(f"Dataset {name} downloaded to {download_path}")
+                    logger.debug(f"Dataset {name} downloaded to {download_path}")
                     return download_path
                 except Exception as e:
                     raise DatasetNotFoundError(f"Failed to download dataset: {e}")

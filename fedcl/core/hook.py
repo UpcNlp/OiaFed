@@ -14,7 +14,7 @@ from omegaconf import DictConfig
 from loguru import logger
 
 from .execution_context import ExecutionContext
-from .exceptions import HookExecutionError, ConfigurationError
+from ..exceptions import HookExecutionError, ConfigurationError
 
 
 class HookPhase(Enum):
@@ -33,12 +33,11 @@ class HookPhase(Enum):
     BEFORE_EPOCH = "before_epoch"
     AFTER_EPOCH = "after_epoch"
     BEFORE_BATCH = "before_batch"
+    
     AFTER_BATCH = "after_batch"
     ON_ERROR = "on_error"
     ON_CHECKPOINT = "on_checkpoint"
     ON_EVALUATION = "on_evaluation"
-    ON_AGGREGATION = "on_aggregation"
-    CUSTOM = "custom"
 
 
 class HookPriority(Enum):
@@ -408,7 +407,7 @@ class HookRegistry:
         self._hooks: Dict[str, List[Hook]] = {}
         self._hook_stats: Dict[str, Dict[str, Any]] = {}
         
-        logger.info("Initialized hook registry")
+        logger.debug("Initialized hook registry")
     
     def register_hook(self, hook: Hook) -> None:
         """
@@ -437,7 +436,7 @@ class HookRegistry:
         self._hooks[phase].append(hook)
         self._hooks[phase].sort()  # 按优先级排序
         
-        logger.info(f"Registered hook '{hook.get_name()}' for phase '{phase}' with priority {hook.get_priority()}")
+        logger.debug(f"Registered hook '{hook.get_name()}' for phase '{phase}' with priority {hook.get_priority()}")
     
     def get_hooks(self, phase: str) -> List[Hook]:
         """
@@ -469,7 +468,7 @@ class HookRegistry:
             if hook.get_name() == hook_name:
                 self._hooks[phase].remove(hook)
                 hook.cleanup()
-                logger.info(f"Removed hook '{hook_name}' from phase '{phase}'")
+                logger.debug(f"Removed hook '{hook_name}' from phase '{phase}'")
                 return True
         
         return False
@@ -485,7 +484,7 @@ class HookRegistry:
             for hook in self._hooks[phase]:
                 hook.cleanup()
             self._hooks[phase].clear()
-            logger.info(f"Cleared all hooks for phase '{phase}'")
+            logger.debug(f"Cleared all hooks for phase '{phase}'")
     
     def clear_all(self) -> None:
         """清空所有钩子"""
@@ -494,7 +493,7 @@ class HookRegistry:
                 hook.cleanup()
         self._hooks.clear()
         self._hook_stats.clear()
-        logger.info("Cleared all hooks from registry")
+        logger.debug("Cleared all hooks from registry")
     
     def get_all_phases(self) -> List[str]:
         """

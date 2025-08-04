@@ -1,0 +1,30 @@
+# fedcl/config/templates/server_template.yaml
+# 服务端配置模板
+
+server:
+  # 基本配置
+  host: "localhost"
+  port: 8080
+  max_clients: 100
+  
+  # 联邦学习配置
+  federation:
+    aggregation_strategy: "fedavg"    # 聚合策略
+    min_clients: 2                    # 最小客户端数
+    max_rounds: 100                   # 最大轮数
+    
+  # 钩子配置
+  hooks:
+    aggregation: "default_aggregator"
+    dispatch: "default_dispatcher"
+    evaluation: "default_evaluator"
+    
+  # 安全配置
+  security:
+    enable_encryption: false
+    authentication: false
+    
+  # 日志配置
+  logging:
+    level: "INFO"
+    file: "./logs/server.log"

@@ -27,7 +27,7 @@ from ..config.exceptions import ConfigValidationError
 from .dataset import Dataset
 from .task import Task, TaskType
 from .split_strategy import SplitStrategy
-from ..core.exceptions import FedCLError
+from ..exceptions import FedCLError
 
 
 class TaskGeneratorError(FedCLError):
@@ -85,7 +85,7 @@ class TaskGenerator:
         self._class_order: Optional[List[int]] = None
         self._task_statistics: Dict[str, Any] = {}
         
-        logger.info(f"TaskGenerator initialized with type: {self.task_type}, "
+        logger.debug(f"TaskGenerator initialized with type: {self.task_type}, "
                    f"tasks: {self.num_tasks}, classes_per_task: {self.classes_per_task}")
     
     def _set_random_seeds(self, seed: int) -> None:
@@ -119,7 +119,7 @@ class TaskGenerator:
             TaskGeneratorError: If task generation fails
         """
         try:
-            logger.info(f"Generating {self.num_tasks} class incremental tasks")
+            logger.debug(f"Generating {self.num_tasks} class incremental tasks")
             
             # Get unique classes from dataset
             unique_classes = self._get_unique_classes(dataset)
@@ -175,7 +175,7 @@ class TaskGenerator:
             if not self.validate_task_sequence(tasks):
                 raise TaskGeneratorError("Generated task sequence validation failed")
             
-            logger.info(f"Successfully generated {len(tasks)} class incremental tasks")
+            logger.debug(f"Successfully generated {len(tasks)} class incremental tasks")
             return tasks
             
         except Exception as e:
@@ -199,7 +199,7 @@ class TaskGenerator:
             TaskGeneratorError: If task generation fails
         """
         try:
-            logger.info(f"Generating {len(datasets)} domain incremental tasks")
+            logger.debug(f"Generating {len(datasets)} domain incremental tasks")
             
             if len(datasets) != self.num_tasks:
                 logger.warning(
@@ -243,7 +243,7 @@ class TaskGenerator:
             if not self.validate_task_sequence(tasks):
                 raise TaskGeneratorError("Generated task sequence validation failed")
             
-            logger.info(f"Successfully generated {len(tasks)} domain incremental tasks")
+            logger.debug(f"Successfully generated {len(tasks)} domain incremental tasks")
             return tasks
             
         except Exception as e:
@@ -272,7 +272,7 @@ class TaskGenerator:
             TaskGeneratorError: If task generation fails
         """
         try:
-            logger.info(f"Generating {len(task_configs)} task incremental tasks")
+            logger.debug(f"Generating {len(task_configs)} task incremental tasks")
             
             if len(task_configs) != self.num_tasks:
                 logger.warning(
@@ -325,7 +325,7 @@ class TaskGenerator:
             if not self.validate_task_sequence(tasks):
                 raise TaskGeneratorError("Generated task sequence validation failed")
             
-            logger.info(f"Successfully generated {len(tasks)} task incremental tasks")
+            logger.debug(f"Successfully generated {len(tasks)} task incremental tasks")
             return tasks
             
         except Exception as e:
@@ -363,7 +363,7 @@ class TaskGenerator:
         if seed is None:
             self._class_order = class_order
         
-        logger.info(f"Generated shuffled class order with {len(class_order)} classes")
+        logger.debug(f"Generated shuffled class order with {len(class_order)} classes")
         return class_order.copy()
     
     def validate_task_sequence(self, tasks: List[Task]) -> bool:
@@ -508,7 +508,7 @@ class TaskGenerator:
             # Cache statistics
             self._task_statistics = stats
             
-            logger.info(f"Generated statistics for {len(tasks)} tasks")
+            logger.debug(f"Generated statistics for {len(tasks)} tasks")
             return stats
             
         except Exception as e:
@@ -606,7 +606,7 @@ class TaskGenerator:
             # Save or show
             if save_path:
                 plt.savefig(save_path, dpi=300, bbox_inches='tight')
-                logger.info(f"Task sequence visualization saved to {save_path}")
+                logger.debug(f"Task sequence visualization saved to {save_path}")
             else:
                 plt.show()
             
@@ -647,7 +647,7 @@ class TaskGenerator:
                 empty_dataset = EmptyDataset("empty_replay_buffer", empty_data, empty_targets)
                 return empty_dataset
             
-            logger.info(f"Creating replay buffer for task {task.task_id} with size {buffer_size}")
+            logger.debug(f"Creating replay buffer for task {task.task_id} with size {buffer_size}")
             
             # Collect all data from the task
             all_data = []
@@ -682,7 +682,7 @@ class TaskGenerator:
                 targets=replay_targets
             )
             
-            logger.info(f"Created replay buffer with {len(replay_buffer)} samples")
+            logger.debug(f"Created replay buffer with {len(replay_buffer)} samples")
             return replay_buffer
             
         except Exception as e:

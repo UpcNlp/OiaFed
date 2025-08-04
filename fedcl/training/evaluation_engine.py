@@ -20,7 +20,7 @@ from torch.utils.data import DataLoader
 
 from ..core.base_evaluator import BaseEvaluator
 from ..core.execution_context import ExecutionContext
-from ..core.exceptions import EvaluationError
+from ..exceptions import EvaluationError
 from ..core.hook_executor import HookExecutor
 from ..core.hook import HookPhase
 
@@ -75,9 +75,9 @@ class EvaluationEngine:
         # 可视化配置
         plt.style.use(self.config.get("plot_style", "default"))
         
-        logger.info(f"EvaluationEngine initialized on device: {self.device}")
+        logger.debug(f"EvaluationEngine initialized on device: {self.device}")
         if hook_executor:
-            logger.info("Hook integration enabled for automatic metrics and checkpoints")
+            logger.debug("Hook integration enabled for automatic metrics and checkpoints")
     
     def evaluate_model(
         self, 
@@ -138,7 +138,7 @@ class EvaluationEngine:
                     task_id=task_id
                 )
             
-            logger.info(f"Model evaluation completed. Accuracy: {results.get('accuracy', 0.0):.4f}")
+            logger.debug(f"Model evaluation completed. Accuracy: {results.get('accuracy', 0.0):.4f}")
             return results
             
         except Exception as e:
@@ -284,7 +284,7 @@ class EvaluationEngine:
             else:
                 self._plot_single_evaluation(results, save_path)
             
-            logger.info(f"Visualization results saved to {save_path}")
+            logger.debug(f"Visualization results saved to {save_path}")
             
         except Exception as e:
             logger.error(f"Error visualizing results: {str(e)}")
@@ -328,7 +328,7 @@ class EvaluationEngine:
             report_lines.append("="*50)
             
             report_content = "\n".join(report_lines)
-            logger.info(f"Generated evaluation report")
+            logger.debug(f"Generated evaluation report")
             
             return report_content
             

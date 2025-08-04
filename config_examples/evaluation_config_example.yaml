@@ -1,0 +1,108 @@
+# 完整的评估配置示例：支持多种配置方式解决评估器-数据集映射问题
+
+# 测试数据集配置
+test_datas:
+  test_data:
+    type: "StandardDataLoader"
+    dataset: "mnist_test"
+    batch_size: 100
+    shuffle: false
+  
+  validation_data:
+    type: "StandardDataLoader"
+    dataset: "mnist_validation"
+    batch_size: 100
+    shuffle: false
+  
+  challenge_data:
+    type: "StandardDataLoader"
+    dataset: "mnist_challenge"
+    batch_size: 50
+    shuffle: false
+
+# 评估器配置
+evaluators:
+  accuracy_evaluator:
+    type: "accuracy_evaluator"
+    metrics: ["accuracy", "top1_accuracy"]
+    
+  loss_evaluator:
+    type: "loss_evaluator"
+    metrics: ["cross_entropy_loss", "l2_loss"]
+    
+  comprehensive_evaluator:
+    type: "comprehensive_evaluator"
+    metrics: ["accuracy", "precision", "recall", "f1_score", "confusion_matrix"]
+
+# 评估配置
+evaluation:
+  # 全局评估设置
+  enabled: true
+  frequency: "after_phase"  # 可选: after_epoch, after_phase, manual
+  
+  # 每个learner的评估配置 - 支持多种配置方式
+  learners:
+    # 方式1: 单个评估器和数据集
+    learner_1:
+      evaluator: "accuracy_evaluator"     # 单个评估器
+      test_dataset: "test_data"           # 单个测试数据集
+      
+    # 方式2: 评估任务列表 - 精确控制每个评估任务
+    learner_2:
+      evaluation_tasks:
+        - evaluator: "accuracy_evaluator"
+          test_dataset: "test_data"
+          name: "test_accuracy"              # 可选：任务名称
+        - evaluator: "accuracy_evaluator" 
+          test_dataset: "validation_data"
+          name: "validation_accuracy"
+        - evaluator: "loss_evaluator"
+          test_dataset: "test_data"
+          name: "test_loss"
+        - evaluator: "comprehensive_evaluator"
+          test_dataset: "challenge_data"
+          name: "challenge_comprehensive"
+          
+    # 方式3: 评估器映射 - 为每个评估器指定其使用的数据集
+    learner_3:
+      evaluator_mapping:
+        accuracy_evaluator: ["test_data", "validation_data"]    # accuracy_evaluator使用两个数据集
+        loss_evaluator: ["test_data"]                           # loss_evaluator只使用test_data
+        comprehensive_evaluator: ["challenge_data"]             # comprehensive_evaluator只使用challenge_data
+        
+    # 方式4: 保持向后兼容 - 所有评估器使用所有数据集
+    learner_4:
+      evaluators: ["accuracy_evaluator", "loss_evaluator"]  # 多个评估器
+      test_datasets: ["test_data", "validation_data"]       # 多个测试数据集
+      # 注意：这将创建所有评估器和数据集的笛卡尔积（共4个评估任务）
+      
+  # 默认评估配置（如果learner没有指定）
+  default:
+    evaluator: "accuracy_evaluator"
+    test_dataset: "test_data"
+
+# 训练计划中的评估钩子配置
+training_plan:
+  total_epochs: 10
+  execution_strategy: "sequential"
+  phases:
+    - name: "phase_1"
+      description: "第一阶段训练"
+      epochs: [1, 2, 3, 4, 5]
+      learner: "learner_1"
+      scheduler: "standard_scheduler"
+      
+    - name: "phase_2"
+      description: "第二阶段训练"
+      epochs: [6, 7, 8, 9, 10]
+      learner: "learner_2"
+      scheduler: "adaptive_scheduler"
+
+# 钩子配置（用于集成评估）
+hooks:
+  - name: "evaluation_hook"
+    type: "EvaluationHook"
+    phases: ["after_phase", "after_experiment"]
+    config:
+      # 评估钩子会自动使用上面定义的评估配置
+      auto_evaluate: true

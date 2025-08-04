@@ -3,11 +3,12 @@
 BaseLearner抽象基类模块
 
 提供所有学习器实现的基础接口定义，包括任务训练、评估、钩子机制和状态管理。
+支持3种灵活的模型初始化方式：直接构建法、辅助模型法、工厂函数法。
 支持持续学习场景下的模型训练和知识保持。
 """
 
 from abc import ABC, abstractmethod
-from typing import Dict, Any, Optional, List
+from typing import Dict, Any, Optional, List, Callable
 import torch
 import torch.nn as nn
 from torch.utils.data import DataLoader
@@ -16,7 +17,7 @@ from loguru import logger
 
 from .execution_context import ExecutionContext
 from ..data.results import TaskResults
-from .exceptions import LearnerError, ModelStateError, ConfigurationError
+from ..exceptions import LearnerError, ModelStateError, ConfigurationError
 
 
 class BaseLearner(ABC):
@@ -24,7 +25,12 @@ class BaseLearner(ABC):
     学习器抽象基类
     
     定义了所有持续学习算法的基础接口，包括任务训练、评估、状态管理等功能。
-    子类需要实现具体的学习算法逻辑，如L2P、EWC、DDDR等。
+    支持3种灵活的模型初始化方式，子类需要实现具体的学习算法逻辑。
+    
+    模型初始化方式：
+    1. 直接构建法：子类实现_create_default_model()方法
+    2. 辅助模型法：通过auxiliary_models参数传入预创建的模型
+    3. 工厂函数法：通过model_factory配置自定义模型创建函数
     
     Attributes:
         context: 执行上下文，提供配置和状态管理
@@ -35,31 +41,115 @@ class BaseLearner(ABC):
         current_task_id: 当前任务ID
     """
     
-    def __init__(self, context: ExecutionContext, config: DictConfig) -> None:
+    def __init__(self, context: ExecutionContext, config: DictConfig, **kwargs) -> None:
         """
         初始化学习器
         
         Args:
             context: 执行上下文对象
             config: 学习器配置参数
-            
+            **kwargs: 额外参数，支持：
+                - model: 直接传入的模型实例
+                - auxiliary_models: 辅助模型字典
+                
         Raises:
             ConfigurationError: 配置参数无效时抛出
         """
         if not isinstance(context, ExecutionContext):
             raise ConfigurationError("Invalid execution context provided")
-            
         if not isinstance(config, DictConfig):
             raise ConfigurationError("Invalid configuration provided")
             
         self.context = context
         self.config = config
-        self.model: Optional[nn.Module] = None
-        self.optimizer: Optional[torch.optim.Optimizer] = None
         self.device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
         self.current_task_id: Optional[int] = None
         
-        logger.info(f"Initialized {self.__class__.__name__} with device: {self.device}")
+        # 简化的模型初始化逻辑
+        self.model = self._initialize_model(**kwargs)
+        if self.model:
+            self.model = self.model.to(self.device)
+            
+        self.optimizer: Optional[torch.optim.Optimizer] = None
+        
+        logger.debug(f"Initialized {self.__class__.__name__} with device: {self.device}")
+
+
+    def _initialize_model(self, **kwargs) -> nn.Module:
+        """
+        简化的模型初始化逻辑
+        
+        支持2种初始化方式（按优先级）：
+        1. 直接传入模型实例 (model=xxx)
+        2. 使用辅助模型 (从auxiliary_models中获取)
+        3. 子类构建模型 (_create_default_model方法)
+        
+        Args:
+            **kwargs: 可能包含model、auxiliary_models等参数
+            
+        Returns:
+            初始化后的模型
+            
+        Raises:
+            NotImplementedError: 当所有初始化方式都不可用时抛出
+        """
+        # 方式1: 直接传入模型实例（最高优先级）
+        if 'model' in kwargs and kwargs['model'] is not None:
+            logger.debug("Using directly passed model instance")
+            return kwargs['model']
+        
+        # 方式2: 从辅助模型中获取
+        auxiliary_models = kwargs.get('auxiliary_models', {})
+        model_name = self.config.get('model_name')
+        if model_name and auxiliary_models:
+            model = self._get_auxiliary_model(auxiliary_models, model_name)
+            if model is not None:
+                return model
+        
+        # 方式3: 子类构建模型
+        logger.debug("Creating model using _create_default_model method")
+        return self._create_default_model()
+    
+    def _get_auxiliary_model(self, auxiliary_models: Dict[str, Any], model_name: str) -> Optional[nn.Module]:
+        """
+        从辅助模型中获取模型
+        
+        Args:
+            auxiliary_models: 辅助模型字典
+            model_name: 模型名称
+            
+        Returns:
+            模型实例或None
+        """
+        if model_name not in auxiliary_models:
+            logger.warning(f"Auxiliary model '{model_name}' not found")
+            return None
+        
+        model_info = auxiliary_models[model_name]
+        
+        # 支持不同格式
+        if isinstance(model_info, nn.Module):
+            logger.debug(f"Using auxiliary model instance: {model_name}")
+            return model_info
+        elif isinstance(model_info, dict) and 'model' in model_info:
+            logger.debug(f"Using auxiliary model from dict: {model_name}")
+            return model_info['model']
+        else:
+            logger.warning(f"Invalid auxiliary model format for: {model_name}")
+            return None
+    
+    
+    @abstractmethod
+    def _create_default_model(self) -> nn.Module:
+        """
+        创建默认模型（由子类实现）
+        
+        子类必须实现此方法来提供默认的模型创建逻辑。
+        
+        Returns:
+            默认模型实例
+        """
+        pass
     
     @abstractmethod
     def train_task(self, task_data: DataLoader) -> TaskResults:
@@ -162,6 +252,20 @@ class BaseLearner(ABC):
             raise ModelStateError("Model not initialized")
         return self.model
     
+    def get_model_state(self) -> Dict[str, torch.Tensor]:
+        """
+        获取模型状态字典
+        
+        Returns:
+            Dict[str, torch.Tensor]: 模型的状态字典
+            
+        Raises:
+            ModelStateError: 模型未初始化时抛出
+        """
+        if self.model is None:
+            raise ModelStateError("Model not initialized")
+        return self.model.state_dict()
+    
     def set_model(self, model: nn.Module) -> None:
         """
         设置模型
@@ -177,7 +281,7 @@ class BaseLearner(ABC):
             
         self.model = model
         self.model.to(self.device)
-        logger.info(f"Model set and moved to device: {self.device}")
+        logger.debug(f"Model set and moved to device: {self.device}")
     
     def get_optimizer(self) -> torch.optim.Optimizer:
         """
@@ -207,8 +311,118 @@ class BaseLearner(ABC):
             raise ModelStateError("Invalid optimizer provided")
             
         self.optimizer = optimizer
-        logger.info(f"Optimizer set: {optimizer.__class__.__name__}")
+        logger.debug(f"Optimizer set: {optimizer.__class__.__name__}")
     
+    def get_upload_parameters(self) -> Dict[str, Any]:
+        """
+        获取要上传的参数（联邦学习聚合用）
+        
+        用户可重写此方法来自定义上传参数的选择策略。
+        支持三种预设模式：
+        1. full_model: 上传全部模型权重（默认）
+        2. last_layer_output: 上传模型最后一层的输出特征
+        3. custom: 用户自定义参数选择
+        
+        Returns:
+            Dict[str, Any]: 要上传的参数字典
+        """
+        if self.model is None:
+            raise ModelStateError("Model not initialized")
+            
+        # 从配置中获取上传策略
+        upload_strategy = self.config.get('aggregation', {}).get('upload_strategy', 'full_model')
+        
+        if upload_strategy == "full_model":
+            return self.model.state_dict()
+            
+        elif upload_strategy == "last_layer_output":
+            return self._get_last_layer_output()
+            
+        elif upload_strategy == "custom":
+            # 检查是否有指定的参数路径
+            upload_params = self.config.get('aggregation', {}).get('upload_params', [])
+            if upload_params:
+                return self._get_parameters_by_paths(upload_params)
+            else:
+                # 调用用户自定义方法
+                return self._custom_parameter_selection()
+        else:
+            logger.warning(f"Unknown upload strategy: {upload_strategy}, using full_model")
+            return self.model.state_dict()
+    
+    def _get_last_layer_output(self) -> Dict[str, Any]:
+        """
+        获取最后一层输出特征（预设模式）
+        
+        Returns:
+            Dict[str, Any]: 包含最后一层特征的字典
+        """
+        try:
+            # 获取模型的最后一层
+            last_layer_name = None
+            last_layer = None
+            
+            for name, module in self.model.named_modules():
+                if len(list(module.children())) == 0:  # 叶子节点
+                    last_layer_name = name
+                    last_layer = module
+            
+            if last_layer is not None:
+                # 如果是线性层，返回权重和偏置
+                if isinstance(last_layer, nn.Linear):
+                    return {
+                        "last_layer_weight": last_layer.weight.data.clone(),
+                        "last_layer_bias": last_layer.bias.data.clone() if last_layer.bias is not None else None,
+                        "layer_name": last_layer_name
+                    }
+                else:
+                    # 其他类型的层，返回所有参数
+                    return {
+                        f"last_layer_{name}": param.data.clone() 
+                        for name, param in last_layer.named_parameters()
+                    }
+            else:
+                logger.warning("Could not find last layer, falling back to full model")
+                return self.model.state_dict()
+                
+        except Exception as e:
+            logger.error(f"Error getting last layer output: {e}")
+            return self.model.state_dict()
+    
+    def _get_parameters_by_paths(self, param_paths: List[str]) -> Dict[str, torch.Tensor]:
+        """
+        根据参数路径获取指定参数
+        
+        Args:
+            param_paths: 参数路径列表，如 ["conv1.weight", "fc.bias"]
+            
+        Returns:
+            Dict[str, torch.Tensor]: 指定参数字典
+        """
+        state_dict = self.model.state_dict()
+        selected_params = {}
+        
+        for path in param_paths:
+            if path in state_dict:
+                selected_params[path] = state_dict[path].clone()
+            else:
+                logger.warning(f"Parameter path not found: {path}")
+        
+        return selected_params
+    
+    def _custom_parameter_selection(self) -> Dict[str, Any]:
+        """
+        用户自定义参数选择逻辑
+        
+        子类可以重写此方法来实现自定义的参数选择策略。
+        默认实现返回全部模型参数。
+        
+        Returns:
+            Dict[str, Any]: 自定义选择的参数
+        """
+        logger.debug("Using default parameter selection (full model)")
+        return self.model.state_dict()
+
     def get_learning_rate(self) -> float:
         """
         获取学习率
@@ -263,7 +477,7 @@ class BaseLearner(ABC):
             "learner_class": self.__class__.__name__
         }
         
-        logger.info("Learner state saved successfully")
+        logger.debug("Learner state saved successfully")
         return state
     
     def load_learner_state(self, state: Dict[str, Any]) -> None:
@@ -294,7 +508,7 @@ class BaseLearner(ABC):
             if "current_task_id" in state:
                 self.current_task_id = state["current_task_id"]
                 
-            logger.info("Learner state loaded successfully")
+            logger.debug("Learner state loaded successfully")
             
         except Exception as e:
             raise ModelStateError(f"Failed to load learner state: {str(e)}")
@@ -310,7 +524,7 @@ class BaseLearner(ABC):
             task_id: 新任务的ID
         """
         self.current_task_id = task_id
-        logger.info(f"Reset learner for new task: {task_id}")
+        logger.debug(f"Reset learner for new task: {task_id}")
     
     def get_memory_usage(self) -> Dict[str, float]:
         """
@@ -338,11 +552,33 @@ class BaseLearner(ABC):
             
         self.model = None
         self.optimizer = None
-        logger.info("Learner resources cleaned up")
+        logger.debug("Learner resources cleaned up")
+    
+    def get_model_info(self) -> Dict[str, Any]:
+        """
+        获取模型信息
+        
+        Returns:
+            Dict[str, Any]: 模型相关信息
+        """
+        if self.model is None:
+            return {"model": "not_initialized"}
+        
+        total_params = sum(p.numel() for p in self.model.parameters())
+        trainable_params = sum(p.numel() for p in self.model.parameters() if p.requires_grad)
+        
+        return {
+            "model_class": type(self.model).__name__,
+            "total_parameters": total_params,
+            "trainable_parameters": trainable_params,
+            "device": str(self.device),
+            "optimizer": type(self.optimizer).__name__ if self.optimizer else None,
+            "current_task_id": self.current_task_id
+        }
     
     def __repr__(self) -> str:
         """字符串表示"""
         return (f"{self.__class__.__name__}("
                 f"task_id={self.current_task_id}, "
                 f"device={self.device}, "
-                f"model={'initialized' if self.model else 'None'})")
+                f"model={'初始化完成' if self.model else 'None'})")

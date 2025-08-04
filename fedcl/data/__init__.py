@@ -3,6 +3,7 @@
 数据管理模块
 
 提供联邦学习所需的数据处理、分割、加载等功能。
+包含新的DataLoader工厂系统，支持装饰器注册和配置驱动的数据加载。
 """
 
 from .dataset import Dataset, DatasetError

@@ -1,11 +1,13 @@
 # fedcl/communication/__init__.py
 """
-通信模块初始化文件
+FedCL通信模块
 
-提供FedCL框架的通信相关组件，包括消息协议、网络接口、数据序列化、
-安全模块、通信处理器和通信管理器等。
+提供联邦学习系统的通信功能，包括：
+- 消息协议和序列化
+- 网络接口和安全模块
+- 通信处理器和管理器
+- 多线程异步通信支持
 """
-
 from .message_protocol import MessageProtocol, Message
 from .data_serializer import DataSerializer
 from .network_interface import NetworkInterface, Connection, ConnectionPool, ConnectionStatus, ProtocolType

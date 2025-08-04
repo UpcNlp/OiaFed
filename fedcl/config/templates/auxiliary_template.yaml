@@ -1,0 +1,27 @@
+# fedcl/config/templates/auxiliary_template.yaml
+# 辅助模型配置模板
+
+auxiliary_model:
+  # 基本配置
+  name: "auxiliary_model_1"
+  type: "teacher_model"
+  
+  # 模型配置
+  model:
+    architecture: "resnet50"
+    pretrained: true
+    
+  # 服务端连接配置
+  server:
+    host: "localhost"
+    port: 8080
+    
+  # 辅助功能配置
+  features:
+    knowledge_distillation: true
+    model_compression: false
+    
+  # 更新配置
+  update_strategy:
+    frequency: "every_round"
+    aggregation_weight: 0.1
