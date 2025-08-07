@@ -1,9 +1,9 @@
-# fedcl/learners/generic_learner.py
+# fedcl/implementations/models/mnist.py
 """
-通用学习器实现
+MNIST数据集模型实现
 
-提供通用的学习器实现，支持通过配置文件指定注册的模型。
-可以用于各种分类任务，通过注册系统动态加载模型。
+提供适用于MNIST数据集的各种神经网络模型实现，包括MLP、CNN和ResNet。
+所有模型都支持自动输入形状处理，能够处理不同格式的MNIST数据输入。
 """
 
 import time
@@ -11,13 +11,7 @@ from typing import Dict, Any, Optional, List
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
-import torch.optim as optim
-from torch.utils.data import DataLoader
-from omegaconf import DictConfig
-from loguru import logger
 
-from ...core.base_learner import BaseLearner
-from ...core.execution_context import ExecutionContext
 from ...registry.component_registry import registry
 
 
@@ -105,9 +99,14 @@ class SimpleMLP(nn.Module):
     
     def forward(self, x):
         """前向传播"""
-        # 自动展平输入
-        if len(x.shape) > 2:
+        # 自动展平输入 - 处理各种MNIST数据格式
+        if x.dim() == 3:
+            # (batch_size, 28, 28) -> (batch_size, 784)
             x = x.view(x.size(0), -1)
+        elif x.dim() == 4:
+            # (batch_size, 1, 28, 28) 或 (batch_size, channels, H, W) -> (batch_size, -1)
+            x = x.view(x.size(0), -1)
+        # x.dim() == 2 的情况已经是展平的，直接使用
         return self.network(x)
 
 
@@ -211,6 +210,16 @@ class SimpleCNN(nn.Module):
     
     def forward(self, x):
         """前向传播"""
+        # 处理不同的输入格式
+        if x.dim() == 3:
+            # (batch_size, 28, 28) -> (batch_size, 1, 28, 28)
+            x = x.unsqueeze(1)
+        elif x.dim() == 2:
+            # (batch_size, 784) -> (batch_size, 1, 28, 28) 
+            # 假设是MNIST数据，重塑为28x28图像
+            x = x.view(x.size(0), 1, 28, 28)
+        # x.dim() == 4 的情况已经是正确格式，直接使用
+        
         x = self.conv_features(x)
         x = x.view(x.size(0), -1)  # 展平
         x = self.classifier(x)
@@ -311,6 +320,16 @@ class ResNetLike(nn.Module):
     
     def forward(self, x):
         """前向传播"""
+        # 处理不同的输入格式
+        if x.dim() == 3:
+            # (batch_size, 28, 28) -> (batch_size, 1, 28, 28)
+            x = x.unsqueeze(1)
+        elif x.dim() == 2:
+            # (batch_size, 784) -> (batch_size, 1, 28, 28)
+            # 假设是MNIST数据，重塑为28x28图像
+            x = x.view(x.size(0), 1, 28, 28)
+        # x.dim() == 4 的情况已经是正确格式，直接使用
+        
         x = F.relu(self.bn1(self.conv1(x)))
         
         for block in self.blocks:

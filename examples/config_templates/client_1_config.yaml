@@ -1,0 +1,129 @@
+# 客户端1配置 - 联邦学习客户端配置模板
+client:
+  id: "fedcl_client_1"                      # 客户端ID（必须唯一）
+  name: "FedCL Client 1"                    # 客户端名称
+  type: "multi_learner"                     # 客户端类型
+
+# 通信配置
+communication:
+  host: "localhost"                         # 服务端地址
+  port: 8080                                # 服务端端口
+  max_workers: 3                            # 最大工作线程数
+  timeout: 60.0                             # 通信超时时间
+
+# 学习器配置 - 使用default学习器
+learners:
+  default_learner:                          # 学习器名称
+    class: "default"                        # 学习器类名（重要：使用default）
+    model:
+      type: "SimpleMLP"                     # 模型类型
+      input_size: 784                       # 输入维度
+      hidden_sizes: [256, 128]              # 隐藏层
+      num_classes: 10                       # 分类数
+      dropout_rate: 0.2                     # Dropout
+      activation: "relu"                    # 激活函数
+      use_batch_norm: false                 # 批标准化
+    optimizer:
+      type: "SGD"                           # 优化器类型
+      lr: 0.01                              # 学习率
+      momentum: 0.9                         # 动量
+      weight_decay: 1e-4                    # 权重衰减
+    loss_function:
+      type: "CrossEntropyLoss"              # 损失函数
+    dataloader: "mnist_data"                # 关联的数据加载器
+    scheduler: "step_scheduler"             # 学习率调度器
+    priority: 0                             # 优先级
+    enabled: true                           # 启用此学习器
+
+# 数据加载器配置
+dataloaders:
+  mnist_data:                               # 数据加载器名称
+    batch_size: 32                          # 批次大小
+    shuffle: true                           # 是否打乱
+    num_workers: 0                          # 工作线程（测试时用0）
+    drop_last: false                        # 是否丢弃最后批次
+    pin_memory: false                       # 是否固定内存
+    dataset_config:
+      name: "MNIST"                         # 数据集名称
+      path: "data/MNIST"                    # 数据路径
+      split: "train"                        # 使用训练集
+      download: true                        # 允许下载
+      client_id: 1                          # 客户端数据分区ID
+      num_clients: 3                        # 总客户端数
+      iid: true                             # 是否IID分布
+
+# 调度器配置
+schedulers:
+  step_scheduler:                           # 学习率调度器
+    type: "StepLR"                          # 调度器类型
+    step_size: 10                           # 步长
+    gamma: 0.1                              # 衰减率
+  basic_training_scheduler:                 # 训练调度器
+    type: "BasicTrainingScheduler"          # 调度器类型
+    epochs_per_round: 3                     # 每轮训练轮次
+
+# 训练计划
+training_plan:
+  total_epochs: 3                           # 总训练轮次
+  execution_strategy: "sequential"          # 执行策略
+  phases:
+    - name: "default_training"              # 训练阶段名称
+      epochs: [1, 2, 3]                     # 执行的轮次
+      learner: "default_learner"            # 使用的学习器
+
+# 数据集配置
+dataset:
+  name: "MNIST"                             # 数据集名称
+  type: "classification"                    # 任务类型
+  num_classes: 10                           # 分类数量
+  client_partition: 1                       # 客户端分区ID
+  num_clients: 3                            # 总客户端数
+  data_distribution: "iid"                  # 数据分布类型
+
+# 系统配置
+system:
+  device: "cpu"                             # 设备选择
+  random_seed: 42                           # 随机种子
+
+# 客户端测试数据配置
+test_datas:
+  mnist_test:                               # 测试数据名称
+    type: "StandardDataLoader"              # 数据加载器类型
+    batch_size: 64                          # 测试批次大小
+    shuffle: false                          # 测试时不打乱
+    num_workers: 0                          # 工作线程数
+    pin_memory: false                       # 内存配置
+    dataset_config:
+      name: "MNIST"                         # 数据集名称
+      path: "data/MNIST"                    # 数据路径
+      split: "test"                         # 使用测试集
+      download: true                        # 允许下载
+
+# 客户端评估器配置
+evaluators:
+  accuracy_evaluator:                       # 准确率评估器
+    class: "accuracy"                       # 评估器类名
+    phase: "after_training"                 # 评估阶段：训练后
+    frequency: 1                            # 评估频率
+    test_data: "mnist_test"                 # 使用的测试数据
+    
+  loss_evaluator:                           # 损失评估器
+    class: "loss"                           # 评估器类名
+    phase: "after_training"                 # 评估阶段
+    frequency: 1                            # 评估频率
+    test_data: "mnist_test"                 # 使用的测试数据
+
+# 客户端评估配置
+evaluation:
+  enabled: true                             # 启用客户端评估
+  tasks:
+    - name: "client_evaluation"             # 评估任务名称
+      phase: "after_training"               # 在训练后评估
+      evaluators: ["accuracy_evaluator", "loss_evaluator"]
+      test_data: "mnist_test"
+
+# 日志配置
+logging:
+  level: "INFO"                             # 日志级别
+  log_training_progress: true               # 记录训练进度
+  log_evaluation_results: true              # 记录评估结果

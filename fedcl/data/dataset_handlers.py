@@ -129,17 +129,16 @@ class MockDatasetHandler:
     def load_dataset(self, client_id: str, split_config: Dict[str, Any]) -> DataLoader:
         """创建模拟数据集"""
         num_samples = self.config.get('num_samples', 100)
-        input_dim = self.config.get('input_dim', 784)
         num_classes = self.config.get('num_classes', 10)
         
-        # 创建模拟数据
-        X = torch.randn(num_samples, input_dim)
+        # 创建MNIST格式的模拟数据 (1, 28, 28)
+        X = torch.randn(num_samples, 1, 28, 28)
         y = torch.randint(0, num_classes, (num_samples,))
         
         dataset = TensorDataset(X, y)
         dataloader = DataLoader(dataset, batch_size=32, shuffle=True)
         
-        logger.debug(f"Created mock dataset for client {client_id}: {num_samples} samples")
+        logger.debug(f"Created mock dataset for client {client_id}: {num_samples} samples, shape=(1, 28, 28)")
         return dataloader
 
 

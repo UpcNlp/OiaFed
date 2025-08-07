@@ -18,6 +18,7 @@ from loguru import logger
 from .execution_context import ExecutionContext
 from ..data.results import TaskResults
 from ..exceptions import LearnerError, ModelStateError, ConfigurationError
+from ..utils.improved_logging_manager import get_component_logger
 
 
 class BaseLearner(ABC):
@@ -62,6 +63,8 @@ class BaseLearner(ABC):
             
         self.context = context
         self.config = config
+        client_id = context.get_state("client_info").get("client_id", "unknown")
+        self.logger = get_component_logger( "client",client_id)
         self.device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
         self.current_task_id: Optional[int] = None
         
@@ -72,8 +75,7 @@ class BaseLearner(ABC):
             
         self.optimizer: Optional[torch.optim.Optimizer] = None
         
-        logger.debug(f"Initialized {self.__class__.__name__} with device: {self.device}")
-
+        self.logger.debug(f"Initialized {self.__class__.__name__} with device: {self.device}")
 
     def _initialize_model(self, **kwargs) -> nn.Module:
         """

@@ -67,7 +67,7 @@ class LearnerInfo:
     learner_type: str
     learner_instance: BaseLearner
     dataloader_id: str
-    scheduler_id: str
+    scheduler_id: Optional[str]  # 允许为None
     priority: int = 0
     is_active: bool = True
 
@@ -134,6 +134,12 @@ class MultiLearnerFederatedClient(FederatedCommunicator):
             
             # 创建执行上下文
             self.context = self._create_execution_context(config)
+            
+            # 设置客户端信息到context，供learner使用
+            self.context.set_state("client_info", {
+                "client_id": self.client_id,
+                "client_type": "multi_learner"
+            })
             
             # 创建层级状态管理器
             self.hierarchical_state_manager = create_hierarchical_state_manager(
@@ -376,7 +382,7 @@ class MultiLearnerFederatedClient(FederatedCommunicator):
         """处理全局模型分发（支持多模型）"""
         try:
             round_id = message_data.get('metadata', {}).get('round_id', -1)
-            self.logger.info(f"📥 [模型下发] Round {round_id} - 接收全局模型，准备开始训练与评估")
+            self.logger.info(f"📥 [模型接收] Round {round_id} - 接收全局模型，准备开始训练与评估")
             
             # 提取多个模型数据
             models_data = message_data.get('data', {}).get('models', {})
@@ -393,26 +399,36 @@ class MultiLearnerFederatedClient(FederatedCommunicator):
             updated_models = []
             
             # 更新各个learner的模型
+            self.logger.debug(f"📥 [模型更新] 开始更新模型，models_data keys: {list(models_data.keys())}")
+            self.logger.debug(f"📥 [模型更新] 当前learners: {list(self.learners_info.keys())}")
+            
             for model_key, model_state in models_data.items():
+                self.logger.debug(f"📥 [模型更新] 处理模型key: {model_key}")
                 learner_info = self._find_learner_for_model(model_key)
                 
                 if learner_info:
+                    self.logger.info(f"📥 [模型更新] 找到learner {learner_info.learner_id}，开始更新模型")
                     try:
                         if hasattr(learner_info.learner_instance, 'update_model'):
                             learner_info.learner_instance.update_model(model_state)
+                            self.logger.info(f"📥 [模型更新] 使用update_model方法更新 {learner_info.learner_id}")
                         else:
                             # 兼容性处理
                             model = learner_info.learner_instance.get_model()
                             if hasattr(model, 'load_state_dict'):
                                 model.load_state_dict(model_state)
+                                self.logger.info(f"📥 [模型更新] 使用load_state_dict方法更新 {learner_info.learner_id}")
                         
                         self.received_global_models[learner_info.learner_id] = learner_info.learner_instance.get_model()
                         updated_models.append(learner_info.learner_id)
+                        self.logger.info(f"✅ [模型更新] 成功更新learner {learner_info.learner_id} 的模型")
                         
                     except Exception as e:
-                        self.logger.error(f"更新learner模型失败 {learner_info.learner_id}: {e}")
+                        self.logger.error(f"❌ [模型更新] 更新learner模型失败 {learner_info.learner_id}: {e}")
+                        import traceback
+                        self.logger.error(f"❌ [模型更新] 错误详情: {traceback.format_exc()}")
                 else:
-                    self.logger.warning(f"未找到模型key对应的learner: {model_key}")
+                    self.logger.warning(f"⚠️ [模型更新] 未找到模型key对应的learner: {model_key}，当前learners: {list(self.learners_info.keys())}")
             
             # 发布模型接收事件
             self.context.publish_event("global_models_received", {
@@ -557,6 +573,10 @@ class MultiLearnerFederatedClient(FederatedCommunicator):
             
             self.logger.debug(f"开始多learner训练 round {round_id}")
             
+            # 设置当前轮次到执行上下文
+            if hasattr(self, 'context') and self.context:
+                self.context.set_state('current_round', round_id, scope='global')
+            
             # 确保训练引擎处于可执行状态
             current_state = self.enhanced_training_engine.training_state
             if current_state == TrainingPhaseState.PREPARING:
@@ -656,12 +676,17 @@ class MultiLearnerFederatedClient(FederatedCommunicator):
             aggregated_update = {}
             total_weight = 0.0
             
+            self.logger.debug(f"开始聚合模型更新，phase_results数量: {len(phase_results)}")
+            
             for phase_name, phase_result in phase_results.items():
                 if not phase_result.success or not phase_result.final_state:
+                    self.logger.debug(f"跳过阶段 {phase_name}: success={phase_result.success}, final_state存在={phase_result.final_state is not None}")
                     continue
                 
                 # 获取阶段的模型更新
                 phase_model_update = phase_result.final_state.get('model_update', {})
+                self.logger.debug(f"阶段 {phase_name} 原始model_update包含 {len(phase_model_update)} 个参数")
+                
                 if not phase_model_update:
                     # 尝试从learner获取模型参数
                     learner_info = self._get_learner_info_by_phase(phase_name)
@@ -669,24 +694,33 @@ class MultiLearnerFederatedClient(FederatedCommunicator):
                         try:
                             model = learner_info.learner_instance.get_model()
                             if hasattr(model, 'state_dict'):
-                                phase_model_update = {k: v.clone() for k, v in model.state_dict().items()}
+                                phase_model_update = {k: v.clone().detach() for k, v in model.state_dict().items()}
+                                self.logger.debug(f"从learner获取阶段 {phase_name} 模型参数: {len(phase_model_update)} 个")
                         except Exception as e:
                             self.logger.warning(f"获取阶段{phase_name}模型参数失败: {e}")
                             continue
                     else:
+                        self.logger.warning(f"未找到阶段{phase_name}对应的learner_info")
                         continue
+                
+                if not phase_model_update:
+                    self.logger.warning(f"阶段 {phase_name} 无法获取有效的模型参数")
+                    continue
                 
                 # 计算阶段权重（基于训练时间和成功的epoch数）
                 phase_weight = len(phase_result.executed_epochs) * max(phase_result.execution_time, 1.0)
                 total_weight += phase_weight
                 
+                self.logger.debug(f"阶段 {phase_name} 权重: {phase_weight}, 开始聚合 {len(phase_model_update)} 个参数")
+                
                 # 加权聚合模型参数
                 for param_name, param_tensor in phase_model_update.items():
                     if not isinstance(param_tensor, torch.Tensor):
+                        self.logger.debug(f"跳过非张量参数: {param_name}, 类型: {type(param_tensor)}")
                         continue
                         
                     if param_name not in aggregated_update:
-                        aggregated_update[param_name] = param_tensor.clone() * phase_weight
+                        aggregated_update[param_name] = param_tensor.clone().detach() * phase_weight
                     else:
                         aggregated_update[param_name] += param_tensor * phase_weight
             
@@ -694,8 +728,9 @@ class MultiLearnerFederatedClient(FederatedCommunicator):
             if total_weight > 0:
                 for param_name in aggregated_update:
                     aggregated_update[param_name] /= total_weight
+                self.logger.debug(f"模型参数归一化完成，总权重: {total_weight}")
             
-            self.logger.info(f"聚合模型更新完成: {len(phase_results)}个阶段, {len(aggregated_update)}个参数")
+            self.logger.info(f"客户端内部模型整合完成: {len(phase_results)}个阶段, {len(aggregated_update)}个参数")
             return aggregated_update
             
         except Exception as e:
@@ -705,6 +740,8 @@ class MultiLearnerFederatedClient(FederatedCommunicator):
     def _aggregate_training_metrics(self, phase_results: Dict[str, PhaseResult]) -> Dict[str, Any]:
         """聚合训练指标"""
         try:
+            self.logger.debug(f"开始聚合训练指标，phase_results数量: {len(phase_results)}")
+            
             aggregated_metrics = {
                 "total_phases": len(phase_results),
                 "successful_phases": 0,
@@ -720,6 +757,8 @@ class MultiLearnerFederatedClient(FederatedCommunicator):
             accuracy_count = 0
             
             for phase_name, phase_result in phase_results.items():
+                self.logger.debug(f"处理阶段: {phase_name}, success: {phase_result.success}")
+                
                 if phase_result.success:
                     aggregated_metrics["successful_phases"] += 1
                 
@@ -727,28 +766,58 @@ class MultiLearnerFederatedClient(FederatedCommunicator):
                 
                 # 聚合每个阶段的最终指标
                 final_metrics = phase_result.get_final_metrics()
+                self.logger.debug(f"阶段 {phase_name} 的final_metrics: {final_metrics}")
                 aggregated_metrics["phase_metrics"][phase_name] = final_metrics
                 
-                # 累积损失和准确率
-                if "loss" in final_metrics and isinstance(final_metrics["loss"], (int, float)):
-                    total_loss += final_metrics["loss"]
-                    loss_count += 1
+                # 累积损失和准确率 - 支持多种键名格式
+                # 检查loss相关的键
+                found_loss = False
+                for loss_key in ["loss", "final_loss", "epoch_loss", "avg_loss"]:
+                    if loss_key in final_metrics and isinstance(final_metrics[loss_key], (int, float)):
+                        total_loss += final_metrics[loss_key]
+                        loss_count += 1
+                        found_loss = True
+                        self.logger.debug(f"找到loss键 '{loss_key}': {final_metrics[loss_key]}")
+                        break
                 
-                if "accuracy" in final_metrics and isinstance(final_metrics["accuracy"], (int, float)):
-                    total_accuracy += final_metrics["accuracy"]
-                    accuracy_count += 1
+                if not found_loss:
+                    self.logger.debug(f"阶段 {phase_name} 未找到loss键，可用键: {list(final_metrics.keys())}")
+                
+                # 检查accuracy相关的键
+                found_accuracy = False
+                for acc_key in ["accuracy", "final_accuracy", "epoch_accuracy", "avg_accuracy"]:
+                    if acc_key in final_metrics and isinstance(final_metrics[acc_key], (int, float)):
+                        total_accuracy += final_metrics[acc_key]
+                        accuracy_count += 1
+                        found_accuracy = True
+                        self.logger.debug(f"找到accuracy键 '{acc_key}': {final_metrics[acc_key]}")
+                        break
+                
+                if not found_accuracy:
+                    self.logger.debug(f"阶段 {phase_name} 未找到accuracy键，可用键: {list(final_metrics.keys())}")
             
             # 计算平均值
             if loss_count > 0:
                 aggregated_metrics["average_loss"] = total_loss / loss_count
+                self.logger.debug(f"计算平均loss: {total_loss}/{loss_count} = {aggregated_metrics['average_loss']}")
+            else:
+                self.logger.debug("没有找到有效的loss值")
             
             if accuracy_count > 0:
                 aggregated_metrics["average_accuracy"] = total_accuracy / accuracy_count
+                self.logger.debug(f"计算平均accuracy: {total_accuracy}/{accuracy_count} = {aggregated_metrics['average_accuracy']}")
+            else:
+                self.logger.debug("没有找到有效的accuracy值")
             
+            self.logger.debug(f"聚合训练指标完成: {aggregated_metrics}")
             return aggregated_metrics
             
         except Exception as e:
             self.logger.error(f"聚合训练指标失败: {e}")
+            self.logger.error(f"异常类型: {type(e).__name__}")
+            self.logger.error(f"异常详情: {repr(e)}")
+            import traceback
+            self.logger.error(f"异常堆栈: {traceback.format_exc()}")
             return {"error": str(e)}
     
     def _aggregate_evaluation_results(self, phase_results: Dict[str, PhaseResult]) -> Dict[str, Any]:
@@ -1029,12 +1098,19 @@ class MultiLearnerFederatedClient(FederatedCommunicator):
             learner_instance = self._create_single_learner(learner_config, self.context)
             
             # 构建learner信息
+            scheduler_config = learner_config.get('scheduler')
+            # 如果scheduler配置为None、null或空字符串，则不使用scheduler
+            if scheduler_config in [None, "null", "None", ""]:
+                scheduler_id = None
+            else:
+                scheduler_id = scheduler_config or f"{learner_id}_scheduler"
+            
             learner_info = LearnerInfo(
                 learner_id=learner_id,
                 learner_type=learner_config.get('type', 'UnknownLearner'),
                 learner_instance=learner_instance,
                 dataloader_id=learner_config.get('dataloader', f"{learner_id}_dataloader"),
-                scheduler_id=learner_config.get('scheduler', f"{learner_id}_scheduler"),
+                scheduler_id=scheduler_id,
                 priority=learner_config.get('priority', 0),
                 is_active=learner_config.get('enabled', True)
             )
@@ -1108,41 +1184,18 @@ class MultiLearnerFederatedClient(FederatedCommunicator):
     
     def _create_dataloader(self, dataloader_id: str, dataloader_config: Dict[str, Any]) -> DataLoader:
         """创建dataloader"""
-        try:
             # 尝试使用DataLoaderFactory
-            try:
-                from ...config.config_manager import DataLoaderFactory
-                
-                factory = DataLoaderFactory({dataloader_id: dataloader_config})
-                dataloader = factory.create_dataloader(dataloader_id, dataloader_config)
-                return dataloader
-            except Exception as e:
-                self.logger.warning(f"使用DataLoaderFactory创建dataloader失败 {dataloader_id}: {e}, 使用mock数据")
-                return self._create_mock_data()
-            
-        except Exception as e:
-            self.logger.warning(f"创建dataloader失败 {dataloader_id}: {e}, 使用mock数据")
-            return self._create_mock_data()
-    
-    def _create_mock_data(self) -> DataLoader:
-        """创建模拟训练数据"""
         try:
-            # 简单的模拟数据
-            num_samples = 100
-            input_dim = 784
-            num_classes = 10
+            from ...config.config_manager import DataLoaderFactory
             
-            X = torch.randn(num_samples, input_dim)
-            y = torch.randint(0, num_classes, (num_samples,))
-            
-            dataset = TensorDataset(X, y)
-            dataloader = DataLoader(dataset, batch_size=32, shuffle=True)
-            
-            self.logger.debug(f"创建模拟数据集: {num_samples} samples")
+            factory = DataLoaderFactory({dataloader_id: dataloader_config})
+            dataloader = factory.create_dataloader(dataloader_id, dataloader_config)
             return dataloader
         except Exception as e:
-            self.logger.error(f"创建模拟数据失败: {e}")
+            self.logger.warning(f"使用DataLoaderFactory创建dataloader失败 {dataloader_id}: {e}, 使用mock数据")
             raise
+    
+    
     
     def _build_enhanced_training_config(self, client_config: DictConfig) -> Dict[str, Any]:
         """构建增强训练引擎配置"""
@@ -1186,11 +1239,18 @@ class MultiLearnerFederatedClient(FederatedCommunicator):
         # 创建简单的顺序训练计划
         phases = []
         epoch_count = 1
-        epochs_per_phase = 5
         
         for i, learner_id in enumerate(learner_ids):
             learner_info = self.learners_info[learner_id]
             self.logger.debug(f"为learner {learner_id} 创建训练阶段，scheduler={learner_info.scheduler_id}")
+            
+            # 从self.client_config中读取local_epochs，如果没有则默认为5
+            learner_configs = self.client_config.get('learners', {})
+            learner_config = learner_configs.get(learner_id, {})
+            training_config = learner_config.get('training', {})
+            epochs_per_phase = training_config.get('local_epochs', 5)
+            
+            self.logger.debug(f"learner {learner_id} 使用 epochs_per_phase: {epochs_per_phase}")
             
             phase_epochs = list(range(epoch_count, epoch_count + epochs_per_phase))
             
@@ -1199,7 +1259,7 @@ class MultiLearnerFederatedClient(FederatedCommunicator):
                 "description": f"Training phase for {learner_id}",
                 "epochs": phase_epochs,
                 "learner": learner_id,
-                "scheduler": learner_info.scheduler_id,
+                "scheduler": learner_info.scheduler_id,  # 可能为None
                 "priority": learner_info.priority,
                 "execution_mode": "sequential"
             }
@@ -1224,29 +1284,39 @@ class MultiLearnerFederatedClient(FederatedCommunicator):
     
     def _find_learner_for_model(self, model_key: str) -> Optional[LearnerInfo]:
         """根据模型key找到对应的learner"""
+        self.logger.debug(f"🔍 [找learner] 查找模型key: {model_key}, 可用learners: {list(self.learners_info.keys())}")
+        
         # 尝试直接匹配learner_id
         if model_key in self.learners_info:
+            self.logger.debug(f"🔍 [找learner] 直接匹配到learner: {model_key}")
             return self.learners_info[model_key]
         
         # 尝试根据模型key的映射规则查找
         model_mappings = self.client_config.get('model_mappings', {})
         if model_key in model_mappings:
             learner_id = model_mappings[model_key]
+            self.logger.debug(f"🔍 [找learner] 通过映射找到learner: {model_key} -> {learner_id}")
             return self.learners_info.get(learner_id)
         
         # 默认策略：如果只有一个learner，使用它
         if len(self.learners_info) == 1:
-            return list(self.learners_info.values())[0]
+            learner_info = list(self.learners_info.values())[0]
+            self.logger.debug(f"🔍 [找learner] 只有一个learner，使用它: {learner_info.learner_id}")
+            return learner_info
         
         # 默认策略：查找主learner
         for learner_info in self.learners_info.values():
             if "primary" in learner_info.learner_id.lower() or "default" in learner_info.learner_id.lower():
+                self.logger.debug(f"🔍 [找learner] 找到default/primary learner: {learner_info.learner_id}")
                 return learner_info
         
         # 如果都没找到，返回第一个
         if self.learners_info:
-            return list(self.learners_info.values())[0]
+            learner_info = list(self.learners_info.values())[0]
+            self.logger.debug(f"🔍 [找learner] 使用第一个learner: {learner_info.learner_id}")
+            return learner_info
         
+        self.logger.warning(f"🔍 [找learner] 未找到任何learner for model_key: {model_key}")
         return None
     
     def _get_learner_info_by_phase(self, phase_name: str) -> Optional[LearnerInfo]:
@@ -1446,16 +1516,30 @@ class MultiLearnerFederatedClient(FederatedCommunicator):
     def _create_execution_context(self, config: DictConfig) -> ExecutionContext:
         """创建执行上下文"""
         try:
-            context_config = config.get('context', {})
+            # 修改：传递完整的配置而不仅仅是context部分
+            # 这样ExecutionContext可以访问hooks等配置
             experiment_id = f"multi_learner_client_experiment_{self.client_id}"
             
             context = ExecutionContext(
-                config=OmegaConf.create(context_config),
+                config=config,  # 传递完整配置
                 experiment_id=experiment_id
             )
             
             # 存储完整配置
             context._client_config = config
+            
+            # 设置实验目录信息（优先从配置中获取，然后从实例属性）
+            shared_experiment_dir = config.get('experiment.shared_experiment_dir')
+            if shared_experiment_dir:
+                context._base_experiment_dir = str(shared_experiment_dir)
+                context._shared_experiment_dir = str(shared_experiment_dir)
+                self.logger.debug(f"Client context: using shared_experiment_dir from config: {shared_experiment_dir}")
+            elif hasattr(self, '_experiment_dir'):
+                context._base_experiment_dir = str(self._experiment_dir)
+                context._shared_experiment_dir = str(self._experiment_dir)
+                self.logger.debug(f"Client context: using _experiment_dir from instance: {self._experiment_dir}")
+            else:
+                self.logger.warning("Client context: no experiment directory found in config or instance")
             
             return context
         except Exception as e:

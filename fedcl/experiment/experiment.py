@@ -63,17 +63,19 @@ class FedCLExperiment:
         })
     """
     
-    def __init__(self, config: Union[str, Path, DictConfig], experiment_id: Optional[str] = None):
+    def __init__(self, config: Union[str, Path, DictConfig], experiment_id: Optional[str] = None, console_logging: bool = True):
         """
         初始化实验管理器
         
         Args:
             config: 配置文件路径/配置目录路径或配置对象
             experiment_id: 实验ID，如果不提供则自动生成（基于日期时间）
+            console_logging: 是否启用控制台日志输出
         """
         # 生成或设置实验ID（基于日期时间格式）
         from datetime import datetime
         self.experiment_id = experiment_id or datetime.now().strftime("%Y%m%d_%H%M%S")
+        self.console_logging = console_logging
         
         # 初始化配置管理器（延迟到需要时创建）
         try:
@@ -117,13 +119,64 @@ class FedCLExperiment:
         # 实验状态
         self.start_time: Optional[float] = None
         self.end_time: Optional[float] = None
+        self.running = False
+        self.stop_event = None
         
         # 初始化组件（进程化）
         self.components = {}
         
+        # 线程管理
+        self.threads = []
+        
         logger.debug(f"Initialized FedCLExperiment {self.experiment_id} in {self.config_mode} mode")
         logger.info(f"Experiment directory: {self.experiment_dir}")
+        
+        # 如果启用控制台日志，设置更详细的日志格式
+        if self.console_logging:
+            self._setup_console_logging()
     
+    def _setup_console_logging(self):
+        """设置控制台日志输出"""
+        try:
+            import sys
+            from loguru import logger as loguru_logger
+            
+            # 为控制台输出添加更详细的格式
+            console_format = (
+                "<green>{time:HH:mm:ss.SSS}</green> | "
+                "<level>{level: <8}</level> | "
+                "<cyan>{extra[component]}</cyan> | "
+                "<level>{message}</level>"
+            )
+            
+            # 添加控制台处理器（如果尚未添加）
+            loguru_logger.add(
+                sys.stdout,
+                format=console_format,
+                level="INFO",
+                colorize=True,
+                filter=lambda record: record["extra"].get("component", "").startswith(("SERVER", "CLIENT", "FEDERATION"))
+            )
+            
+            logger.info("Console logging configured for federation components")
+            
+        except Exception as e:
+            logger.warning(f"Failed to setup console logging: {e}")
+    
+    def set_stop_event(self, stop_event):
+        """设置停止事件（用于外部控制）"""
+        self.stop_event = stop_event
+    
+    def stop(self):
+        """停止实验"""
+        self.running = False
+        if self.stop_event:
+            self.stop_event.set()
+        logger.info("Experiment stop requested")
+    
+    def is_running(self) -> bool:
+        """检查实验是否正在运行"""
+        return self.running
     def run(self) -> ExperimentResults:
         """
         运行实验 - 统一入口
@@ -135,8 +188,13 @@ class FedCLExperiment:
             ExperimentEngineError: 实验执行失败
         """
         try:
+            self.running = True
             logger.debug(f"Starting experiment: {self.config.get('experiment.name', 'unnamed')}")
             self.start_time = time.time()
+            
+            # 在控制台显示启动信息
+            if self.console_logging:
+                self._log_experiment_start()
             
             if self.config_mode == "directory":
                 # 目录扫描模式：进程化初始化组件
@@ -160,14 +218,22 @@ class FedCLExperiment:
             self._save_results(experiment_results)
             
             self.end_time = time.time()
+            
+            # 在控制台显示完成信息
+            if self.console_logging:
+                self._log_experiment_complete()
+            
             logger.success(f"Experiment completed in {self.end_time - self.start_time:.2f}s")
             
             return experiment_results
             
         except Exception as e:
             self.end_time = time.time()
+            self.running = False
             logger.error(f"Experiment failed: {e}")
             raise ExperimentEngineError(f"Experiment execution failed: {e}") from e
+        finally:
+            self.running = False
     
     def sweep(self, param_grid: Dict[str, List[Any]]) -> SweepResults:
         """
@@ -265,9 +331,34 @@ class FedCLExperiment:
         
         return progress
     
+    def _log_experiment_start(self):
+        """在控制台显示实验启动信息"""
+        print("\n" + "="*80)
+        print(f"🚀 FedCL Experiment Starting")
+        print(f"📋 Experiment ID: {self.experiment_id}")
+        print(f"📂 Config Mode: {self.config_mode}")
+        print(f"📁 Working Directory: {self.experiment_dir}")
+        
+        if self.config_mode == "directory":
+            client_count = self.config.get('client_count', 0)
+            print(f"👥 Clients: {client_count}")
+            print(f"🖥️  Server: 1")
+        
+        print("="*80 + "\n")
+    
+    def _log_experiment_complete(self):
+        """在控制台显示实验完成信息"""
+        duration = self.end_time - self.start_time if self.end_time and self.start_time else 0
+        print("\n" + "="*80)
+        print(f"✅ FedCL Experiment Completed")
+        print(f"⏱️  Duration: {duration:.2f} seconds")
+        print(f"📊 Results saved to: {self.experiment_dir}")
+        print("="*80 + "\n")
+    
     def cleanup(self) -> None:
         """清理实验资源"""
         logger.info(f"Cleaning up experiment {self.experiment_id}")
+        self.running = False
         
         # 清理组件
         for component_name, component in self.components.items():
@@ -278,7 +369,18 @@ class FedCLExperiment:
                 except Exception as e:
                     logger.warning(f"Failed to cleanup {component_name}: {e}")
         
+        # 清理线程
+        for thread in self.threads:
+            if thread.is_alive():
+                logger.debug(f"Waiting for thread {thread.name} to finish...")
+                thread.join(timeout=5)
+                if thread.is_alive():
+                    logger.warning(f"Thread {thread.name} did not finish gracefully")
+        
         self.components.clear()
+        self.threads.clear()
+        
+        logger.info("Experiment cleanup completed")
     
     def _initialize_improved_logging(self):
         """初始化改进的日志系统"""
@@ -293,15 +395,49 @@ class FedCLExperiment:
             log_manager = initialize_improved_logging(
                 log_base_dir=str(self.log_base_dir),
                 experiment_name=f"{experiment_name}_{self.experiment_id}",  # 使用实验名称+ID
-                enable_console=True,
+                enable_console=self.console_logging,
                 global_log_level=self.config.get("experiment.log_level", "INFO")
             )
+            
+            # 默认启用检查点保存
+            if not self.config.get("experiment.disable_checkpoint", False):
+                self._enable_checkpoint_hooks()
             
             log_training_info(f"改进的日志系统初始化完成 - 实验: {experiment_name}")
             log_system_debug(f"日志目录: {log_dir}")
             
         except Exception as e:
             logger.warning(f"初始化改进日志系统失败，使用默认日志: {e}")
+    
+    def _enable_checkpoint_hooks(self):
+        """启用检查点钩子"""
+        try:
+            # 检查是否已有checkpoint配置
+            existing_checkpoint_config = self.config.get("hooks", {}).get("checkpoint", {})
+            
+            # 设置检查点配置，优先使用现有配置
+            checkpoint_config = {
+                "enabled": existing_checkpoint_config.get("enabled", True),
+                "save_frequency": existing_checkpoint_config.get("save_frequency", 
+                                                               self.config.get("experiment.checkpoint_frequency", 10)),
+                "save_dir": existing_checkpoint_config.get("save_dir", str(self.experiment_dir / "checkpoints")),
+                "keep_last_n": existing_checkpoint_config.get("keep_last_n", 5)
+            }
+            
+            # 更新配置
+            if "hooks" not in self.config:
+                self.config["hooks"] = {}
+            
+            self.config["hooks"]["checkpoint"] = checkpoint_config
+            
+            # 创建检查点目录
+            checkpoint_dir = Path(checkpoint_config["save_dir"])
+            checkpoint_dir.mkdir(parents=True, exist_ok=True)
+            
+            logger.info(f"Checkpoint hooks enabled: {checkpoint_dir}")
+            
+        except Exception as e:
+            logger.warning(f"Failed to enable checkpoint hooks: {e}")
     
     def _get_config_manager(self, config_path: Optional[str] = None) -> 'ConfigManager':
         """获取ConfigManager实例"""
@@ -358,7 +494,7 @@ class FedCLExperiment:
             split_config = DictConfig(split_config_dict)
             
             # 确保clients目录存在
-            clients_dir = self.config_dir / "客户端"
+            clients_dir = self.config_dir / "client"
             clients_dir.mkdir(exist_ok=True)
             logger.info(f"Ensured clients directory exists: {clients_dir}")
             
@@ -393,7 +529,7 @@ class FedCLExperiment:
                 logger.debug(f"Found {config_type} config: {config_file.name}")
         
         # 扫描clients文件夹
-        clients_dir = self.config_dir / "客户端"
+        clients_dir = self.config_dir / "client"
         if clients_dir.exists() and clients_dir.is_dir():
             logger.info(f"Scanning clients directory: {clients_dir}")
             for client_file in clients_dir.glob("*.yaml"):
@@ -448,7 +584,7 @@ class FedCLExperiment:
         
         # 记录客户端配置路径
         merged['_config_files'] = {
-            '客户端': [str(f) for f in config_files['client']]
+            'client': [str(f) for f in config_files['client']]
         }
         
         # 添加客户端数量信息
@@ -480,7 +616,7 @@ class FedCLExperiment:
         else:
             logger.warning("No client configurations found in clients/ directory")
         
-        self.components['客户端'] = clients
+        self.components['client'] = clients
         
         # 3. 启动服务端和客户端注册流程
         self._start_components_and_register()
@@ -503,7 +639,7 @@ class FedCLExperiment:
                     server.on_start()
             
             # 2. 启动客户端通信器
-            clients = self.components.get('客户端', [])
+            clients = self.components.get('client', [])
             for i, client in enumerate(clients):
                 logger.info(f"Starting client {i+1}/{len(clients)}")
                 if hasattr(client, 'start'):
@@ -565,6 +701,11 @@ class FedCLExperiment:
         
         config = DictConfig(server_config)
         
+        # 在配置中添加实验目录信息
+        if 'experiment' not in config:
+            config.experiment = {}
+        config.experiment.shared_experiment_dir = str(self.experiment_dir)
+        
         # 使用统一接口创建服务端
         server_type = config.get("server.type", "improved")
         
@@ -572,7 +713,10 @@ class FedCLExperiment:
             if server_type == "improved":
                 try:
                     from ..federation.coordinators.federated_server import FederatedServer
-                    return FederatedServer.create_from_config(config)
+                    server = FederatedServer.create_from_config(config)
+                    # 设置实验目录信息（作为备用）
+                    server._experiment_dir = self.experiment_dir
+                    return server
                 except ImportError:
                     logger.warning("FederatedServer not available, creating mock server")
                     return Mock()
@@ -580,7 +724,10 @@ class FedCLExperiment:
                 # 尝试导入模拟服务端
                 try:
                     from ..federation.coordinators.federated_server import FederatedServer
-                    return FederatedServer.create_from_config(config)
+                    server = FederatedServer.create_from_config(config)
+                    # 设置实验目录信息
+                    server._experiment_dir = self.experiment_dir
+                    return server
                 except ImportError:
                     logger.warning("SimulatedFederatedServer not available, creating mock server")
                     return Mock()
@@ -604,6 +751,11 @@ class FedCLExperiment:
         
         config = DictConfig(client_config)
         
+        # 在配置中添加实验目录信息
+        if 'experiment' not in config:
+            config.experiment = {}
+        config.experiment.shared_experiment_dir = str(self.experiment_dir)
+        
         # 使用统一接口创建客户端
         client_type = config.get("client.type", "multi_learner")
         
@@ -611,14 +763,20 @@ class FedCLExperiment:
             if client_type == "multi_learner":
                 try:
                     from ..federation.coordinators.federated_client import MultiLearnerFederatedClient
-                    return MultiLearnerFederatedClient.create_from_config(config)
+                    client = MultiLearnerFederatedClient.create_from_config(config)
+                    # 设置实验目录信息（作为备用）
+                    client._experiment_dir = self.experiment_dir
+                    return client
                 except ImportError:
                     logger.warning("MultiLearnerFederatedClient not available, creating mock client")
                     return Mock()
             else:
                 try:
                     from ..federation.coordinators.federated_client import MultiLearnerFederatedClient
-                    return MultiLearnerFederatedClient.create_from_config(config)
+                    client = MultiLearnerFederatedClient.create_from_config(config)
+                    # 设置实验目录信息（作为备用）
+                    client._experiment_dir = self.experiment_dir
+                    return client
                 except ImportError:
                     logger.warning("MultiLearnerFederatedClient not available, creating mock client")
                     return Mock()
@@ -638,7 +796,16 @@ class FedCLExperiment:
                     config_dict = yaml.safe_load(f)
                 config = DictConfig(config_dict)
             else:
-                raise FileNotFoundError(f"Config file not found: {config_path}")
+                # 配置文件不存在时，使用默认配置
+                logger.warning(f"Config file not found: {config_path}, using default configuration")
+                
+                try:
+                    from ..config.default_configs import get_fallback_config_for_path
+                    config = get_fallback_config_for_path(config_path)
+                    logger.info(f"Created default configuration for: {config_path}")
+                except ImportError:
+                    logger.error("Default config generator not available")
+                    raise FileNotFoundError(f"Config file not found: {config_path}")
         elif not isinstance(config, DictConfig):
             config = DictConfig(config)
         
@@ -1011,7 +1178,7 @@ def process_config_directory(config_dir: str,
             "experiment_id": experiment.experiment_id,
             "components_summary": {
                 "server": experiment.components.get('server') is not None if hasattr(experiment, 'components') else False,
-                "客户端": len(experiment.components.get('客户端', [])) if hasattr(experiment, 'components') else 0
+                "client": len(experiment.components.get('client', [])) if hasattr(experiment, 'components') else 0
             },
             "dry_run": False
         }

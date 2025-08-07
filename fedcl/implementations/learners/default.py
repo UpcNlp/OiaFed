@@ -15,6 +15,7 @@ import torch.optim as optim
 from torch.utils.data import DataLoader
 from omegaconf import DictConfig
 from loguru import logger
+from tqdm import tqdm
 
 from ...core.base_learner import BaseLearner
 from ...core.execution_context import ExecutionContext
@@ -48,14 +49,18 @@ class DefaultLearner(BaseLearner):
             config: 学习器配置
             **kwargs: 额外参数，支持auxiliary_models传入预创建的模型
         """
+        # 创建context-aware logger
         super().__init__(context, config, **kwargs)
         
         # 基础学习参数
         self.learning_rate = config.get('learning_rate', 0.001)
         self.weight_decay = config.get('weight_decay', 1e-4)
         
-        # 训练参数
-        self.epochs_per_task = config.get('epochs_per_task', 5)
+        # 训练参数 - 支持多种配置路径
+        # 优先读取 training.local_epochs，然后是 epochs_per_task
+        training_config = config.get('training', {})
+        self.epochs_per_task = training_config.get('local_epochs') or config.get('epochs_per_task', 5)
+        
         self.early_stopping_patience = config.get('early_stopping_patience', 10)
         self.min_improvement = config.get('min_improvement', 0.001)
         self.loss_function = config.get('loss_function', 'cross_entropy')
@@ -69,10 +74,20 @@ class DefaultLearner(BaseLearner):
         self.best_metric = 0.0
         self.training_history = []
         
+        # 进度条配置
+        self._progress_position = 0  # 进度条显示位置，用于多进度条场景
+        self._enable_progress_bar = config.get('enable_progress_bar', True)  # 是否启用进度条
+        
         # 记录模型来源
         self.model_source = self._determine_model_source()
         
-        logger.debug(f"DefaultLearner initialized (model source: {self.model_source})")
+        # 添加调试信息
+        self.logger.debug(f"DefaultLearner initialized (model source: {self.model_source})")
+        self.logger.debug(f"Training config: epochs_per_task={self.epochs_per_task}, learning_rate={self.learning_rate}")
+        self.logger.debug(f"Raw training config: {training_config}")
+        self.logger.debug(f"Raw config: {dict(config) if hasattr(config, 'items') else config}")
+    
+    
     
     def _determine_model_source(self) -> str:
         """确定模型来源"""
@@ -82,6 +97,28 @@ class DefaultLearner(BaseLearner):
             return "auxiliary_models"
         else:
             return "default_fallback"
+    
+    def set_progress_bar_position(self, position: int):
+        """
+        设置进度条显示位置
+        
+        在多客户端或多任务并行训练场景中，可以设置不同的位置来避免进度条重叠
+        
+        Args:
+            position: 进度条位置（从0开始）
+        """
+        self._progress_position = position
+        self.logger.debug(f"Progress bar position set to {position}")
+    
+    def enable_progress_bar(self, enable: bool = True):
+        """
+        启用或禁用进度条显示
+        
+        Args:
+            enable: 是否启用进度条
+        """
+        self._enable_progress_bar = enable
+        self.logger.debug(f"Progress bar {'enabled' if enable else 'disabled'}")
     
     def _create_default_model(self) -> nn.Module:
         """
@@ -94,7 +131,56 @@ class DefaultLearner(BaseLearner):
             默认模型实例
         """
         try:
-            logger.debug("Creating default fallback model")
+            self.logger.debug("Creating default fallback model")
+            
+            # 优先使用配置中的模型类型
+            model_config = self.config.get('model', {})
+            if model_config and 'type' in model_config:
+                model_type = model_config.get('type')
+                self.logger.debug(f"Using configured model type: {model_type}")
+                
+                # 尝试使用ModelFactory（支持注册的模型名称）
+                try:
+                    from ..factory import ModelFactory
+                    if model_type == "mnist_cnn":
+                        # 使用ModelFactory创建注册的CNN模型
+                        model = ModelFactory.create_model(model_config)
+                        self.logger.debug(f"Created {model_type} model via ModelFactory")
+                        return model
+                except Exception as e:
+                    self.logger.warning(f"Failed to create model via ModelFactory: {e}, trying direct import")
+                
+                # 尝试导入并创建指定的模型类型（向后兼容）
+                try:
+                    from ..models.mnist import SimpleMLP, SimpleCNN
+                    
+                    if model_type in ["SimpleMLP", "mnist_mlp"]:
+                        input_size = model_config.get('input_size', 784)
+                        hidden_sizes = model_config.get('hidden_sizes', [256, 128])
+                        num_classes = model_config.get('num_classes', 10)
+                        dropout_rate = model_config.get('dropout_rate', 0.2)
+                        activation = model_config.get('activation', 'relu')
+                        use_batch_norm = model_config.get('use_batch_norm', False)
+                        
+                        model = SimpleMLP(
+                            input_size=input_size,
+                            hidden_sizes=hidden_sizes,
+                            num_classes=num_classes,
+                            dropout_rate=dropout_rate,
+                            activation=activation,
+                            use_batch_norm=use_batch_norm
+                        )
+                        self.logger.debug(f"Created {model_type} model with config: {model_config}")
+                        return model
+                        
+                    elif model_type in ["SimpleCNN", "mnist_cnn"]:
+                        # CNN 模型配置
+                        model = SimpleCNN(**{k: v for k, v in model_config.items() if k != 'type'})
+                        self.logger.debug(f"Created {model_type} model with config: {model_config}")
+                        return model
+                        
+                except Exception as e:
+                    self.logger.warning(f"Failed to create configured model {model_type}: {e}, falling back to Sequential")
             
             # 从配置中获取模型参数提示
             default_config = self.config.get('default_model_config', {})
@@ -120,11 +206,11 @@ class DefaultLearner(BaseLearner):
             
             model = nn.Sequential(*layers)
             
-            logger.debug(f"Created default MLP model: input={input_size}, hidden={hidden_sizes}, output={num_classes}")
+            self.logger.debug(f"Created default MLP model: input={input_size}, hidden={hidden_sizes}, output={num_classes}")
             return model
             
         except Exception as e:
-            logger.error(f"Failed to create default model: {e}")
+            self.logger.error(f"Failed to create default model: {e}")
             
             # 最简单的回退模型
             return nn.Sequential(
@@ -162,13 +248,13 @@ class DefaultLearner(BaseLearner):
                     betas=optimizer_config.get('betas', (0.9, 0.999))
                 )
             else:
-                logger.warning(f"Unknown optimizer {optimizer_type}, using Adam")
+                self.logger.warning(f"Unknown optimizer {optimizer_type}, using Adam")
                 self.optimizer = optim.Adam(self.model.parameters(), lr=self.learning_rate)
             
-            logger.debug(f"Initialized {optimizer_type} optimizer")
+            self.logger.debug(f"Initialized {optimizer_type} optimizer")
             
         except Exception as e:
-            logger.error(f"Failed to initialize optimizer: {e}")
+            self.logger.error(f"Failed to initialize optimizer: {e}")
             raise LearnerError(f"Optimizer initialization failed: {e}")
     
     def _get_loss_function(self):
@@ -184,7 +270,7 @@ class DefaultLearner(BaseLearner):
         
         loss_fn = loss_functions.get(self.loss_function)
         if loss_fn is None:
-            logger.warning(f"Unknown loss function {self.loss_function}, using cross_entropy")
+            self.logger.warning(f"Unknown loss function {self.loss_function}, using cross_entropy")
             return F.cross_entropy
         
         return loss_fn
@@ -200,7 +286,7 @@ class DefaultLearner(BaseLearner):
             TaskResults: 训练结果
         """
         try:
-            logger.info(f"Starting training for task {self.current_task_id} (model source: {self.model_source})")
+            self.logger.info(f"Starting training for task {self.current_task_id} (model source: {self.model_source})")
             start_time = time.time()
             
             if self.model is None:
@@ -218,40 +304,72 @@ class DefaultLearner(BaseLearner):
             best_metric = 0.0
             patience_counter = 0
             
-            # 训练循环
-            for epoch in range(self.epochs_per_task):
-                self.current_epoch = epoch
-                
-                # 执行前钩子
-                self.before_epoch_hook(epoch)
-                
-                epoch_loss, epoch_acc = self._train_epoch(task_data, loss_fn, epoch)
-                
-                epoch_losses.append(epoch_loss)
-                epoch_metrics.append(epoch_acc)
-                
-                # 早停检查
-                if epoch_acc > best_metric + self.min_improvement:
-                    best_metric = epoch_acc
-                    patience_counter = 0
-                    self.best_metric = best_metric
-                else:
-                    patience_counter += 1
-                
-                # 执行后钩子
-                metrics = {
-                    'loss': epoch_loss,
-                    'accuracy': epoch_acc,
-                    'epoch': epoch
-                }
-                self.after_epoch_hook(epoch, metrics)
-                
-                # 早停
-                if patience_counter >= self.early_stopping_patience:
-                    logger.info(f"Early stopping at epoch {epoch}")
-                    break
-                
-                logger.info(f"Epoch {epoch}: Loss={epoch_loss:.4f}, Accuracy={epoch_acc:.4f}")
+            # 创建epoch级别的进度条
+            if self._enable_progress_bar:
+                epoch_progress = tqdm(
+                    range(self.epochs_per_task),
+                    desc=f"Task {self.current_task_id} Training",
+                    unit="epoch",
+                    ncols=100,
+                    position=max(0, self._progress_position - 1) if self._progress_position > 0 else 0,
+                    leave=True,
+                    colour='blue'
+                )
+                epoch_iterator = epoch_progress
+            else:
+                epoch_iterator = range(self.epochs_per_task)
+            print("epoch_iterator",epoch_iterator)
+            try:
+                # 训练循环
+                for epoch in epoch_iterator:
+                    self.current_epoch = epoch
+                    
+                    # 执行前钩子
+                    self.before_epoch_hook(epoch)
+                    
+                    epoch_loss, epoch_acc = self._train_epoch(task_data, loss_fn, epoch)
+                    
+                    epoch_losses.append(epoch_loss)
+                    epoch_metrics.append(epoch_acc)
+                    
+                    # 早停检查
+                    if epoch_acc > best_metric + self.min_improvement:
+                        best_metric = epoch_acc
+                        patience_counter = 0
+                        self.best_metric = best_metric
+                    else:
+                        patience_counter += 1
+                    
+                    # 执行后钩子
+                    metrics = {
+                        'loss': epoch_loss,
+                        'accuracy': epoch_acc,
+                        'epoch': epoch
+                    }
+                    self.after_epoch_hook(epoch, metrics)
+                    
+                    # 更新epoch进度条信息
+                    if self._enable_progress_bar and hasattr(epoch_iterator, 'set_postfix'):
+                        epoch_iterator.set_postfix({
+                            'Loss': f'{epoch_loss:.4f}',
+                            'Acc': f'{epoch_acc:.4f}',
+                            'Best': f'{best_metric:.4f}',
+                            'Patience': f'{patience_counter}/{self.early_stopping_patience}'
+                        })
+                    
+                    # 早停
+                    if patience_counter >= self.early_stopping_patience:
+                        self.logger.info(f"Early stopping at epoch {epoch}")
+                        if self._enable_progress_bar and hasattr(epoch_iterator, 'set_description'):
+                            epoch_iterator.set_description(f"Task {self.current_task_id} Early Stopped")
+                        break
+                    
+                    self.logger.info(f"Epoch {epoch}: Loss={epoch_loss:.4f}, Accuracy={epoch_acc:.4f}")
+            
+            finally:
+                # 关闭epoch进度条
+                if self._enable_progress_bar and hasattr(epoch_iterator, 'close'):
+                    epoch_iterator.close()
             
             training_time = time.time() - start_time
             
@@ -276,23 +394,23 @@ class DefaultLearner(BaseLearner):
             task_results = TaskResults(
                 task_id=self.current_task_id,
                 metrics=final_metrics,
-                model_state=self.get_model_state(),
                 training_time=training_time,
                 metadata={
                     'learner_type': 'default',
                     'model_source': self.model_source,
                     'epochs_trained': len(epoch_losses),
-                    'early_已停止': patience_counter >= self.early_stopping_patience
+                    'early_stopped': patience_counter >= self.early_stopping_patience,
+                    'model_state': self.get_model_state()  # 将model_state放到metadata中
                 }
             )
             
-            logger.info(f"Training completed for task {self.current_task_id}")
-            logger.info(f"Final metrics: {final_metrics}")
+            self.logger.info(f"Training completed for task {self.current_task_id}")
+            self.logger.info(f"Final metrics: {final_metrics}")
             
             return task_results
             
         except Exception as e:
-            logger.error(f"Training failed: {e}")
+            self.logger.error(f"Training failed: {e}")
             raise LearnerError(f"Training failed: {e}")
     
     def _train_epoch(self, dataloader: DataLoader, loss_fn, epoch: int) -> tuple:
@@ -307,40 +425,78 @@ class DefaultLearner(BaseLearner):
         Returns:
             tuple: (平均损失, 平均准确率)
         """
+        print(f"\n=== 训练 Epoch {epoch} ===")
+        print(f"DataLoader batch_size: {dataloader.batch_size}")
+        print(f"DataLoader dataset size (总样本数): {len(dataloader.dataset)}")
+        print(f"DataLoader total batches (总批次数): {len(dataloader)}")
+        print(f"验证: {len(dataloader.dataset)} 样本 ÷ {dataloader.batch_size} batch_size = {len(dataloader.dataset) / dataloader.batch_size:.1f} 批次")
+        
         self.model.train()
         
         total_loss = 0.0
         correct_predictions = 0
         total_samples = 0
         
-        for batch_idx, (data, target) in enumerate(dataloader):
-            # 移动数据到设备
-            data = data.to(self.device)
-            target = target.to(self.device)
-            
-            # 自动处理数据形状
-            if len(data.shape) > 2 and self.model_source == "default_fallback":
-                # 如果是默认模型且输入是多维的，自动展平
-                data = data.view(data.size(0), -1)
-            
-            # 前向传播
-            self.optimizer.zero_grad()
-            output = self.model(data)
-            loss = loss_fn(output, target)
-            
-            # 反向传播
-            loss.backward()
-            self.optimizer.step()
-            
-            # 统计
-            total_loss += loss.item()
-            pred = output.argmax(dim=1, keepdim=True)
-            correct_predictions += pred.eq(target.view_as(pred)).sum().item()
-            total_samples += data.size(0)
-            
-            # 定期日志
-            if batch_idx % 100 == 0:
-                logger.debug(f"Epoch {epoch}, Batch {batch_idx}: Loss={loss.item():.6f}")
+        # 根据配置决定是否使用进度条
+        if self._enable_progress_bar:
+            # 创建进度条，支持多进度条显示
+            progress_bar = tqdm(
+                enumerate(dataloader), 
+                total=len(dataloader),
+                desc=f"Epoch {epoch:3d} [Task {self.current_task_id}]",
+                unit="batch",
+                ncols=140,  # 增加进度条宽度以显示更多信息
+                position=self._progress_position,  # 支持多进度条位置
+                leave=True,  # 保持进度条在完成后显示
+                ascii=False,  # 使用Unicode字符
+                colour='green'  # 设置进度条颜色
+            )
+            data_iterator = progress_bar
+        else:
+            # 不使用进度条时的普通迭代器
+            data_iterator = enumerate(dataloader)
+        try:
+            for batch_idx, (data, target) in data_iterator:
+                # 移动数据到设备
+                data = data.to(self.device)
+                target = target.to(self.device)
+                
+                # 前向传播
+                self.optimizer.zero_grad()
+                output = self.model(data)
+                loss = loss_fn(output, target)
+                
+                # 反向传播
+                loss.backward()
+                self.optimizer.step()
+                
+                # 统计
+                total_loss += loss.item()
+                pred = output.argmax(dim=1, keepdim=True)
+                correct_predictions += pred.eq(target.view_as(pred)).sum().item()
+                total_samples += data.size(0)
+                
+                # 计算当前准确率和平均损失
+                current_acc = correct_predictions / total_samples
+                current_avg_loss = total_loss / (batch_idx + 1)
+                
+                # 更新进度条描述（仅在使用进度条时）
+                if self._enable_progress_bar and hasattr(data_iterator, 'set_postfix'):
+                    data_iterator.set_postfix({
+                        'Loss': f'{loss.item():.4f}',
+                        'Avg Loss': f'{current_avg_loss:.4f}',
+                        'Acc': f'{current_acc:.4f}'
+                    })
+                
+                # 定期日志
+                log_interval = 500 if self._enable_progress_bar else 100
+                if batch_idx % log_interval == 0 and batch_idx > 0:
+                    self.logger.debug(f"Epoch {epoch}, Batch {batch_idx}: Loss={loss.item():.6f}, Acc={current_acc:.4f}")
+        
+        finally:
+            # 确保进度条正确关闭（仅在使用时）
+            if self._enable_progress_bar and hasattr(data_iterator, 'close'):
+                data_iterator.close()
         
         avg_loss = total_loss / len(dataloader)
         accuracy = correct_predictions / total_samples
@@ -376,9 +532,9 @@ class DefaultLearner(BaseLearner):
                     data = data.to(self.device)
                     target = target.to(self.device)
                     
-                    # 自动处理数据形状
-                    if len(data.shape) > 2 and self.model_source == "default_fallback":
-                        data = data.view(data.size(0), -1)
+                    # 自动处理数据形状 - SimpleMLP等模型自己会处理展平，跳过手动展平
+                    # if len(data.shape) > 2 and self.model_source == "default_fallback":
+                    #     data = data.view(data.size(0), -1)
                     
                     # 前向传播
                     output = self.model(data)
@@ -552,6 +708,57 @@ class DefaultLearner(BaseLearner):
             logger.debug("Using default parameter selection")
             return self.model.state_dict()
 
+    def train_epoch(self, dataloader, epoch: int) -> Dict[str, float]:
+        """
+        训练一个epoch
+        
+        Args:
+            dataloader: 数据加载器
+            epoch: 当前epoch编号
+            
+        Returns:
+            Dict[str, float]: 训练指标（loss, accuracy等）
+        """
+        self.logger.info(f"🔥 [DefaultLearner训练] 开始train_epoch - epoch {epoch}")
+        
+        if self.model is None:
+            self.logger.warning("🔥 [DefaultLearner训练] No model available for training")
+            return {"loss": 0.0, "accuracy": 0.0}
+        
+        if self.optimizer is None:
+            self.logger.warning("🔥 [DefaultLearner训练] No optimizer available for training")
+            return {"loss": 0.0, "accuracy": 0.0}
+        
+        try:
+            # 设置模型为训练模式
+            self.model.train()
+            # 获取损失函数
+            if hasattr(self, 'criterion') and self.criterion is not None:
+                loss_fn = self.criterion
+            else:
+                # 创建默认损失函数
+                loss_fn = nn.CrossEntropyLoss()
+            
+            self.logger.info(f"🔥 [DefaultLearner训练] 开始训练epoch {epoch}，数据集大小: {len(dataloader) if hasattr(dataloader, '__len__') else 'unknown'}")
+            # 调用内部的_train_epoch方法
+            epoch_loss, epoch_acc = self._train_epoch(dataloader, loss_fn, epoch)
+            # 更新当前epoch
+            self.current_epoch = epoch
+            
+            # 记录训练历史
+            epoch_metrics = {
+                "loss": float(epoch_loss),
+                "accuracy": float(epoch_acc),
+                "epoch": epoch
+            }
+            self.training_history.append(epoch_metrics)
+            self.logger.info(f"✅ [DefaultLearner训练] Epoch {epoch} 完成 - Loss: {epoch_loss:.4f}, Accuracy: {epoch_acc:.4f}")
+            return epoch_metrics
+            
+        except Exception as e:
+            self.logger.error(f"❌ [DefaultLearner训练] 训练epoch {epoch} 失败: {e}")
+            return {"loss": float('inf'), "accuracy": 0.0, "epoch": epoch}
+
 
 # ===== 便利函数 =====
 
@@ -593,6 +800,35 @@ def create_learner_with_auxiliary_model(context: ExecutionContext, config: DictC
     config['model_name'] = model_name
     
     return DefaultLearner(context, config, auxiliary_models=auxiliary_models)
+
+
+def create_learner_with_progress_config(context: ExecutionContext, config: DictConfig,
+                                       progress_position: int = 0, 
+                                       enable_progress: bool = True,
+                                       **kwargs) -> DefaultLearner:
+    """
+    创建带有进度条配置的学习器
+    
+    在多客户端或多任务并行训练场景中特别有用
+    
+    Args:
+        context: 执行上下文
+        config: 配置
+        progress_position: 进度条显示位置（用于多进度条）
+        enable_progress: 是否启用进度条
+        **kwargs: 额外参数
+        
+    Returns:
+        配置好进度条的学习器实例
+    """
+    # 在配置中设置进度条选项
+    config = config.copy() if hasattr(config, 'copy') else dict(config)
+    config['enable_progress_bar'] = enable_progress
+    
+    learner = DefaultLearner(context, config, **kwargs)
+    learner.set_progress_bar_position(progress_position)
+    
+    return learner
 
 
 # ===== 示例使用 =====

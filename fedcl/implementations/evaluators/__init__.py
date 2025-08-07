@@ -13,9 +13,11 @@
 from .accuracy_evaluator import AccuracyEvaluator
 from .forgetting_evaluator import ForgettingEvaluator
 from .transfer_evaluator import TransferEvaluator
+from .loss_evaluator import LossEvaluator
 
 __all__ = [
     "AccuracyEvaluator",
     "ForgettingEvaluator",
-    "TransferEvaluator"
+    "TransferEvaluator",
+    "LossEvaluator"
 ]

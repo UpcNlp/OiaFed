@@ -1,0 +1,257 @@
+# ====================================
+# FedCL 客户端3配置
+# ====================================
+# 客户端3使用Replay learner和多learner协作
+
+# 客户端基本信息
+client:
+  id: "fedcl_client_3"                     # 客户端3唯一标识
+  name: "FedCL Client 3"                   # 客户端3名称
+  type: "multi_learner"
+
+# 通信配置
+communication:
+  host: "localhost"
+  port: 8080
+  max_workers: 4                           # 客户端3使用更多工作线程
+  timeout: 60.0
+
+# 学习器配置 - 启用多个learner
+learners:
+  replay_learner:
+    class: "replay"                        # 主要使用Replay learner
+    enabled: true
+    
+    model:
+      type: "SimpleMLP"
+      input_size: 784
+      hidden_sizes: [256, 128]
+      num_classes: 10
+      dropout_rate: 0.2
+      activation: "relu"
+      use_batch_norm: false
+    
+    optimizer:
+      type: "Adam"
+      lr: 0.001
+      weight_decay: 1e-4
+      
+    loss_function:
+      type: "CrossEntropyLoss"
+      
+    training:
+      local_epochs: 3
+      batch_size: 32
+      
+    # Replay特定配置
+    replay_config:
+      buffer_size: 500                     # 回放缓冲区大小
+      replay_batch_size: 16                # 回放批大小
+      storage_policy: "herding"            # 使用herding选择策略
+      
+  # 辅助learner - MAS
+  mas_learner:
+    class: "mas"                           # 辅助MAS learner
+    enabled: true                          # 同时启用MAS
+    
+    model:
+      type: "SimpleMLP"
+      input_size: 784
+      hidden_sizes: [128, 64]              # 更小的模型作为辅助
+      num_classes: 10
+      dropout_rate: 0.1
+    
+    optimizer:
+      type: "Adam"
+      lr: 0.0005                          # 较小学习率
+      
+    loss_function:
+      type: "CrossEntropyLoss"
+      
+    training:
+      local_epochs: 2                      # 较少训练轮次
+      batch_size: 32
+      
+    # MAS特定配置
+    mas_config:
+      lambda_mas: 0.1
+      accumulate_gradients: true
+
+# 多learner协调配置
+multi_learner:
+  coordination:
+    enabled: true                          # 启用多learner协调
+    strategy: "ensemble"                   # 使用集成策略
+    
+    # 集成配置
+    ensemble_config:
+      voting_strategy: "weighted"          # 加权投票
+      learner_weights:
+        replay_learner: 0.7                # Replay learner权重70%
+        mas_learner: 0.3                   # MAS learner权重30%
+      confidence_threshold: 0.8            # 置信度阈值
+      
+  # learner间通信
+  inter_learner_communication:
+    enabled: true
+    feature_sharing: true                  # 启用特征共享
+    knowledge_distillation: false         # 暂不启用知识蒸馏
+
+# 数据配置 - 客户端3数据（高度非IID）
+training_data:
+  client_train_data:
+    type: "FederatedDataLoader"
+    dataset:
+      name: "MNIST"
+      path: "data/MNIST"
+      split: "train"
+      download: true
+      transform: "augmented"               # 客户端3使用数据增强
+      
+    federated_config:
+      client_id: 3                         # 客户端3
+      num_clients: 3
+      distribution: "non_iid"              # 高度非IID分布
+      samples_per_client: 1200             # 更多样本数
+      non_iid_config:
+        alpha: 0.1                         # 更小的alpha值，更不均衡
+        min_samples_per_class: 5
+    
+    loader_params:
+      batch_size: 32
+      shuffle: true
+      num_workers: 0
+
+# 测试数据配置
+test_data:
+  client_test_data:
+    type: "StandardDataLoader"
+    dataset:
+      name: "MNIST"
+      path: "data/MNIST"
+      split: "test"
+      download: true
+      transform: "basic"
+      
+    loader_params:
+      batch_size: 128
+      shuffle: false
+      num_workers: 0
+
+# 评估配置 - 多learner评估
+evaluation:
+  metrics: ["accuracy", "loss", "ensemble_accuracy"]  # 包含集成准确率
+  frequency: 1
+  
+  tasks:
+    - evaluator: "client_accuracy_evaluator"
+      test_data: "client_test_data"
+      enabled: true
+    - evaluator: "ensemble_evaluator"       # 集成评估器
+      test_data: "client_test_data"
+      enabled: true
+
+# 评估器配置
+evaluators:
+  client_accuracy_evaluator:
+    evaluator:
+      class: "accuracy"
+      metrics: ["accuracy", "precision", "recall", "f1"]
+      test_data: "client_test_data"
+      
+  ensemble_evaluator:
+    evaluator:
+      class: "ensemble"                    # 集成评估器
+      ensemble_method: "weighted_voting"
+      learner_weights:
+        replay_learner: 0.7
+        mas_learner: 0.3
+      test_data: "client_test_data"
+
+# Hook配置 - 多learner专用Hook
+hooks:
+  enabled: true
+  
+  local_training_hook:
+    enabled: true
+    priority: 0
+    
+  multi_learner_coordination_hook:         # 多learner协调Hook
+    enabled: true
+    priority: 1
+    config:
+      coordination_frequency: 2            # 每2轮协调一次
+      feature_exchange: true
+      
+  replay_management_hook:                  # Replay专用Hook
+    enabled: true
+    priority: 2
+    config:
+      buffer_update_frequency: 1           # 每轮更新缓冲区
+      buffer_analysis: true
+    
+  ensemble_evaluation_hook:                # 集成评估Hook
+    enabled: true
+    priority: 5
+    config:
+      evaluate_individual: true            # 评估单个learner
+      evaluate_ensemble: true              # 评估集成结果
+    
+  communication_hook:
+    enabled: true
+    priority: 15
+    config:
+      compress_updates: true               # 启用压缩（多learner数据量大）
+      compression_ratio: 0.5
+
+# 系统配置 - 更高性能要求
+system:
+  device: "cpu"
+  random_seed: 44                          # 不同随机种子
+  num_threads: 4                           # 更多线程支持多learner
+  memory_limit: "6GB"                      # 更大内存限制
+
+# 日志配置 - 客户端3专用
+logging:
+  level: "INFO"
+  save_logs: true
+  log_dir: "logs/client_3"                 # 客户端3日志目录
+  
+  formatters:
+    default: "[%(asctime)s][CLIENT-3][%(name)s][%(levelname)s] %(message)s"
+    multi_learner: "[%(asctime)s][CLIENT-3][%(learner_name)s][%(name)s][%(levelname)s] %(message)s"
+    
+  # 多learner日志配置
+  multi_learner_logging:
+    enabled: true
+    separate_learner_logs: true            # 为每个learner创建单独日志
+    log_coordination: true                 # 记录协调过程
+
+# 性能配置 - 针对多learner优化
+performance:
+  mixed_precision: false
+  gradient_compression: true               # 启用梯度压缩
+  model_compression: true                  # 启用模型压缩
+  
+  # 并行计算配置
+  parallel_training:
+    enabled: false                         # 暂不启用并行训练
+    max_parallel_learners: 2
+  
+  # 内存管理
+  memory_optimization:
+    gradient_checkpointing: true           # 启用梯度检查点
+    model_offload: false                   # 暂不启用模型卸载
+
+# 实验配置
+experiment:
+  name: "client_3_multi_learner_experiment"
+  description: "客户端3多learner协作实验配置"
+  output_dir: "experiments/client_3"
+  
+  # 多learner实验专用配置
+  multi_learner_experiment:
+    track_individual_performance: true     # 跟踪单个learner性能
+    track_ensemble_performance: true       # 跟踪集成性能
+    save_learner_checkpoints: true         # 保存各learner检查点
+    analyze_coordination: true             # 分析协调效果

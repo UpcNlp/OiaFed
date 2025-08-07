@@ -14,11 +14,18 @@ from pathlib import Path
 from omegaconf import DictConfig, OmegaConf
 from loguru import logger
 
-from .hook import Hook, HookPhase
+from .hook import Hook, HookPhase, HookPriority
 from .execution_context import ExecutionContext
 from ..exceptions import HookExecutionError, ConfigurationError
+from ..registry import registry
 
 
+@registry.hook("checkpoint_hook", metadata={
+    "description": "自动保存模型检查点的hook",
+    "phases": ["after_epoch", "after_task", "after_round", "after_experiment"],
+    "priority": HookPriority.HIGH.value,
+    "version": "1.0.0"
+})
 class CheckpointHook(Hook):
     """
     检查点保存钩子
@@ -67,14 +74,20 @@ class CheckpointHook(Hook):
         self.save_optimizer = checkpoint_config.get('save_optimizer', True)
         self.save_scheduler = checkpoint_config.get('save_scheduler', True)
         self.save_experiment_state_enabled = checkpoint_config.get('save_experiment_state', True)
+        self.save_experiment_state_once = checkpoint_config.get('save_experiment_state_once', True)  # 只保存一次experiment_state
         
-        # 路径配置
-        self.checkpoint_dir = Path(checkpoint_config.get('checkpoint_dir', './checkpoints'))
-        self.checkpoint_dir.mkdir(parents=True, exist_ok=True)
+        logger.debug(f"CheckpointHook配置: save_frequency={self.save_frequency}, save_model={self.save_model}, save_experiment_state={self.save_experiment_state_enabled}")
+        
+        # 路径配置 - 支持实验级别的目录隔离
+        self.base_checkpoint_dir = checkpoint_config.get('checkpoint_dir', './checkpoints')
+        self.experiment_dir_created = False  # 标记是否已创建实验目录
+        
+        # 初始设置为基础目录，实际目录将在第一次执行时确定
+        self.checkpoint_dir = Path(self.base_checkpoint_dir)
         
         # 文件命名配置
-        self.naming_pattern = checkpoint_config.get('naming_pattern', 'checkpoint_round_{round}_epoch_{epoch}')
-        self.include_timestamp = checkpoint_config.get('include_timestamp', True)
+        self.naming_pattern = checkpoint_config.get('naming_pattern', 'checkpoint_{phase}_round_{round}_epoch_{epoch}')
+        self.include_timestamp = checkpoint_config.get('include_timestamp', False)  # 默认不包含时间戳
         
         # 管理配置
         self.max_checkpoints = checkpoint_config.get('max_checkpoints', 5)
@@ -88,6 +101,7 @@ class CheckpointHook(Hook):
         self.best_metric_value: Optional[float] = None
         self.best_checkpoint_path: Optional[Path] = None
         self.last_save_time = 0.0
+        self.experiment_state_saved = False  # 跟踪experiment_state是否已保存
         
         logger.debug(f"CheckpointHook初始化完成 - phase: {phase}, dir: {self.checkpoint_dir}")
     
@@ -109,19 +123,28 @@ class CheckpointHook(Hook):
             HookExecutionError: 执行失败时抛出
         """
         try:
-            if not self.should_save_checkpoint(context, **kwargs):
-                return
+            logger.debug(f"CheckpointHook.execute - phase: {self.phase}, kwargs keys: {list(kwargs.keys())}")
+            
+            # 确保实验目录已设置
+            self._ensure_experiment_directory(context)
+            logger.debug(f"CheckpointHook.execute - checkpoint_dir: {self.checkpoint_dir}")
             
             # 生成检查点路径
-            checkpoint_path = self._generate_checkpoint_path(context)
+            checkpoint_path = self._generate_checkpoint_path(context, **kwargs)
+            logger.debug(f"CheckpointHook.execute - checkpoint_path: {checkpoint_path}")
             
             # 创建检查点目录
             checkpoint_path.mkdir(parents=True, exist_ok=True)
+            logger.debug(f"CheckpointHook.execute - created directory: {checkpoint_path}")
             
             # 保存模型检查点
             if 'model' in kwargs and self.save_model:
                 model_path = checkpoint_path / 'model.pth'
+                logger.debug(f"CheckpointHook.execute - saving model to: {model_path}")
                 self.save_model_checkpoint(kwargs['model'], model_path)
+                logger.debug(f"CheckpointHook.execute - model saved successfully")
+            else:
+                logger.debug(f"CheckpointHook.execute - not saving model: model in kwargs={('model' in kwargs)}, save_model={self.save_model}")
             
             # 保存优化器状态
             if 'optimizer' in kwargs and self.save_optimizer:
@@ -133,10 +156,20 @@ class CheckpointHook(Hook):
                 scheduler_path = checkpoint_path / 'scheduler.pth'
                 self._save_scheduler_state(kwargs['scheduler'], scheduler_path)
             
-            # 保存实验状态
+            # 保存实验状态（每个客户端只保存一次，通过检查文件是否存在）
             if self.save_experiment_state_enabled:
                 state_path = checkpoint_path / 'experiment_state.json'
-                self.save_experiment_state(context, state_path)
+                logger.debug(f"CheckpointHook.execute - saving experiment state to: {state_path}")
+                # 检查是否已经保存过experiment_state（在同一个checkpoint_dir中查找）
+                existing_state_files = list(self.checkpoint_dir.glob('*/experiment_state.json'))
+                if not existing_state_files:
+                    # 第一次保存
+                    self.save_experiment_state(context, state_path)
+                    self.experiment_state_saved = True  # 标记已保存
+                elif not self.experiment_state_saved:
+                    # 如果已经有其他checkpoint保存了experiment_state，就不再保存
+                    logger.debug(f"Experiment state already exists in checkpoint directory, skipping save for {checkpoint_path}")
+                    self.experiment_state_saved = True
             
             # 记录检查点信息
             checkpoint_info = self._create_checkpoint_info(context, checkpoint_path, **kwargs)
@@ -167,6 +200,11 @@ class CheckpointHook(Hook):
             path: 保存路径
         """
         try:
+            # 检查模型是否为None
+            if model is None:
+                logger.warning(f"模型为None，跳过保存: {path}")
+                return
+            
             import torch
             
             if hasattr(model, 'state_dict'):
@@ -182,19 +220,32 @@ class CheckpointHook(Hook):
                     checkpoint_data['model_config'] = model.config
                 
                 torch.save(checkpoint_data, path)
+                logger.debug(f"PyTorch模型检查点已保存: {path}")
                 
             else:
-                # 其他类型的模型
-                logger.warning(f"未知模型类型: {type(model)}, 尝试使用pickle保存")
-                import pickle
-                with open(path, 'wb') as f:
-                    pickle.dump(model, f)
-            
-            logger.debug(f"模型检查点已保存: {path}")
+                # 其他类型的模型，先检查是否可序列化
+                try:
+                    import pickle
+                    with open(path, 'wb') as f:
+                        pickle.dump(model, f)
+                    logger.debug(f"模型检查点已保存（pickle格式）: {path}")
+                except Exception as pickle_error:
+                    logger.error(f"模型无法序列化，模型类型: {type(model)}, 错误: {pickle_error}")
+                    # 保存模型的基本信息而不是模型本身
+                    model_info = {
+                        'model_type': str(type(model)),
+                        'model_class': model.__class__.__name__ if hasattr(model, '__class__') else 'Unknown',
+                        'timestamp': time.time(),
+                        'error': f"Model serialization failed: {str(pickle_error)}"
+                    }
+                    with open(path.with_suffix('.json'), 'w') as f:
+                        json.dump(model_info, f, indent=2)
+                    logger.warning(f"保存了模型信息而非模型本身: {path.with_suffix('.json')}")
             
         except Exception as e:
             logger.error(f"保存模型检查点失败: {e}")
-            raise HookExecutionError(f"保存模型检查点失败: {e}")
+            # 不抛出异常，允许其他部分继续执行
+            logger.debug(f"模型类型: {type(model)}, 路径: {path}")
     
     def save_experiment_state(self, context: ExecutionContext, path: Path) -> None:
         """
@@ -231,37 +282,52 @@ class CheckpointHook(Hook):
             logger.error(f"保存实验状态失败: {e}")
             raise HookExecutionError(f"保存实验状态失败: {e}")
     
-    def should_save_checkpoint(self, context: ExecutionContext, **kwargs) -> bool:
+    def should_execute(self, context: ExecutionContext, **kwargs) -> bool:
         """
-        判断是否应该保存检查点
+        判断是否应该执行检查点保存
         
         Args:
             context: 执行上下文
             **kwargs: 额外参数
             
         Returns:
-            bool: 是否应该保存
+            bool: 是否应该执行
         """
+        logger.debug(f"CheckpointHook.should_execute - phase: {self.phase}, kwargs keys: {list(kwargs.keys())}")
+        
         if not super().should_execute(context, **kwargs):
+            logger.debug(f"CheckpointHook.should_execute - super().should_execute returned False")
             return False
         
         # 检查保存频率
-        if self.phase in [HookPhase.AFTER_ROUND.value, HookPhase.AFTER_EPOCH.value]:
-            if self.phase == HookPhase.AFTER_ROUND.value:
+        if self.phase in [HookPhase.AFTER_EPOCH.value, HookPhase.AFTER_TASK.value]:
+            if self.phase == HookPhase.AFTER_TASK.value:
                 current_step = context.get_state('current_round', 'global') or 0
             else:
                 current_step = context.get_state('current_epoch', 'global') or 0
                 
             if current_step % self.save_frequency != 0:
+                logger.debug(f"CheckpointHook.should_execute - frequency check failed: step {current_step} % {self.save_frequency} != 0")
+                return False
+        
+        # 对于after_round阶段，也检查轮次频率
+        if self.phase == HookPhase.AFTER_ROUND.value:
+            current_round = context.get_state('current_round', 'global') or 0
+            logger.debug(f"CheckpointHook.should_execute - after_round phase, current_round: {current_round}, save_frequency: {self.save_frequency}")
+            if current_round % self.save_frequency != 0:
+                logger.debug(f"CheckpointHook.should_execute - round frequency check failed: round {current_round} % {self.save_frequency} != 0")
                 return False
         
         # 检查是否有需要保存的内容
         has_content = False
         if 'model' in kwargs and self.save_model:
             has_content = True
+            logger.debug(f"CheckpointHook.should_execute - has model content, model type: {type(kwargs['model'])}")
         if self.save_experiment_state_enabled:
             has_content = True
+            logger.debug(f"CheckpointHook.should_execute - has experiment state content")
             
+        logger.debug(f"CheckpointHook.should_execute - has_content: {has_content}")
         return has_content
     
     def cleanup_old_checkpoints(self, max_checkpoints: int) -> None:
@@ -405,19 +471,27 @@ class CheckpointHook(Hook):
             logger.error(f"加载检查点失败: {e}")
             raise HookExecutionError(f"加载检查点失败: {e}")
     
-    def _generate_checkpoint_path(self, context: ExecutionContext) -> Path:
+    def _generate_checkpoint_path(self, context: ExecutionContext, **kwargs) -> Path:
         """生成检查点保存路径"""
-        # 获取当前状态
-        current_round = context.get_state('current_round', 'global') or 0
-        current_epoch = context.get_state('current_epoch', 'global') or 0
-        current_task = context.get_state('current_task_id', 'global') or 0
+        # 获取当前状态，优先使用kwargs中的参数
+        current_round = kwargs.get('round', context.get_state('current_round', 'global') or 0)
+        current_epoch = kwargs.get('epoch', context.get_state('current_epoch', 'global') or 0)
+        current_task = kwargs.get('task', context.get_state('current_task_id', 'global') or 0)
+        server_id = kwargs.get('server_id', 'server')
+        client_id = kwargs.get('client_id', context.get_state('client_id', 'global') or 'client')
         
-        # 格式化文件名
-        checkpoint_name = self.naming_pattern.format(
-            round=current_round,
-            epoch=current_epoch,
-            task=current_task
-        )
+        # 准备格式化参数
+        format_params = {
+            'phase': self.phase.replace('_', ''),  # 去掉下划线使文件名更简洁
+            'round': current_round,
+            'epoch': current_epoch,
+            'task': current_task,
+            'server_id': server_id,
+            'client_id': client_id
+        }
+        
+        # 格式化文件名，包含阶段信息
+        checkpoint_name = self.naming_pattern.format(**format_params)
         
         # 添加时间戳
         if self.include_timestamp:
@@ -425,6 +499,54 @@ class CheckpointHook(Hook):
             checkpoint_name += f"_{timestamp}"
         
         return self.checkpoint_dir / checkpoint_name
+    
+    def _ensure_experiment_directory(self, context: ExecutionContext) -> None:
+        """确保实验目录已正确设置"""
+        if self.experiment_dir_created:
+            return
+            
+        # 检查是否需要创建实验级别的目录
+        if not self._is_experiment_specific_dir(self.base_checkpoint_dir):
+            # 优先从context中获取共享的实验目录信息
+            experiment_dir = getattr(context, '_shared_experiment_dir', None)
+            
+            if experiment_dir:
+                # 使用共享的实验目录
+                self.checkpoint_dir = Path(experiment_dir) / 'checkpoints'
+                logger.debug(f"Using shared experiment checkpoint directory: {self.checkpoint_dir}")
+            else:
+                # 创建新的实验级别目录
+                experiment_name = getattr(context, 'experiment_name', None) or context.experiment_id or 'unknown_experiment'
+                experiment_timestamp = getattr(context, 'experiment_timestamp', None) or int(time.time())
+                
+                # 使用统一的实验目录格式: experiments/experiment_timestamp/checkpoints
+                if hasattr(context, '_base_experiment_dir'):
+                    # 如果context有基础实验目录，使用它
+                    base_exp_dir = getattr(context, '_base_experiment_dir')
+                    self.checkpoint_dir = Path(base_exp_dir) / 'checkpoints'
+                else:
+                    # 创建标准的实验目录
+                    experiment_dir_name = f"experiment_{experiment_timestamp}"
+                    self.checkpoint_dir = Path('experiments') / experiment_dir_name / 'checkpoints'
+                
+                # 在context中设置共享目录，让其他实例使用相同目录
+                context._shared_experiment_dir = str(self.checkpoint_dir.parent)
+                
+                logger.debug(f"Creating unified experiment checkpoint directory: {self.checkpoint_dir}")
+        else:
+            # 用户已指定具体目录，直接使用
+            self.checkpoint_dir = Path(self.base_checkpoint_dir)
+        
+        # 创建目录
+        self.checkpoint_dir.mkdir(parents=True, exist_ok=True)
+        self.experiment_dir_created = True
+    
+    def _is_experiment_specific_dir(self, dir_path: str) -> bool:
+        """检查目录路径是否已经是实验特定的（包含实验名称或ID）"""
+        path_str = str(dir_path).lower()
+        # 如果路径包含实验相关的关键字，认为是用户指定的实验目录
+        experiment_keywords = ['experiment', 'exp_', 'run_', 'trial_', 'session_']
+        return any(keyword in path_str for keyword in experiment_keywords)
     
     def _save_optimizer_state(self, optimizer, path: Path) -> None:
         """保存优化器状态"""

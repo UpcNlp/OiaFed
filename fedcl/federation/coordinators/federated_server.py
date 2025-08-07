@@ -1120,6 +1120,11 @@ class ImprovedFederatedServer(FederatedCommunicator):
                 
                 self.logger.info(f"Starting aggregation for round {self.current_round} with {len(client_updates)} updates")
                 
+                # 聚合客户端传递的评估结果（而不是重复计算）
+                client_evaluation_summary = None
+                if any('evaluation_results' in update for update in client_updates):
+                    client_evaluation_summary = self._aggregate_client_evaluation_results(client_updates)
+                
                 self.logger.info(f"About to transition to AGGREGATING state")
                 # 状态转换：WAITING_FOR_UPDATES -> AGGREGATING
                 if self.state_manager:
@@ -1136,7 +1141,7 @@ class ImprovedFederatedServer(FederatedCommunicator):
                     try:
                         # 更新全局模型（通过配置的聚合器）
                         self.logger.info(f"Starting model aggregation for round {self.current_round}")
-                        self.logger.info(f"About to call model_manager.update_global_model with {len(client_updates)} updates")
+                        self.logger.debug(f"About to call model_manager.update_global_model with {len(client_updates)} updates")
                         
                         # 检查client_updates格式
                         for i, update in enumerate(client_updates[:2]):  # 只检查前2个
@@ -1148,6 +1153,10 @@ class ImprovedFederatedServer(FederatedCommunicator):
                         self.logger.info(f"model_manager.update_global_model 成功完成")
                         self.global_model_version += 1
                         self.logger.info(f"Global model version incremented to {self.global_model_version}")
+                        
+                        # 保存最新聚合模型的引用，供checkpoint hook使用
+                        self._last_aggregated_model = aggregated_model
+                        self.logger.debug(f"Saved aggregated model reference for checkpoint hook: {type(aggregated_model)}")
                         
                         # 计算简单的聚合指标
                         self.logger.debug(f"Starting aggregation metrics calculation")
@@ -1172,8 +1181,8 @@ class ImprovedFederatedServer(FederatedCommunicator):
                         self.round_history.append(round_result)
                         self.logger.debug(f"Round result created and added to history")
                         
-                        # 服务端评估：在模型聚合完成后进行
-                        server_evaluation_results = self._perform_server_evaluation(aggregated_model)
+                        # 服务端评估：在模型聚合完成后进行，同时传递客户端评估聚合结果
+                        server_evaluation_results = self._perform_server_evaluation(aggregated_model, client_evaluation_summary)
                         
                         # 简单的收敛检查
                         convergence_info = {"is_converged": False, "improvement": 0.0}
@@ -1186,6 +1195,9 @@ class ImprovedFederatedServer(FederatedCommunicator):
                         round_result.convergence_info = convergence_info
                         # 将服务端评估结果添加到轮次结果中
                         round_result.metadata['server_evaluation'] = server_evaluation_results
+                        # 将客户端评估聚合结果添加到轮次结果中
+                        if client_evaluation_summary:
+                            round_result.metadata['client_evaluation_summary'] = client_evaluation_summary
                         
                         # 更新性能统计
                         self._update_performance_stats(round_result)
@@ -1227,6 +1239,9 @@ class ImprovedFederatedServer(FederatedCommunicator):
                             "round_time": round_result.round_time,
                             "convergence_info": convergence_info
                         })
+                        
+                        # 执行轮次完成后的hooks（如checkpoint保存）
+                        self._execute_after_round_hooks(round_result, convergence_info)
                         
                         # 清理轮次状态（不再需要，因为已经在上面清理了）
                         # self._cleanup_round_state()
@@ -1565,6 +1580,19 @@ class ImprovedFederatedServer(FederatedCommunicator):
         # 存储完整配置
         context._server_config = config
         
+        # 设置实验目录信息（优先从配置中获取，然后从实例属性）
+        shared_experiment_dir = config.get('experiment.shared_experiment_dir')
+        if shared_experiment_dir:
+            context._base_experiment_dir = str(shared_experiment_dir)
+            context._shared_experiment_dir = str(shared_experiment_dir)
+            logger.debug(f"Server context: using shared_experiment_dir from config: {shared_experiment_dir}")
+        elif hasattr(self, '_experiment_dir'):
+            context._base_experiment_dir = str(self._experiment_dir)
+            context._shared_experiment_dir = str(self._experiment_dir)
+            logger.debug(f"Server context: using _experiment_dir from instance: {self._experiment_dir}")
+        else:
+            logger.warning("Server context: no experiment directory found in config or instance")
+        
         return context
     
     def _create_aggregator(self, aggregator_config: Dict[str, Any], context: ExecutionContext) -> BaseAggregator:
@@ -1710,7 +1738,7 @@ class ImprovedFederatedServer(FederatedCommunicator):
         """注册状态变化回调"""
         def state_change_callback(old_state, new_state, metadata):
             """状态变化回调"""
-            self.logger.info(f"Server {self.server_id} state: {old_state} -> {new_state}")
+            self.logger.debug(f"Server {self.server_id} state: {old_state} -> {new_state}")
             
             # 更新上下文状态
             self.context.set_state(
@@ -1748,6 +1776,110 @@ class ImprovedFederatedServer(FederatedCommunicator):
         except Exception as e:
             self.logger.error(f"Failed to register hooks: {e}")
     
+    def _execute_after_round_hooks(self, round_result, convergence_info: Dict[str, Any]) -> None:
+        """执行轮次完成后的hooks（如checkpoint保存）"""
+        try:
+            # 检查是否配置了checkpoint_hook
+            hooks_config = self.server_config.get('hooks', {})
+            checkpoint_hook_config = hooks_config.get('checkpoint_hook', {})
+            
+            if not checkpoint_hook_config.get('enabled', False):
+                self.logger.debug("checkpoint_hook not enabled for server")
+                return
+            
+            if checkpoint_hook_config.get('phase') != 'after_round':
+                self.logger.debug(f"checkpoint_hook phase is {checkpoint_hook_config.get('phase')}, not after_round")
+                return
+            
+            # 创建CheckpointHook实例并执行
+            from ...core.checkpoint_hook import CheckpointHook
+            from omegaconf import DictConfig
+            
+            # 获取用户配置并与默认配置合并
+            user_checkpoint_config = hooks_config.get('checkpoint', {})
+            default_checkpoint_config = {
+                'save_frequency': 1,
+                'checkpoint_dir': './checkpoints/server',
+                'save_model': True,
+                'save_optimizer': False,
+                'save_experiment_state': True
+            }
+            
+            # 合并配置：用户配置优先，默认配置作为备选
+            checkpoint_config = {**default_checkpoint_config, **user_checkpoint_config}
+            self.logger.debug(f"Merged checkpoint config: {checkpoint_config}")
+            
+            hook = CheckpointHook(
+                phase='after_round',
+                checkpoint_config=DictConfig(checkpoint_config),
+                priority=checkpoint_hook_config.get('priority', 0)
+            )
+            
+            # 设置当前轮次到执行上下文
+            self.context.set_state('current_round', self.current_round, scope='global')
+            
+            # 执行hook，传递服务端全局模型
+            # 获取全局模型 - 优先从model_manager获取
+            global_model = None
+            self.logger.debug(f"Attempting to get global model for checkpoint hook")
+            
+            if hasattr(self, 'model_manager') and self.model_manager:
+                try:
+                    self.logger.debug(f"Trying to get model from model_manager: {type(self.model_manager)}")
+                    global_model = self.model_manager.get_current_model()
+                    if global_model is not None:
+                        self.logger.debug(f"Successfully got model from model_manager: {type(global_model)}")
+                    else:
+                        self.logger.debug("model_manager.get_current_model() returned None")
+                except Exception as e:
+                    self.logger.warning(f"Failed to get model from model_manager: {e}")
+                    import traceback
+                    self.logger.debug(f"Model manager error traceback: {traceback.format_exc()}")
+            else:
+                self.logger.debug(f"model_manager not available: hasattr={hasattr(self, 'model_manager')}, manager={getattr(self, 'model_manager', None)}")
+            
+            # 如果model_manager没有模型，尝试从federation_engine获取
+            if global_model is None and hasattr(self, 'federation_engine'):
+                self.logger.debug("Trying to get model from federation_engine")
+                global_model = getattr(self.federation_engine, 'global_model', None)
+                if global_model is not None:
+                    self.logger.debug(f"Successfully got model from federation_engine: {type(global_model)}")
+                else:
+                    self.logger.debug("federation_engine.global_model is None")
+            
+            # 如果还没有模型，尝试从最近的聚合结果获取
+            if global_model is None and hasattr(self, '_last_aggregated_model'):
+                self.logger.debug("Trying to get model from _last_aggregated_model")
+                global_model = getattr(self, '_last_aggregated_model', None)
+                if global_model is not None:
+                    self.logger.debug(f"Successfully got model from _last_aggregated_model: {type(global_model)}")
+            
+            # 最终日志
+            if global_model is None:
+                self.logger.warning("No global model available for checkpoint hook - checkpoint will not contain model")
+            else:
+                self.logger.debug(f"Global model ready for checkpoint: {type(global_model)}")
+            
+            hook_kwargs = {
+                'round': self.current_round,
+                'model': global_model,
+                'convergence_info': convergence_info,
+                'round_result': round_result,
+                'server_id': self.server_id
+            }
+            
+            if hook.should_execute(self.context, **hook_kwargs):
+                self.logger.debug(f"Executing server checkpoint hook for round {self.current_round}")
+                hook.execute(self.context, **hook_kwargs)
+                self.logger.info(f"Server checkpoint saved for round {self.current_round}")
+            else:
+                self.logger.debug(f"Server checkpoint hook should not execute for round {self.current_round}")
+                
+        except Exception as e:
+            self.logger.error(f"Failed to execute after_round hooks: {e}")
+            import traceback
+            self.logger.debug(f"Hook execution traceback: {traceback.format_exc()}")
+    
     def _initialize_global_models(self) -> None:
         """初始化全局模型"""
         try:
@@ -1769,33 +1901,70 @@ class ImprovedFederatedServer(FederatedCommunicator):
             raise ServerError(f"Global model initialization failed: {e}")
     
     def _create_default_model(self) -> torch.nn.Module:
-        """创建默认MLP模型"""
+        """创建默认模型（使用注册系统）"""
         try:
-            import torch.nn as nn
+            # 从配置中获取全局模型参数 - 修复：读取正确的配置路径
+            aggregator_config = self.server_config.get('aggregator', {})
+            global_model_config = aggregator_config.get('global_model', {})
             
-            # 从配置中获取模型参数，使用合理的默认值
-            model_config = self.server_config.get('model', {})
-            input_size = model_config.get('input_size', 784)  # MNIST
-            hidden_sizes = model_config.get('hidden_sizes', [256, 128])
-            num_classes = model_config.get('num_classes', 10)
-            dropout_rate = model_config.get('dropout_rate', 0.2)
+            # 如果没有找到global_model配置，尝试从model配置中读取（向后兼容）
+            if not global_model_config:
+                global_model_config = self.server_config.get('model', {})
             
-            layers = []
-            prev_size = input_size
+            model_type = global_model_config.get('type', 'SimpleMLP')  # 默认使用SimpleMLP
             
-            for hidden_size in hidden_sizes:
-                layers.append(nn.Linear(prev_size, hidden_size))
-                layers.append(nn.ReLU())
-                if dropout_rate > 0:
-                    layers.append(nn.Dropout(dropout_rate))
-                prev_size = hidden_size
+            # 根据模型类型创建模型
+            if model_type == 'mnist_cnn':
+                # 使用mnist_cnn模型（与客户端保持一致）
+                try:
+                    from ...implementations.factory import ModelFactory
+                    model = ModelFactory.create_model(global_model_config)
+                    self.logger.debug(f"Created mnist_cnn model using ModelFactory")
+                    return model
+                except Exception as e:
+                    self.logger.warning(f"Failed to create mnist_cnn via ModelFactory: {e}, falling back to SimpleMLP")
             
-            layers.append(nn.Linear(prev_size, num_classes))
-            
-            model = nn.Sequential(*layers)
-            
-            self.logger.debug(f"Created default MLP model for server: input={input_size}, hidden={hidden_sizes}, output={num_classes}")
-            return model
+            # 回退到SimpleMLP或其他已知模型类型
+            input_size = global_model_config.get('input_size', 784)  # MNIST
+            hidden_sizes = global_model_config.get('hidden_sizes', [256, 128])
+            num_classes = global_model_config.get('num_classes', 10)
+            dropout_rate = global_model_config.get('dropout_rate', 0.2)
+
+            # 尝试使用注册的模型
+            try:
+                from ...registry.component_registry import registry
+                from ...implementations.models.mnist import SimpleMLP
+                
+                # 使用注册的SimpleMLP模型（已具备自动展平功能）
+                model = SimpleMLP(
+                    input_size=input_size,
+                    hidden_sizes=hidden_sizes, 
+                    num_classes=num_classes,
+                    dropout_rate=dropout_rate
+                )
+                
+                self.logger.debug(f"Created registered SimpleMLP model: input={input_size}, hidden={hidden_sizes}, output={num_classes}")
+                return model
+                
+            except ImportError:
+                self.logger.warning("Cannot import registered models, falling back to simple model")
+                
+                # 回退到简单的内联模型
+                import torch.nn as nn
+                
+                layers = []
+                prev_size = input_size
+                for hidden_size in hidden_sizes:
+                    layers.append(nn.Linear(prev_size, hidden_size))
+                    layers.append(nn.ReLU())
+                    if dropout_rate > 0:
+                        layers.append(nn.Dropout(dropout_rate))
+                    prev_size = hidden_size
+                layers.append(nn.Linear(prev_size, num_classes))
+                
+                model = nn.Sequential(*layers)
+                self.logger.debug(f"Created fallback Sequential model: input={input_size}, hidden={hidden_sizes}, output={num_classes}")
+                return model
             
         except Exception as e:
             self.logger.error(f"Failed to create default model: {e}")
@@ -1962,58 +2131,123 @@ class ImprovedFederatedServer(FederatedCommunicator):
         except Exception as e:
             self.logger.error(f"Server cleanup failed: {e}")
     
-    def _perform_server_evaluation(self, model: torch.nn.Module) -> Dict[str, Any]:
+    def _aggregate_client_evaluation_results(self, client_updates: List[Dict[str, Any]]) -> Dict[str, Any]:
+        """
+        聚合客户端传递的评估结果，避免重复计算
+        
+        Args:
+            client_updates: 客户端更新列表
+            
+        Returns:
+            聚合后的评估结果
+        """
+        aggregated_results = {
+            "total_evaluation_tasks": 0,
+            "successful_evaluations": 0,
+            "evaluation_metrics": {},
+            "timestamp": time.time(),
+            "client_count": len(client_updates)
+        }
+        
+        all_accuracies = []
+        all_losses = []
+        total_samples = 0
+        
         try:
-            import torch.nn as nn
-            # 从配置中获取模型参数，使用合理的默认值
-            model_config = self.server_config.get('model', {})
-            input_size = model_config.get('input_size', 784)  # MNIST
-            hidden_sizes = model_config.get('hidden_sizes', [256, 128])
-            num_classes = model_config.get('num_classes', 10)
-            dropout_rate = model_config.get('dropout_rate', 0.2)
-
-            class FlattenMLP(nn.Module):
-                def __init__(self):
-                    super().__init__()
-                    layers = []
-                    prev_size = input_size
-                    for hidden_size in hidden_sizes:
-                        layers.append(nn.Linear(prev_size, hidden_size))
-                        layers.append(nn.ReLU())
-                        if dropout_rate > 0:
-                            layers.append(nn.Dropout(dropout_rate))
-                        prev_size = hidden_size
-                    layers.append(nn.Linear(prev_size, num_classes))
-                    self.mlp = nn.Sequential(*layers)
-
-                def forward(self, x):
-                    # 自动展平输入 (batch_size, 28, 28) -> (batch_size, 784)
-                    if x.dim() == 3:
-                        x = x.view(x.size(0), -1)
-                    elif x.dim() == 4:
-                        # 兼容有channel的情况 (batch_size, 1, 28, 28)
-                        x = x.view(x.size(0), -1)
-                    return self.mlp(x)
-
-            model = FlattenMLP()
-            self.logger.debug(f"Created default FlattenMLP model for server: input={input_size}, hidden={hidden_sizes}, output={num_classes}")
-            return model
+            for update in client_updates:
+                evaluation_results = update.get('evaluation_results', {})
+                if not evaluation_results:
+                    continue
+                    
+                phase_evaluations = evaluation_results.get('phase_evaluations', {})
+                for phase_name, phase_eval in phase_evaluations.items():
+                    if isinstance(phase_eval, dict):
+                        for task_name, task_result in phase_eval.items():
+                            if isinstance(task_result, dict):
+                                accuracy = task_result.get('accuracy')
+                                loss = task_result.get('loss')
+                                samples = task_result.get('samples', 0)
+                                
+                                if accuracy is not None:
+                                    all_accuracies.append(accuracy)
+                                if loss is not None:
+                                    all_losses.append(loss)
+                                total_samples += samples
+            
+            # 计算平均指标
+            if all_accuracies:
+                avg_accuracy = sum(all_accuracies) / len(all_accuracies)
+                aggregated_results["evaluation_metrics"]["aggregated_accuracy"] = {
+                    "accuracy": avg_accuracy,
+                    "loss": sum(all_losses) / len(all_losses) if all_losses else 'N/A',
+                    "total_samples": total_samples,
+                    "client_count": len(client_updates)
+                }
+                aggregated_results["successful_evaluations"] = 1
+                aggregated_results["total_evaluation_tasks"] = 1
+                
+                # 构建日志消息，只显示有效的指标
+                log_parts = [f"acc:{avg_accuracy:.3f}"]
+                if all_losses:
+                    avg_loss = sum(all_losses) / len(all_losses)
+                    log_parts.append(f"loss:{avg_loss:.3f}")
+                
+                self.logger.info(f"📊 [客户端评估聚合] Round {self.current_round} - "
+                               f"聚合来自{len(client_updates)}个客户端的评估结果: "
+                               f"{', '.join(log_parts)}")
+            else:
+                self.logger.debug("📊 [客户端评估聚合] 未找到有效的客户端评估结果")
+                
         except Exception as e:
-            self.logger.error(f"Failed to create default model: {e}")
-            # 最简单的回退模型
-            class SimpleFallbackMLP(nn.Module):
-                def __init__(self):
-                    super().__init__()
-                    self.mlp = nn.Sequential(
-                        nn.Linear(784, 128),
-                        nn.ReLU(),
-                        nn.Linear(128, 10)
-                    )
-                def forward(self, x):
-                    if x.dim() == 3 or x.dim() == 4:
-                        x = x.view(x.size(0), -1)
-                    return self.mlp(x)
-            return SimpleFallbackMLP()
+            self.logger.error(f"❌ [客户端评估聚合] 聚合客户端评估结果失败: {e}")
+            
+        return aggregated_results
+
+    def _perform_server_evaluation(self, model: torch.nn.Module, client_evaluation_summary: Dict[str, Any] = None) -> Dict[str, Any]:
+        """
+        执行服务端评估，结合客户端传递的评估结果
+        
+        Args:
+            model: 聚合后的全局模型
+            client_evaluation_summary: 客户端评估结果聚合
+            
+        Returns:
+            评估结果字典
+        """
+        evaluation_results = {
+            "total_evaluation_tasks": 0,
+            "successful_evaluations": 0,
+            "evaluation_metrics": {},
+            "timestamp": time.time()
+        }
+        
+        try:
+            # 检查是否配置了评估
+            if not self.evaluation_config or not self.evaluators:
+                self.logger.debug("🔍 [服务端评估] 未配置评估器或评估任务")
+                # 即使没有服务端评估器，也可以展示客户端聚合的结果
+                if client_evaluation_summary and client_evaluation_summary.get("evaluation_metrics"):
+                    client_metrics = client_evaluation_summary["evaluation_metrics"].get("aggregated_accuracy", {})
+                    if client_metrics:
+                        acc = client_metrics.get("accuracy", "N/A")
+                        loss = client_metrics.get("loss", "N/A")
+                        self.logger.info(f"📊 [客户端评估聚合] Round {self.current_round} - "
+                                       f"来自客户端的评估结果: acc:{acc:.3f if isinstance(acc, (int, float)) else acc}, "
+                                       f"loss:{loss:.3f if isinstance(loss, (int, float)) else loss}")
+                return evaluation_results
+                
+            self.logger.info(f"🏛️ [服务端评估] Round {self.current_round} - 开始评估聚合后的全局模型")
+            
+            # 获取评估任务配置
+            evaluation_tasks = self.evaluation_config.get('tasks', [])
+            evaluation_results["total_evaluation_tasks"] = len(evaluation_tasks)
+            
+            for task in evaluation_tasks:
+                try:
+                    evaluator_name = task.get('evaluator')
+                    test_data = task.get('test_data', 'server_test_data')
+                    
+                    if evaluator_name not in self.evaluators:
                         self.logger.warning(f"🏛️ [服务端评估] 未找到评估器: {evaluator_name}")
                         continue
                     
@@ -2030,15 +2264,36 @@ class ImprovedFederatedServer(FederatedCommunicator):
                     
                     # 执行评估
                     if hasattr(evaluator, 'evaluate'):
-                        result = evaluator.evaluate(model, data_loader)
-                        evaluation_results["evaluation_metrics"][evaluator_name] = result
-                        evaluation_results["successful_evaluations"] += 1
-                        
-                        # 提取关键指标用于日志
-                        accuracy = result.get('accuracy', 'N/A')
-                        loss = result.get('loss', 'N/A')
-                        
-                        self.logger.info(f"✅ [服务端评估] 评估任务完成: {evaluator_name} - acc:{accuracy:.3f}, loss:{loss:.3f}")
+                        try:
+                            result = evaluator.evaluate(model, data_loader)
+                            evaluation_results["evaluation_metrics"][evaluator_name] = result
+                            evaluation_results["successful_evaluations"] += 1
+                            
+                            # 提取关键指标用于日志
+                            accuracy = result.get('accuracy', 'N/A')
+                            loss = result.get('loss', 'N/A')
+                            
+                            # 构建日志消息，只包含有效的指标
+                            log_parts = []
+                            if isinstance(accuracy, (int, float)):
+                                log_parts.append(f"acc:{accuracy:.3f}")
+                            elif accuracy != 'N/A':
+                                log_parts.append(f"acc:{accuracy}")
+                            
+                            if isinstance(loss, (int, float)):
+                                log_parts.append(f"loss:{loss:.3f}")
+                            elif loss != 'N/A':
+                                log_parts.append(f"loss:{loss}")
+                            
+                            metrics_str = ", ".join(log_parts) if log_parts else "无有效指标"
+                            self.logger.info(f"✅ [服务端评估] 评估任务完成: {evaluator_name} - {metrics_str}")
+                        except RuntimeError as e:
+                            if "mat1 and mat2 shapes cannot be multiplied" in str(e) or "size mismatch" in str(e):
+                                self.logger.warning(f"⚠️ [服务端评估] 数据形状不匹配，跳过评估 {evaluator_name}: 请检查服务端测试数据预处理是否与客户端一致")
+                            else:
+                                self.logger.error(f"🏛️ [服务端评估] 评估任务运行时错误 {evaluator_name}: {e}")
+                        except Exception as eval_e:
+                            self.logger.error(f"🏛️ [服务端评估] 评估任务失败 {evaluator_name}: {eval_e}")
                     else:
                         self.logger.warning(f"🏛️ [服务端评估] 评估器 {evaluator_name} 没有evaluate方法")
                         
@@ -2047,30 +2302,59 @@ class ImprovedFederatedServer(FederatedCommunicator):
             
             # 创建评估摘要
             if evaluation_results["successful_evaluations"] > 0:
-                summary = self._create_server_evaluation_summary(evaluation_results["evaluation_metrics"])
+                summary = self._create_server_evaluation_summary(evaluation_results["evaluation_metrics"], client_evaluation_summary)
                 self.logger.info(f"📊 [服务端评估] Round {self.current_round} - 全局模型评估完成: {summary}")
+            elif client_evaluation_summary and client_evaluation_summary.get("evaluation_metrics"):
+                # 即使没有服务端评估器成功，也展示客户端聚合结果
+                client_metrics = client_evaluation_summary["evaluation_metrics"].get("aggregated_accuracy", {})
+                if client_metrics:
+                    acc = client_metrics.get("accuracy", "N/A")
+                    loss = client_metrics.get("loss", "N/A")
+                    self.logger.info(f"📊 [客户端评估聚合] Round {self.current_round} - "
+                                   f"来自客户端的评估结果: acc:{acc:.3f if isinstance(acc, (int, float)) else acc}, "
+                                   f"loss:{loss:.3f if isinstance(loss, (int, float)) else loss}")
             
         except Exception as e:
             self.logger.error(f"🏛️ [服务端评估] 服务端评估失败: {e}")
             
         return evaluation_results
     
-    def _create_server_evaluation_summary(self, metrics: Dict[str, Any]) -> str:
-        """创建服务端评估结果摘要"""
+    def _create_server_evaluation_summary(self, metrics: Dict[str, Any], client_evaluation_summary: Dict[str, Any] = None) -> str:
+        """创建服务端评估结果摘要，结合客户端loss值"""
         if not metrics:
             return "无评估结果"
             
         summary_parts = []
+        server_acc = None
+        server_loss = None
+        client_loss = None
         
-        # 提取准确率和损失
+        # 提取服务端评估的准确率和损失
         for evaluator_name, result in metrics.items():
             if isinstance(result, dict):
                 acc = result.get('accuracy')
                 loss = result.get('loss')
                 if acc is not None:
-                    summary_parts.append(f"acc:{acc:.3f}")
+                    server_acc = acc
                 if loss is not None:
-                    summary_parts.append(f"loss:{loss:.3f}")
+                    server_loss = loss
+        
+        # 获取客户端聚合的loss值
+        if client_evaluation_summary and client_evaluation_summary.get("evaluation_metrics"):
+            client_metrics = client_evaluation_summary["evaluation_metrics"].get("aggregated_accuracy", {})
+            if client_metrics:
+                client_loss = client_metrics.get("loss")
+        
+        # 构建摘要
+        if server_acc is not None:
+            summary_parts.append(f"acc:{server_acc:.3f}")
+        
+        # 优先使用客户端传递的loss值，如果没有则使用服务端计算的
+        if client_loss is not None and client_loss != 'N/A':
+            summary_parts.append(f"loss:{client_loss:.3f}(客户端)")
+        elif server_loss is not None and server_loss != 'N/A':
+            summary_parts.append(f"loss:{server_loss:.3f}(服务端)")
+        # 移除了"loss:N/A"的情况，不显示无效的loss
         
         return f"{len(metrics)}个评估器({', '.join(summary_parts)})" if summary_parts else f"{len(metrics)}个评估器"
     

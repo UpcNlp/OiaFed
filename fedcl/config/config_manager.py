@@ -363,8 +363,9 @@ class StandardDataLoaderFactory(BaseDataLoaderFactory):
         try:
             import torchvision
             import torchvision.transforms as transforms
-            from torch.utils.data import DataLoader
+            from torch.utils.data import DataLoader, Subset
             from pathlib import Path
+            import torch
             
             # 数据变换
             transform = transforms.Compose([
@@ -377,17 +378,130 @@ class StandardDataLoaderFactory(BaseDataLoaderFactory):
             split = dataset_config.get('split', 'train')
             download = dataset_config.get('download', True)
             
-            dataset = torchvision.datasets.MNIST(
+            full_dataset = torchvision.datasets.MNIST(
                 root=data_path,
                 train=(split == 'train'),
                 download=download,
                 transform=transform
             )
             
+            # 检查是否需要联邦数据分割
+            federated_config = config.get('federated_config', {})
+            if federated_config:
+                client_id = federated_config.get('client_id', 1)
+                num_clients = federated_config.get('num_clients', 1) 
+                samples_per_client = federated_config.get('samples_per_client')
+                distribution = federated_config.get('distribution', 'iid')
+                
+                logger.debug(f"Creating federated MNIST dataset for client {client_id}/{num_clients}")
+                logger.debug(f"Full dataset size: {len(full_dataset)}")
+                
+                if samples_per_client:
+                    # 使用指定的每客户端样本数
+                    if distribution == 'iid':
+                        # IID分布：随机选择样本
+                        total_samples = len(full_dataset)
+                        start_idx = (client_id - 1) * samples_per_client
+                        end_idx = min(start_idx + samples_per_client, total_samples)
+                        
+                        # 生成随机索引
+                        torch.manual_seed(42)  # 确保可重现
+                        indices = torch.randperm(total_samples).tolist()
+                        client_indices = indices[start_idx:end_idx]
+                        
+                        dataset = Subset(full_dataset, client_indices)
+                        logger.debug(f"Created IID subset for client {client_id}: {len(dataset)} samples (indices {start_idx}-{end_idx-1})")
+                    else:
+                        # 非IID分布：使用专门的分割API
+                        try:
+                            from fedcl.data.split_api import DataSplitAPI
+                            from omegaconf import OmegaConf
+                            
+                            # 创建联邦数据分割API
+                            split_api = DataSplitAPI()
+                            
+                            # 构建分割配置
+                            split_config = OmegaConf.create({
+                                'name': f'mnist_split_client_{client_id}',
+                                'dataset': {
+                                    'name': 'MNIST',
+                                    'path': dataset_config.get('path', 'data/MNIST'),
+                                    'split': dataset_config.get('split', 'train')
+                                },
+                                'split': {
+                                    'num_客户端': num_clients,
+                                    'strategy': {
+                                        'method': distribution,
+                                        'params': {
+                                            'samples_per_client': samples_per_client
+                                        }
+                                    }
+                                },
+                                'output': {
+                                    'path': f'./temp_split_client_{client_id}'
+                                }
+                            })
+                            
+                            # 执行分割并获取结果
+                            split_results = split_api.execute_split(split_config)
+                            
+                            # 从分割结果中获取当前客户端的数据集
+                            client_datasets = split_results.get('split_datasets', {})
+                            if str(client_id) in client_datasets:
+                                dataset = client_datasets[str(client_id)]
+                                logger.debug(f"Created non-IID dataset for client {client_id}: {len(dataset)} samples")
+                            else:
+                                logger.error(f"Client ID {client_id} not found in split results")
+                                # 回退到简单的索引分割
+                                total_samples = len(full_dataset)
+                                start_idx = (client_id - 1) * samples_per_client
+                                end_idx = min(start_idx + samples_per_client, total_samples)
+                                indices = list(range(start_idx, end_idx))
+                                dataset = Subset(full_dataset, indices)
+                                logger.debug(f"Used fallback split for client {client_id}: {len(dataset)} samples")
+                                
+                        except ImportError as e:
+                            logger.warning(f"DataSplitAPI not available: {e}, using IID fallback")
+                            # 回退到IID分布
+                            total_samples = len(full_dataset)
+                            start_idx = (client_id - 1) * samples_per_client
+                            end_idx = min(start_idx + samples_per_client, total_samples)
+                            
+                            torch.manual_seed(42)
+                            indices = torch.randperm(total_samples).tolist()
+                            client_indices = indices[start_idx:end_idx]
+                            
+                            dataset = Subset(full_dataset, client_indices)
+                            logger.debug(f"Created IID fallback dataset for client {client_id}: {len(dataset)} samples")
+                            
+                        except Exception as e:
+                            logger.error(f"Failed to create non-IID split: {e}, using simple fallback")
+                            # 最简单的回退：按顺序分割
+                            total_samples = len(full_dataset)
+                            start_idx = (client_id - 1) * samples_per_client
+                            end_idx = min(start_idx + samples_per_client, total_samples)
+                            indices = list(range(start_idx, end_idx))
+                            dataset = Subset(full_dataset, indices)
+                            logger.debug(f"Used simple fallback for client {client_id}: {len(dataset)} samples")
+                else:
+                    # 均匀分割数据集
+                    total_samples = len(full_dataset)
+                    samples_per_client = total_samples // num_clients
+                    start_idx = (client_id - 1) * samples_per_client
+                    end_idx = start_idx + samples_per_client if client_id < num_clients else total_samples
+                    
+                    indices = list(range(start_idx, end_idx))
+                    dataset = Subset(full_dataset, indices)
+                    logger.debug(f"Created evenly split subset for client {client_id}: {len(dataset)} samples")
+            else:
+                # 没有联邦配置，使用完整数据集
+                dataset = full_dataset
+                logger.debug(f"Using full MNIST dataset: {len(dataset)} samples")
+            
             # 获取loader参数
             loader_params = config.get('loader_params', {})
             
-            return DataLoader(
+            dataloader = DataLoader(
                 dataset,
                 batch_size=loader_params.get('batch_size', 32),
                 shuffle=loader_params.get('shuffle', True),
@@ -395,6 +509,10 @@ class StandardDataLoaderFactory(BaseDataLoaderFactory):
                 pin_memory=loader_params.get('pin_memory', False),
                 drop_last=loader_params.get('drop_last', False)
             )
+            
+            logger.info(f"Created MNIST DataLoader: {len(dataset)} samples, {len(dataloader)} batches, batch_size={dataloader.batch_size}")
+            return dataloader
+            
         except Exception as e:
             raise DataLoaderError(f"Failed to create MNIST dataloader: {e}")
     

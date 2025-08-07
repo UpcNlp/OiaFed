@@ -180,15 +180,48 @@ class BaseEpochScheduler(ABC):
             learner: 学习器实例
             
         Returns:
-            Dict[str, Any]: 导出的状态
+            Dict[str, Any]: 导出的状态，包含模型参数
         """
         exported_state = {}
+        
+        # 导出learner状态
         if hasattr(learner, 'get_state'):
             try:
                 exported_state = learner.get_state()
                 self.logger.debug(f"Exported learner state")
             except Exception as e:
                 self.logger.warning(f"Failed to export learner state: {e}")
+        
+        # 提取模型参数 - 这是关键修复
+        model_update = {}
+        if hasattr(learner, 'model') and hasattr(learner.model, 'state_dict'):
+            try:
+                # 获取模型参数
+                state_dict = learner.model.state_dict()
+                model_update = {k: v.clone().detach() for k, v in state_dict.items()}
+                self.logger.debug(f"Successfully extracted model parameters, {len(model_update)} parameters")
+                self.logger.debug(f"Model parameter keys: {list(model_update.keys())[:5]}...")  # 显示前5个键
+            except Exception as e:
+                self.logger.warning(f"Failed to extract model parameters: {e}")
+                model_update = {}
+        elif hasattr(learner, 'get_model'):
+            try:
+                # 尝试通过get_model方法获取模型
+                model = learner.get_model()
+                if model is not None and hasattr(model, 'state_dict'):
+                    state_dict = model.state_dict()
+                    model_update = {k: v.clone().detach() for k, v in state_dict.items()}
+                    self.logger.debug(f"Successfully extracted model parameters via get_model(), {len(model_update)} parameters")
+                else:
+                    self.logger.warning("get_model() returned None or model has no state_dict")
+            except Exception as e:
+                self.logger.warning(f"Failed to extract model parameters via get_model(): {e}")
+                model_update = {}
+        else:
+            self.logger.warning("Learner has no model or get_model method, cannot extract model parameters")
+        
+        # 将模型参数添加到导出状态中
+        exported_state['model_update'] = model_update
         
         return exported_state
     
@@ -273,6 +306,8 @@ class StandardEpochScheduler(BaseEpochScheduler):
                       inherited_state: Optional[Dict[str, Any]] = None,
                       context: Optional[ExecutionContext] = None) -> ExecutionResult:
         """执行标准epoch训练"""
+        self.logger.info(f"🚀 [Epoch调度] 开始执行标准epoch训练: epochs={epoch_range}, learner={type(learner).__name__}")
+        
         with self._execution_lock:
             if self._is_running:
                 raise SchedulerError(f"Scheduler {self.scheduler_id} is already running")
@@ -291,6 +326,7 @@ class StandardEpochScheduler(BaseEpochScheduler):
                 metrics_history = {}
                 
                 for epoch in epoch_range:
+                    self.logger.info(f"📊 [Epoch训练] 执行第 {epoch} 个epoch")
                     self._current_epoch = epoch
                     
                     try:
@@ -301,6 +337,7 @@ class StandardEpochScheduler(BaseEpochScheduler):
                         
                         # 执行单个epoch训练
                         epoch_metrics = self._execute_single_epoch(learner, dataloader, epoch, context)
+                        self.logger.info(f"✅ [Epoch训练] 第 {epoch} 个epoch完成，指标: {epoch_metrics}")
                         
                         # 记录指标
                         for key, value in epoch_metrics.items():
@@ -310,11 +347,16 @@ class StandardEpochScheduler(BaseEpochScheduler):
                         
                         executed_epochs.append(epoch)
                         
-                        # 执行epoch后Hook
+                                                # 执行epoch后Hook
                         if context:
+                            # 获取learner的模型用于checkpoint
+                            model = getattr(learner, 'model', None) if learner else None
+                            self.logger.debug(f"About to execute after_epoch hooks with model={type(model).__name__ if model else None}")
                             self._execute_hooks(context, HookPhase.AFTER_EPOCH.value,
                                               epoch=epoch, metrics=epoch_metrics, learner=learner,
-                                              scheduler_id=self.scheduler_id)
+                                              scheduler_id=self.scheduler_id, model=model)
+                        else:
+                            self.logger.debug(f"No context available for after_epoch hooks")
                         
                         self.logger.debug(f"Completed epoch {epoch}: {epoch_metrics}")
                         
@@ -371,13 +413,19 @@ class StandardEpochScheduler(BaseEpochScheduler):
                              epoch: int,
                              context: Optional[ExecutionContext] = None) -> Dict[str, float]:
         """执行单个epoch训练"""
+        self.logger.info(f"🔥 [单epoch训练] 开始执行第{epoch}个epoch，learner类型: {type(learner).__name__}")
+        
         if hasattr(learner, 'train_epoch'):
-            return learner.train_epoch(dataloader, epoch)
+            self.logger.info(f"🔥 [单epoch训练] 使用learner.train_epoch方法训练")
+            result = learner.train_epoch(dataloader, epoch)
+            self.logger.info(f"🔥 [单epoch训练] train_epoch完成，结果: {result}")
+            return result
         elif hasattr(learner, 'train_on_batch'):
+            self.logger.info(f"🔥 [单epoch训练] 使用learner.train_on_batch方法训练")
             return self._execute_batch_training(learner, dataloader, epoch, context)
         else:
             # 模拟训练
-            self.logger.warning("Learner doesn't have train_epoch or train_on_batch method")
+            self.logger.warning(f"⚠️ [单epoch训练] Learner doesn't have train_epoch or train_on_batch method，使用模拟训练")
             return {
                 "loss": max(0.1, 1.0 / (epoch + 1)),
                 "accuracy": min(0.9, 0.1 + epoch * 0.1)
@@ -425,11 +473,79 @@ class StandardEpochScheduler(BaseEpochScheduler):
     
     def _execute_hooks(self, context: ExecutionContext, phase: str, **kwargs):
         """执行Hook（如果有上下文）"""
+        self.logger.debug(f"_execute_hooks called with phase={phase}")
         if context and hasattr(context, 'hook_manager'):
             try:
                 context.hook_manager.execute_hooks(phase, context, **kwargs)
             except Exception as e:
                 self.logger.error(f"Hook execution failed for phase {phase}: {e}")
+        
+        # 直接处理CheckpointHook（如果配置了）
+        self.logger.debug(f"About to call _execute_checkpoint_hooks")
+        self._execute_checkpoint_hooks(context, phase, **kwargs)
+    
+    def _execute_checkpoint_hooks(self, context: ExecutionContext, phase: str, **kwargs):
+        """直接执行CheckpointHook（绕过hook_manager）"""
+        try:
+            self.logger.debug(f"_execute_checkpoint_hooks called with phase={phase}, kwargs keys={list(kwargs.keys())}")
+            
+            # 从context的config中获取hooks配置
+            if not hasattr(context, 'config') or not context.config:
+                self.logger.debug("No config in context, skipping checkpoint hooks")
+                return
+                
+            hooks_config = context.config.get('hooks', {})
+            checkpoint_hook_config = hooks_config.get('checkpoint_hook', {})
+            
+            self.logger.debug(f"checkpoint_hook_config: {checkpoint_hook_config}")
+            
+            # 检查hook是否启用以及phase是否匹配
+            if not checkpoint_hook_config.get('enabled', False):
+                self.logger.debug("checkpoint_hook not enabled, skipping")
+                return
+                
+            hook_phase = checkpoint_hook_config.get('phase', '')
+            if hook_phase != phase:
+                self.logger.debug(f"Phase mismatch: hook_phase={hook_phase}, current_phase={phase}")
+                return
+            
+            # 构建checkpoint配置
+            from omegaconf import DictConfig
+            from fedcl.core.checkpoint_hook import CheckpointHook
+            
+            checkpoint_config = hooks_config.get('checkpoint', {})
+            if not checkpoint_config:
+                # 使用默认配置
+                checkpoint_config = {
+                    'save_frequency': checkpoint_hook_config.get('save_frequency', 1),
+                    'checkpoint_dir': './checkpoints',
+                    'max_checkpoints': 3,
+                    'save_model': True,
+                    'save_optimizer': False,
+                    'save_experiment_state': True,
+                    'compress': False
+                }
+            
+            # 创建并执行CheckpointHook
+            self.logger.debug(f"Creating CheckpointHook with config: {checkpoint_config}")
+            hook = CheckpointHook(
+                phase=phase,
+                checkpoint_config=DictConfig(checkpoint_config),
+                priority=checkpoint_hook_config.get('priority', 0)
+            )
+            
+            self.logger.debug(f"Checking if CheckpointHook should execute...")
+            if hook.should_execute(context, **kwargs):
+                self.logger.debug(f"Executing CheckpointHook for phase {phase}")
+                hook.execute(context, **kwargs)
+                self.logger.debug(f"CheckpointHook execution completed")
+            else:
+                self.logger.debug(f"CheckpointHook should not execute for phase {phase}")
+                
+        except Exception as e:
+            self.logger.error(f"Failed to execute CheckpointHook for phase {phase}: {e}")
+            import traceback
+            self.logger.debug(f"CheckpointHook execution traceback: {traceback.format_exc()}")
     
     def _get_memory_usage(self) -> Dict[str, float]:
         """获取内存使用情况"""

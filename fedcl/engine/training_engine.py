@@ -52,10 +52,29 @@ class PhaseResult:
     
     def get_final_metrics(self) -> Dict[str, Any]:
         """获取最终指标"""
+        # 添加调试信息
+        if hasattr(self, 'logger'):
+            self.logger.debug(f"get_final_metrics called, metrics keys: {list(self.metrics.keys())}")
+            for key, value in self.metrics.items():
+                self.logger.debug(f"  metric '{key}': type={type(value)}, value={value}")
+        
         final_metrics = {}
         for metric_name, metric_values in self.metrics.items():
             if metric_values:
-                final_metrics[metric_name] = metric_values[-1]  # 取最后一个值
+                # 确保metric_values是列表并且有元素
+                if isinstance(metric_values, list) and len(metric_values) > 0:
+                    final_metrics[metric_name] = metric_values[-1]  # 取最后一个值
+                elif isinstance(metric_values, (int, float, str)):
+                    # 如果是单一值，直接使用
+                    final_metrics[metric_name] = metric_values
+                else:
+                    # 其他类型，尝试转换
+                    try:
+                        if hasattr(metric_values, '__getitem__') and len(metric_values) > 0:
+                            final_metrics[metric_name] = metric_values[-1]
+                    except (TypeError, IndexError, KeyError):
+                        # 如果无法获取最后一个值，跳过这个指标
+                        continue
         return final_metrics
 
 
@@ -724,13 +743,31 @@ class RefactoredEnhancedTrainingEngine:
             )
             
             # 执行epoch调度
-            execution_result = scheduler.execute_epochs(
-                learner=learner,
-                dataloader=dataloader,
-                epoch_range=phase_config.epochs,
-                inherited_state=inherited_state,
-                context=self.context
-            )
+            self.logger.info(f"🚀 [训练调度] 开始执行epoch调度: epoch_range={phase_config.epochs}, scheduler={type(scheduler).__name__}")
+            
+            # 根据调度器类型使用不同的参数
+            if hasattr(scheduler.execute_epochs, '__code__') and 'training_engine' in scheduler.execute_epochs.__code__.co_varnames:
+                # 如果支持training_engine参数（如BasicTrainingScheduler）
+                self.logger.info(f"🚀 [训练调度] 使用支持training_engine参数的调度器")
+                execution_result = scheduler.execute_epochs(
+                    learner=learner,
+                    dataloader=dataloader,
+                    epoch_range=phase_config.epochs,
+                    inherited_state=inherited_state,
+                    context=self.context,
+                    training_engine=self  # 传递training_engine参数
+                )
+            else:
+                # 标准调度器不支持training_engine参数（如StandardEpochScheduler）
+                self.logger.info(f"🚀 [训练调度] 使用标准调度器（不支持training_engine参数）")
+                execution_result = scheduler.execute_epochs(
+                    learner=learner,
+                    dataloader=dataloader,
+                    epoch_range=phase_config.epochs,
+                    inherited_state=inherited_state,
+                    context=self.context
+                )
+            self.logger.info(f"✅ [训练调度] Epoch调度完成: executed_epochs={execution_result.executed_epochs}, final_state_keys={list(execution_result.final_state.keys())}")
             
             # 控制层状态转换：EPOCH_EXECUTING -> EVALUATING
             self.state_manager.transition_to(
@@ -838,10 +875,17 @@ class RefactoredEnhancedTrainingEngine:
                 
                 if training_engine:
                     training_engine.logger.debug(f"使用基本scheduler执行epochs: {epoch_range}")
+                else:
+                    print(f"DEBUG: 基本scheduler执行epochs: {epoch_range} (无training_engine)")
                 
                 for epoch in epoch_range:
+                    if training_engine:
+                        training_engine.logger.debug(f"开始执行epoch {epoch}")
+                    
                     # 检查是否停止
                     if training_engine and training_engine.training_stopped:
+                        if training_engine:
+                            training_engine.logger.debug(f"训练已停止，跳出epoch {epoch}")
                         break
                     
                     # 检查是否暂停
@@ -853,11 +897,21 @@ class RefactoredEnhancedTrainingEngine:
                     
                     # 执行一个epoch的训练
                     try:
+                        if training_engine:
+                            training_engine.logger.debug(f"开始训练epoch {epoch}")
+                        
                         if hasattr(learner, 'train_epoch'):
+                            if training_engine:
+                                training_engine.logger.debug(f"使用learner.train_epoch方法")
                             metrics = learner.train_epoch(dataloader, epoch)
                         else:
                             # 如果learner没有train_epoch方法，使用基本训练逻辑
-                            metrics = self._basic_training_epoch(learner, dataloader, epoch)
+                            if training_engine:
+                                training_engine.logger.debug(f"使用基本训练逻辑")
+                                metrics = training_engine._basic_training_epoch(learner, dataloader, epoch)
+                            else:
+                                # 如果没有training_engine，执行简单的训练逻辑
+                                metrics = self._fallback_training_epoch(learner, dataloader, epoch)
                         
                         result.executed_epochs.append(epoch)
                         
@@ -874,19 +928,63 @@ class RefactoredEnhancedTrainingEngine:
                             if hasattr(learner, 'learner_id'):
                                 training_engine.save_client_model_checkpoint(
                                     learner.learner_id, epoch, metrics)
+                        else:
+                            print(f"DEBUG: Epoch {epoch} 完成，损失: {metrics.get('loss', 'N/A')}")
                             
                     except Exception as e:
                         if training_engine:
                             training_engine.logger.error(f"Epoch {epoch} 训练失败: {e}")
+                        else:
+                            print(f"DEBUG: Epoch {epoch} 训练失败: {e}")
                         break
                 
                 # 更新最终状态
                 if result.executed_epochs:
-                    result.final_state.update({
-                        "last_epoch": result.executed_epochs[-1],
-                        "final_metrics": {k: v[-1] if v else 0 for k, v in result.metrics.items()},
-                        "model_update": {}  # 这里应该包含模型参数更新
-                    })
+                    # 获取训练后的模型参数
+                    model_update = {}
+                    if hasattr(learner, 'model') and hasattr(learner.model, 'state_dict'):
+                        try:
+                            # 获取模型参数的差值或完整参数
+                            state_dict = learner.model.state_dict()
+                            model_update = {k: v.clone().detach() for k, v in state_dict.items()}
+                            if training_engine:
+                                training_engine.logger.debug(f"成功提取模型参数，共 {len(model_update)} 个参数")
+                                training_engine.logger.debug(f"模型参数键: {list(model_update.keys())[:5]}...")  # 显示前5个键
+                            else:
+                                print(f"DEBUG: 成功提取模型参数，共 {len(model_update)} 个参数")
+                                print(f"DEBUG: 模型参数键: {list(model_update.keys())[:5]}...")
+                        except Exception as e:
+                            if training_engine:
+                                training_engine.logger.warning(f"提取模型参数失败: {e}")
+                            else:
+                                print(f"DEBUG: 提取模型参数失败: {e}")
+                            model_update = {}
+                    else:
+                        if training_engine:
+                            training_engine.logger.warning(f"learner没有model或model没有state_dict方法")
+                        else:
+                            print(f"DEBUG: learner没有model或model没有state_dict方法")
+                    
+                    try:
+                        result.final_state.update({
+                            "last_epoch": result.executed_epochs[-1],
+                            "final_metrics": {k: v[-1] if v else 0 for k, v in result.metrics.items()},
+                            "model_update": model_update
+                        })
+                        if training_engine:
+                            training_engine.logger.debug(f"final_state更新成功，包含: {list(result.final_state.keys())}")
+                        else:
+                            print(f"DEBUG: final_state更新成功，包含: {list(result.final_state.keys())}")
+                    except Exception as e:
+                        if training_engine:
+                            training_engine.logger.error(f"更新final_state失败: {e}")
+                        else:
+                            print(f"DEBUG: 更新final_state失败: {e}")
+                else:
+                    if training_engine:
+                        training_engine.logger.warning(f"没有执行任何epoch，无法提取模型参数")
+                    else:
+                        print(f"DEBUG: 没有执行任何epoch，无法提取模型参数")
                 
                 return result
             
@@ -918,11 +1016,48 @@ class RefactoredEnhancedTrainingEngine:
                             
                         num_batches += 1
                         
-                        # 限制训练批次以避免过长时间
-                        if num_batches >= 10:  # 只训练10个批次作为演示
+                        # 避免无限训练，限制最大批次数
+                        if num_batches >= 100:  # 增加到100个批次进行更充分的训练
                             break
                 
                 avg_loss = total_loss / max(num_batches, 1)
+                return {"loss": avg_loss, "epochs": epoch}
+                
+            def _fallback_training_epoch(self, learner, dataloader, epoch):
+                """备选的基本训练epoch实现（当没有training_engine时使用）"""
+                print(f"DEBUG: 执行备选训练epoch {epoch}")
+                total_loss = 0.0
+                num_batches = 0
+                
+                if hasattr(learner, 'model') and hasattr(learner, 'optimizer'):
+                    learner.model.train()
+                    for batch_data in dataloader:
+                        learner.optimizer.zero_grad()
+                        
+                        if isinstance(batch_data, (list, tuple)) and len(batch_data) >= 2:
+                            inputs, targets = batch_data[0], batch_data[1]
+                        else:
+                            # 假设batch_data是输入数据，没有标签
+                            inputs = batch_data
+                            targets = None
+                        
+                        if hasattr(learner.model, '__call__'):
+                            outputs = learner.model(inputs)
+                            
+                            if targets is not None and hasattr(learner, 'criterion'):
+                                loss = learner.criterion(outputs, targets)
+                                loss.backward()
+                                learner.optimizer.step()
+                                total_loss += loss.item()
+                            
+                        num_batches += 1
+                        
+                        # 避免无限训练，限制最大批次数
+                        if num_batches >= 100:  # 增加到100个批次进行更充分的训练
+                            break
+                
+                avg_loss = total_loss / max(num_batches, 1)
+                print(f"DEBUG: 备选训练epoch {epoch} 完成，损失: {avg_loss}")
                 return {"loss": avg_loss, "epochs": epoch}
         
         return BasicTrainingScheduler()
@@ -1507,7 +1642,12 @@ class RefactoredEnhancedTrainingEngine:
             # 从registry导入组件注册系统
             from ..registry.component_registry import registry
             
-            evaluator_class_name = config.get('type', 'accuracy_evaluator')
+            # 支持嵌套配置结构：evaluator.class 或直接的 type 字段
+            if 'evaluator' in config and isinstance(config['evaluator'], dict):
+                evaluator_config = config['evaluator']
+                evaluator_class_name = evaluator_config.get('class', 'accuracy')
+            else:
+                evaluator_class_name = config.get('type', 'accuracy')
             
             self.logger.debug(f"Creating evaluator '{evaluator_id}' with type '{evaluator_class_name}'")
             
@@ -1519,8 +1659,23 @@ class RefactoredEnhancedTrainingEngine:
                 # 创建默认评估器
                 return self._create_fallback_evaluator(evaluator_id, config)
             
-            # 创建评估器实例
-            evaluator = evaluator_class(evaluator_id, config)
+            # 创建评估器实例 - 传递正确的参数类型
+            from omegaconf import DictConfig
+            from ..core.execution_context import ExecutionContext
+            
+            # 为评估器创建执行上下文
+            evaluator_context = ExecutionContext(
+                config=DictConfig({}),  # 空配置
+                experiment_id=getattr(self, 'experiment_id', 'default_experiment')
+            )
+            
+            # 将config转换为DictConfig
+            if isinstance(config, dict):
+                evaluator_config = DictConfig(config)
+            else:
+                evaluator_config = config
+                
+            evaluator = evaluator_class(evaluator_context, evaluator_config)
             
             self.logger.debug(f"Successfully created evaluator '{evaluator_id}' of type '{evaluator_class.__name__}'")
             return evaluator
@@ -1621,8 +1776,8 @@ class RefactoredEnhancedTrainingEngine:
                     # 执行训练后评估
                     eval_result = evaluator.evaluate(
                         model=learner.get_model() if hasattr(learner, 'get_model') else learner,
-                        dataloader=test_dataloader,
-                        learner_id=learner_id
+                        data_loader=test_dataloader,
+                        task_id=hash(task_name) % 1000  # 生成一个简单的task_id
                     )
                     
                     # 保存结果

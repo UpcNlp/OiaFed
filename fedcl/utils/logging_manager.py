@@ -189,14 +189,7 @@ class FederatedLoggingManager:
         
         return self.loggers[logger_key]
     
-    def get_auxiliary_logger(self, auxiliary_id: str):
-        """
-        获取辅助模型日志器
-        
-        Args:
-            auxiliary_id: 辅助模型ID
-            
-        Returns:
+
     def get_auxiliary_logger(self, auxiliary_id: str):
         """
         获取辅助模型日志器
