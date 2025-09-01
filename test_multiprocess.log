@@ -1,0 +1,26 @@
+2025-08-30 12:43:57.031 | INFO     | __main__:main:98 - 🚀 开始多进程联邦学习测试
+2025-08-30 12:43:58.106 | INFO     | fedcl:<module>:47 - 🚀 FedCL 透明联邦框架 v0.2.0 已加载
+2025-08-30 12:43:58.106 | INFO     | fedcl:<module>:48 - 💡 使用 fedcl.train() 一行代码启动联邦学习
+2025-08-30 12:43:58.106 | INFO     | fedcl:<module>:49 - 📚 使用 @fedcl.learner 装饰器定义学习器
+2025-08-30 12:43:58.291 | INFO     | fedcl.comm.process_transport:__init__:43 - 进程传输器已初始化，最大进程数: 4
+2025-08-30 12:43:58.292 | DEBUG    | fedcl.comm.process_transport:send:83 - 数据已发送 sender -> receiver
+2025-08-30 12:43:58.292 | INFO     | __main__:test_process_transport:80 - 发送数据: 成功
+2025-08-30 12:43:58.293 | DEBUG    | fedcl.comm.process_transport:_receive_with_timeout:124 - 数据已接收 sender -> receiver
+2025-08-30 12:43:58.293 | INFO     | __main__:test_process_transport:86 - 接收数据成功: {'message': 'Hello from process', 'timestamp': 1756529038.291289}
+2025-08-30 12:43:58.293 | INFO     | __main__:test_process_transport:90 - ✅ 进程传输器测试完成
+2025-08-30 12:43:58.395 | INFO     | fedcl.comm.process_transport:__init__:43 - 进程传输器已初始化，最大进程数: 4
+2025-08-30 12:43:58.396 | INFO     | fedcl.execution.pseudo.pseudo_executor:__init__:112 - 伪联邦执行器已初始化，最大进程数: 4
+2025-08-30 12:43:58.396 | INFO     | fedcl.comm.process_transport:start_process_pool:219 - 进程池已启动，工作进程数: 4
+2025-08-30 12:43:58.396 | INFO     | fedcl.execution.pseudo.pseudo_executor:start:330 - 伪联邦执行器已启动，进程数: 4
+2025-08-30 12:43:58.396 | INFO     | __main__:test_pseudo_executor:36 - 开始测试多进程客户端训练...
+2025-08-30 12:43:58.396 | ERROR    | fedcl.execution.pseudo.pseudo_executor:execute_client_training:147 - 客户端 client_1 训练异常: BaseEventLoop.run_in_executor() got an unexpected keyword argument 'round_num'
+2025-08-30 12:43:58.396 | ERROR    | fedcl.execution.pseudo.pseudo_executor:execute_client_training:147 - 客户端 client_2 训练异常: BaseEventLoop.run_in_executor() got an unexpected keyword argument 'round_num'
+2025-08-30 12:43:58.396 | ERROR    | fedcl.execution.pseudo.pseudo_executor:execute_client_training:147 - 客户端 client_3 训练异常: BaseEventLoop.run_in_executor() got an unexpected keyword argument 'round_num'
+2025-08-30 12:43:58.396 | ERROR    | __main__:test_pseudo_executor:54 - 客户端 client_1 训练失败: BaseEventLoop.run_in_executor() got an unexpected keyword argument 'round_num'
+2025-08-30 12:43:58.396 | ERROR    | __main__:test_pseudo_executor:54 - 客户端 client_2 训练失败: BaseEventLoop.run_in_executor() got an unexpected keyword argument 'round_num'
+2025-08-30 12:43:58.396 | ERROR    | __main__:test_pseudo_executor:54 - 客户端 client_3 训练失败: BaseEventLoop.run_in_executor() got an unexpected keyword argument 'round_num'
+2025-08-30 12:43:58.396 | INFO     | fedcl.comm.process_transport:stop_process_pool:226 - 进程池已停止
+2025-08-30 12:43:58.396 | INFO     | fedcl.comm.process_transport:cleanup:258 - 进程传输器已清理
+2025-08-30 12:43:58.396 | INFO     | fedcl.execution.pseudo.pseudo_executor:stop:357 - 伪联邦执行器已停止
+2025-08-30 12:43:58.396 | INFO     | __main__:test_pseudo_executor:61 - ✅ 多进程测试完成
+2025-08-30 12:43:58.396 | INFO     | __main__:main:106 - 🎉 所有测试完成
