@@ -1,0 +1,81 @@
+# 最小DDDR配置文件（用于测试）
+model:
+  base_learning_rate: 1.0e-04
+  target: fedcl.models.ldm.models.diffusion.ddpm.LatentDiffusion
+  params:
+    linear_start: 0.00085
+    linear_end: 0.0120
+    num_timesteps_cond: 1
+    log_every_t: 200
+    timesteps: 1000
+    first_stage_key: "image"
+    cond_stage_key: "class_label"
+    image_size: 64
+    channels: 3
+    monitor: val/loss_simple_ema
+    personalization_config:
+      target: fedcl.models.ldm.modules.embedding_manager.EmbeddingManager
+      params:
+        placeholder_strings: ["*"]
+        initializer_words: ["a"]
+        num_vectors_per_token: 1
+        num_classes: 100
+    scheduler_config:
+      target: fedcl.models.ldm.lr_scheduler.LambdaLinearScheduler
+      params:
+        warm_up_steps: [ 10000 ]
+        cycle_lengths: [ 10000000000000 ]
+        f_start: [ 1.e-6 ]
+        f_max: [ 1. ]
+        f_min: [ 1. ]
+
+    unet_config:
+      target: fedcl.models.ldm.modules.diffusionmodules.openaimodel.UNetModel
+      params:
+        image_size: 32
+        in_channels: 3
+        out_channels: 3
+        model_channels: 320
+        attention_resolutions: [ 4, 2, 1 ]
+        num_res_blocks: 2
+        channel_mult: [ 1, 2, 4, 4 ]
+        num_head_channels: 64
+
+    first_stage_config:
+      target: fedcl.models.ldm.models.autoencoder.IdentityFirstStage
+      params:
+        embed_dim: 3
+        n_embed: 8192
+
+    cond_stage_config:
+      target: fedcl.models.ldm.modules.encoders.modules.BERTEmbedder
+      params:
+        n_embed: 768
+        n_layer: 6
+        vocab_size: 30522
+        max_seq_len: 77
+        device: "cpu"
+
+data:
+  target: main.DataModuleFromConfig
+  params:
+    batch_size: 8
+    num_workers: 2
+    wrap: false
+    train:
+      target: fedcl.models.ldm.data.base.Txt2ImgIterableBaseDataset
+      params:
+        txt_file: data/celebahq_train.txt
+        data_root: data/celebahq_train
+        size: 256
+    validation:
+      target: fedcl.models.ldm.data.base.Txt2ImgIterableBaseDataset
+      params:
+        txt_file: data/celebahq_val.txt
+        data_root: data/celebahq_val
+        size: 256
+
+lightning:
+  trainer:
+    benchmark: True
+    max_epochs: 1000

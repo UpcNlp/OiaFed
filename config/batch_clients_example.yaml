@@ -1,0 +1,84 @@
+# 批量客户端配置
+# 用于同时创建多个具有不同配置的客户端
+
+# 全局默认配置
+defaults:
+  learner:
+    type: "SimpleLearner"
+    kwargs:
+      model_config:
+        architecture: "mlp"
+        input_size: 784
+        hidden_layers: [128, 64]
+        output_size: 10
+        activation: "relu"
+      optimizer_config:
+        type: "adam"
+        lr: 0.001
+      training_config:
+        batch_size: 32
+        epochs_per_round: 5
+        loss_function: "cross_entropy"
+  
+  rpc:
+    allowed_methods: ["train", "get_model", "set_model", "evaluate", "ping"]
+    max_concurrent_calls: 10
+  
+  auto_start: true
+
+# 具体客户端配置
+clients:
+  # 客户端1 - 基础配置
+  - id: "batch_client_1"
+    learner:
+      kwargs:
+        data_config:
+          dataset: "mnist"
+          data_partition_id: 0
+    local:
+      data_size: 1000
+      
+  # 客户端2 - 不同的学习率
+  - id: "batch_client_2" 
+    learner:
+      kwargs:
+        optimizer_config:
+          lr: 0.01  # 覆盖默认学习率
+        data_config:
+          dataset: "mnist"
+          data_partition_id: 1
+    local:
+      data_size: 800
+      
+  # 客户端3 - 不同的网络结构
+  - id: "batch_client_3"
+    learner:
+      kwargs:
+        model_config:
+          hidden_layers: [256, 128, 64]  # 更深的网络
+        data_config:
+          dataset: "mnist"
+          data_partition_id: 2
+    local:
+      data_size: 1200
+      
+  # 客户端4 - 不同的批大小和轮数
+  - id: "batch_client_4"
+    learner:
+      kwargs:
+        training_config:
+          batch_size: 64
+          epochs_per_round: 3
+        data_config:
+          dataset: "mnist"
+          data_partition_id: 3
+    local:
+      data_size: 600
+
+# 实验配置
+experiment:
+  name: "batch_clients_demo"
+  total_rounds: 10
+  min_participants: 2
+  max_participants: 4
+  client_sampling_strategy: "random"

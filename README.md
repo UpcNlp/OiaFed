@@ -1,430 +1,419 @@
-从专业角度看，这个方向确实切中了深度学习的关键痛点。现有神经网络在参数更新机制上过于粗放，与人脑的突触可塑性相比存在三大鸿沟：1）人脑更新具有空间局部性（特定突触），而AI是全局梯度传播；2）人脑具备时间异步性，神经元可独立更新，而AI必须同步反向传播；3）人脑有天然的更新抑制机制（如胶质细胞形成的物理屏障），而AI缺乏类似的参数保护机制。
+# FedCL: 透明联邦学习框架
 
-# FedCL: 联邦持续学习框架
+## 项目概述
 
-[![Python 3.12+](https://img.shields.io/badge/python-3.12+-blue.svg)](https://www.python.org/downloads/)
-[![License](https://img.shields.io/badge/license-MIT-green.svg)](LICENSE)
-[![Framework](https://img.shields.io/badge/framework-PyTorch-red.svg)](https://pytorch.org/)
+FedCL (Federated Continual Learning) 是一个现代化的联邦学习框架，专注于透明化、易用性和生产环境部署。该框架支持多种联邦学习算法，包括标准的FedAvg以及先进的DDDR (Decentralized Diffusion-based Rehearsal) 等持续学习方法。
 
-## 📖 简介
+## 🚀 核心特性
 
-**FedCL (Federated Continual Learning)** 是一个功能强大的联邦持续学习框架，专为学术研究和产业应用设计。框架提供简洁的装饰器API和灵活的配置系统，支持从简单原型到复杂算法的渐进式开发。
+### 1. 透明化设计
+- **一行代码启动**：`fedcl.train()` 即可启动联邦学习
+- **装饰器注册**：使用 `@fedcl.learner` 和 `@fedcl.trainer` 装饰器轻松注册组件
+- **自动配置管理**：基于OmegaConf的智能配置系统
 
-### ✨ 核心特性
+### 2. 多模式执行
+- **伪联邦模式 (Pseudo Federation)**：单机多进程模拟联邦学习
+- **真实联邦模式 (True Federation)**：分布式多节点联邦学习
+- **自动模式 (Auto Mode)**：根据配置自动选择执行模式
 
-- 🎯 **装饰器驱动**: 通过 `@fedcl.loss`、`@fedcl.hook`、`@fedcl.model` 等装饰器简化自定义组件开发
-- 🔧 **配置化管理**: 支持YAML配置文件驱动的实验管理，易于复现和扩展
-- 🌐 **联邦学习**: 支持真联邦和伪联邦两种模式，满足不同场景需求
-- 📊 **多学习器**: 支持多学习器协同训练，提供灵活的学习策略
-- 🔍 **完整日志**: 详细的日志系统，支持DEBUG级别的训练过程追踪
-- 🚀 **快速原型**: 提供 `quick_experiment()` API，5分钟内完成第一个实验
+### 3. 灵活的通信架构
+- **透明通信**：支持进程内和进程间通信
+- **Learner代理**：透明的客户端学习器代理机制
+- **消息队列**：基于multiprocessing.Manager的可靠消息传递
 
-## 🛠️ 安装
-
-### 环境要求
-
-- Python >= 3.12
-- PyTorch >= 2.7.1
-- CUDA (可选，用于GPU加速)
-
-### 安装方式
-
-```bash
-# 克隆项目
-git clone https://github.com/UPC518/MOE-FedCL.git
-cd MOE-FedCL
-
-# 安装依赖 (推荐使用uv)
-uv install
-
-# 或使用pip
-pip install -e .
-```
-
-## 🚀 快速开始
-
-### 1. 5分钟快速体验
-
-```python
-import fedcl
-
-# 零配置快速实验
-results = fedcl.quick_experiment(
-    method="fedavg", 
-    dataset="mnist", 
-    num_clients=3,
-    num_rounds=3
-)
-print(f"平均准确率: {results.avg_accuracy:.2f}")
-```
-
-### 2. 基于配置文件的完整实验
-
-#### 创建实验配置 `experiment_config.yaml`
-
-```yaml
-# 实验基本信息
-experiment:
-  name: "mnist_federated_demo"
-  description: "MNIST联邦学习演示"
-  version: "1.0"
-  log_level: "DEBUG"
-
-# 数据配置
-dataset:
-  name: "MNIST"
-  path: "data/MNIST"
-  split_strategy: "federated"
-  split_config:
-    num_clients: 3
-    distribution: "iid"
-    test_split: 0.2
-
-# 联邦学习配置
-federation:
-  num_rounds: 3
-  min_clients: 2
-  max_clients: 3
-  aggregation_strategy: "fedavg"
-
-# 模型配置
-model:
-  type: "SimpleMLP"
-  input_size: 784
-  hidden_sizes: [256, 128]
-  num_classes: 10
-
-# 训练配置
-training:
-  local_epochs: 3
-  batch_size: 32
-  optimizer:
-    type: "SGD"
-    lr: 0.01
-    momentum: 0.9
-```
-
-#### 运行实验
-
-```python
-from fedcl import FedCLExperiment
-
-# 创建并运行实验
-experiment = FedCLExperiment("configs/experiment_config.yaml")
-results = experiment.run()
-
-# 查看结果
-print(f"实验完成！准确率: {results.final_accuracy:.3f}")
-```
-
-### 3. 自定义组件开发
-
-#### 自定义损失函数
-
-```python
-import fedcl
-import torch.nn.functional as F
-
-@fedcl.loss("weighted_cross_entropy")
-def weighted_cross_entropy(predictions, targets, context):
-    """带权重的交叉熵损失"""
-    weights = context.get_state("class_weights", None)
-    return F.cross_entropy(predictions, targets, weight=weights)
-```
-
-#### 自定义训练钩子
-
-```python
-@fedcl.hook("before_epoch", priority=100)
-class DataAugmentationHook:
-    """数据增强钩子"""
-    def execute(self, context, **kwargs):
-        # 在每个epoch开始前进行数据增强
-        dataloader = kwargs.get('dataloader')
-        # 实现数据增强逻辑
-        return {"augmented_dataloader": enhanced_dataloader}
-```
-
-#### 自定义辅助模型
-
-```python
-@fedcl.model("knowledge_distillation_teacher")
-class TeacherModel:
-    """知识蒸馏教师模型"""
-    def __init__(self, config=None, context=None):
-        self.model = self._load_pretrained_model()
-        
-    def get_soft_targets(self, inputs, temperature=4.0):
-        """获取软标签"""
-        with torch.no_grad():
-            outputs = self.model(inputs)
-            return F.softmax(outputs / temperature, dim=1)
-```
+### 4. 结构化日志系统
+- **实验隔离**：按时间戳组织日志目录
+- **分离式日志**：服务端和客户端日志独立存储
+- **可配置格式**：支持自定义日志路径和格式
 
 ## 📁 项目结构
 
 ```
-FedCL/
-├── fedcl/                    # 核心框架代码
-│   ├── core/                 # 核心基类和组件
-│   ├── federation/           # 联邦学习核心
-│   ├── communication/        # 通信系统
-│   ├── data/                 # 数据处理
-│   ├── training/             # 训练引擎
-│   ├── utils/                # 工具函数
-│   └── __init__.py          # 主要API入口
-├── configs/                  # 配置文件示例
-│   └── mnist_federated_demo/ # MNIST演示配置
-├── tests/                    # 测试代码
-│   └── configs/             # 测试配置
-├── examples/                 # 使用示例
-├── docs/                     # 详细文档
-└── logs/                     # 实验日志输出
+MOE-FedCL/
+├── fedcl/                          # 核心框架代码
+│   ├── api/                        # API接口层
+│   │   ├── trainer.py              # 统一训练接口
+│   │   └── decorators.py           # 组件注册装饰器
+│   ├── fl/                         # 联邦学习核心
+│   │   └── abstract_trainer.py    # 抽象训练器基类
+│   ├── methods/                    # 具体算法实现
+│   │   ├── trainers/              # 训练器实现
+│   │   │   ├── standard_federation_trainer.py  # 标准FedAvg
+│   │   │   └── dddr_federation_trainer.py      # DDDR训练器
+│   │   └── learners/              # 学习器实现
+│   │       └── dddr.py            # DDDR学习器
+│   ├── execution/                  # 执行引擎
+│   │   └── base_learner.py        # 基础学习器
+│   ├── comm/                       # 通信模块
+│   │   └── transparent_communication.py  # 透明通信
+│   ├── models/                     # 模型定义
+│   │   └── ldm/                    # Latent Diffusion Model
+│   └── registry/                   # 组件注册表
+├── config/                         # 配置文件
+│   └── ldm_dddr.yaml              # LDM配置
+├── logs/                           # 日志目录
+│   └── experiment_YYYYMMDD-HH-MM-SS/
+│       ├── server.log             # 服务端日志
+│       └── clients/               # 客户端日志
+│           ├── client_0.log
+│           └── client_1.log
+└── example_dddr_federation.py     # DDDR联邦学习示例
 ```
 
-## 🔧 配置系统
+## 🛠️ 安装与配置
 
-FedCL使用分层配置系统，支持多种配置文件：
+### 环境要求
+- Python 3.8+
+- PyTorch 1.8+
+- CUDA (可选，用于GPU加速)
 
-### 主实验配置
-- `experiment_config.yaml` - 实验主配置
-- `server_config.yaml` - 服务端配置  
-- `client_*_config.yaml` - 客户端配置
+### 依赖安装
+```bash
+# 基础依赖
+pip install torch torchvision
+pip install omegaconf loguru tqdm
 
-### 配置示例结构
+# 可选依赖
+pip install transformers  # 用于BERT tokenizer
+```
 
-```yaml
-# 完整配置示例
-experiment:
-  name: "my_experiment"
-  log_level: "DEBUG"
-  
-dataset:
-  name: "MNIST"
-  path: "data/MNIST"
-  split_config:
-    num_clients: 3
-    distribution: "iid"
+### 项目设置
+```bash
+# 克隆项目
+git clone <repository-url>
+cd MOE-FedCL
+
+# 设置Python路径
+export PYTHONPATH=/path/to/MOE-FedCL:$PYTHONPATH
+```
+
+## 📖 使用指南
+
+### 1. 快速开始
+
+#### 标准联邦学习
+```python
+from fedcl import train
+
+# 一行代码启动联邦学习
+result = train(
+    trainer_type="standard",
+    dataset="mnist",
+    num_clients=3,
+    num_rounds=10
+)
+```
+
+#### DDDR联邦学习
+```python
+from fedcl import train
+
+# 启动DDDR联邦学习
+result = train(
+    trainer_type="dddr",
+    dataset="cifar10",
+    num_clients=5,
+    num_rounds=20,
+    ldm_config="config/ldm_dddr.yaml"
+)
+```
+
+### 2. 自定义学习器
+
+```python
+from fedcl import learner
+import torch.nn as nn
+
+@learner("custom")
+class CustomLearner:
+    def __init__(self, client_id, config):
+        self.client_id = client_id
+        self.config = config
+        self.model = nn.Linear(784, 10)
     
-federation:
-  num_rounds: 10
-  aggregation_strategy: "fedavg"
-  
-model:
-  type: "SimpleMLP"
-  input_size: 784
-  hidden_sizes: [256, 128]
-  
-training:
-  local_epochs: 3
-  batch_size: 32
-  optimizer:
-    type: "SGD"
-    lr: 0.01
+    def train(self, data, global_weights=None):
+        # 实现训练逻辑
+        pass
+    
+    def evaluate(self, data):
+        # 实现评估逻辑
+        pass
 ```
 
-## 📊 支持的算法和数据集
+### 3. 自定义训练器
 
-### 联邦学习算法
-- **FedAvg**: 联邦平均算法
-- **FedProx**: 带正则化的联邦学习
-- **SCAFFOLD**: 控制变量方法
-- **自定义算法**: 通过装饰器轻松扩展
+```python
+from fedcl import trainer
+from fedcl.fl import AbstractFederationTrainer
 
-### 数据集
-- **MNIST**: 手写数字识别
-- **CIFAR-10/100**: 图像分类
-- **自定义数据集**: 支持PyTorch Dataset格式
+@trainer("custom")
+class CustomTrainer(AbstractFederationTrainer):
+    def train(self, num_rounds, **kwargs):
+        # 实现联邦训练逻辑
+        pass
+    
+    def evaluate(self, test_data=None, **kwargs):
+        # 实现联邦评估逻辑
+        pass
+    
+    def _init_learner_proxies(self):
+        # 初始化学习器代理
+        pass
+```
 
-### 模型架构
-- **SimpleMLP**: 多层感知机
-- **ResNet**: 残差网络
-- **自定义模型**: 通过注册系统扩展
+### 4. 配置管理
 
-## 🔍 日志和调试
+```python
+# 基础配置
+config = {
+    "execution_mode": "pseudo_federation",  # 执行模式
+    "trainer_type": "dddr",                  # 训练器类型
+    "dataset": "cifar10",                   # 数据集
+    "num_clients": 5,                       # 客户端数量
+    "num_rounds": 20,                       # 训练轮数
+    "federation": {                         # 联邦学习配置
+        "client_selection": "random",
+        "participation_rate": 1.0
+    },
+    "training": {                           # 训练配置
+        "local_epochs": 1,
+        "batch_size": 32,
+        "learning_rate": 0.01
+    },
+    "logging": {                            # 日志配置
+        "level": "INFO",
+        "server_log_path": "logs/experiment_{date}/server.log",
+        "client_log_path": "logs/experiment_{date}/clients/{client_id}.log"
+    }
+}
+```
 
-### 日志级别配置
+## 🔧 核心组件详解
 
+### 1. 透明通信系统
+
+FedCL采用透明通信设计，支持多种通信模式：
+
+```python
+from fedcl.comm import TransparentCommunication, CommunicationMode
+
+# 进程内通信
+comm = TransparentCommunication("node_id", mode=CommunicationMode.THREAD)
+
+# 进程间通信
+comm = TransparentCommunication("node_id", mode=CommunicationMode.PROCESS)
+```
+
+### 2. Learner代理机制
+
+Learner代理提供透明的远程调用接口：
+
+```python
+# 获取学习器代理
+learner_proxy = trainer.get_learner_proxy("client_0")
+
+# 透明调用远程方法
+result = learner_proxy.train(data, global_weights)
+```
+
+### 3. 组件注册系统
+
+基于装饰器的组件注册机制：
+
+```python
+from fedcl.registry import get_trainer, get_learner
+
+# 注册组件
+@trainer("my_trainer")
+class MyTrainer:
+    pass
+
+@learner("my_learner") 
+class MyLearner:
+    pass
+
+# 获取组件
+trainer_cls = get_trainer("my_trainer")
+learner_cls = get_learner("my_learner")
+```
+
+## 🎯 DDDR算法实现
+
+### 算法概述
+DDDR (Decentralized Diffusion-based Rehearsal) 是一种基于扩散模型的持续学习方法，通过类反演和图像生成来缓解灾难性遗忘。
+
+### 核心组件
+
+#### 1. 类反演 (Class Inversion)
+```python
+# 在DDDRFederationTrainer中实现
+def _federated_class_inversion(self, task_data):
+    # 联邦类反演过程
+    # 1. 收集所有客户端的类嵌入
+    # 2. 聚合类嵌入
+    # 3. 生成文本嵌入
+    pass
+```
+
+#### 2. 图像生成 (Image Generation)
+```python
+def _synthesis_images(self, inv_text_embeds):
+    # 基于反演的文本嵌入生成图像
+    # 1. 使用Latent Diffusion Model
+    # 2. 生成合成图像
+    # 3. 更新模型参数
+    pass
+```
+
+### 配置示例
 ```yaml
-experiment:
-  log_level: "DEBUG"  # INFO, DEBUG, WARNING, ERROR
+# config/ldm_dddr.yaml
+model:
+  base_learning_rate: 0.0001
+  target: ldm.models.diffusion.ddpm.LatentDiffusion
+  params:
+    linear_start: 0.00085
+    linear_end: 0.0120
+    num_timesteps_cond: 1
+    log_every_t: 200
+    timesteps: 1000
+    first_stage_config:
+      target: ldm.models.autoencoder.AutoencoderKL
+      params:
+        monitor: val/rec_loss
+        embed_dim: 4
+        ddconfig:
+          double_z: true
+          z_channels: 4
+          resolution: 256
+          in_channels: 3
+          out_ch: 3
+          ch: 128
+          ch_mult: [1, 2, 4, 4]
+          num_res_blocks: 2
+          attn_resolutions: []
+          dropout: 0.0
+    cond_stage_config:
+      target: ldm.modules.encoders.modules.FrozenCLIPEmbedder
+    personalization_config:
+      target: ldm.modules.embedding_manager.EmbeddingManager
+      params:
+        placeholder_strings: ["<placeholder>"]
+        initializer_words: ["*"]
+        num_vectors_per_placeholder: 1
 ```
 
-### 日志输出结构
+## 📊 日志系统
 
+### 日志结构
 ```
 logs/
-└── experiment_20250804_160024/
-    ├── main_experiment.log     # 主实验日志
-    ├── server.log             # 服务端日志
-    └── clients/               # 客户端日志
-        ├── test_client_1.log
-        ├── test_client_2.log
-        └── test_client_3.log
+└── experiment_20250901-16-02-32/    # 实验时间戳
+    ├── server.log                   # 服务端日志
+    └── clients/                     # 客户端日志目录
+        ├── client_0.log            # 客户端0日志
+        ├── client_1.log            # 客户端1日志
+        └── ...
 ```
 
-### 调试工具
+### 日志配置
+```python
+logging_config = {
+    "level": "INFO",                    # 日志级别
+    "server_log_path": "logs/experiment_{date}/server.log",
+    "client_log_path": "logs/experiment_{date}/clients/{client_id}.log",
+    "date": "20250901-16-02-32"        # 固定时间戳
+}
+```
 
+### 日志内容示例
+```
+# 服务端日志
+2025-09-01 16:02:32.389 | INFO | TransparentCommunication started
+2025-09-01 16:02:32.390 | DEBUG | registered handler for register
+2025-09-01 16:02:32.390 | INFO | 🟢 Server communication started
+2025-09-01 16:02:33.435 | INFO | ✅ 客户端注册成功并创建代理: client_0
+
+# 客户端日志
+2025-09-01 16:02:33.432 | INFO | TransparentCommunication started
+2025-09-01 16:02:33.434 | DEBUG | sent message register -> server
+2025-09-01 16:02:33.435 | INFO | 📨 已向服务端发送注册消息
+```
+
+## 🔍 调试与监控
+
+### 1. 通信调试
+```python
+# 启用调试模式
+config["logging"]["level"] = "DEBUG"
+
+# 查看通信消息
+# 日志中会显示详细的消息传递信息
+```
+
+### 2. 性能监控
+```python
+# 监控训练进度
+# 日志中会显示每轮的训练状态和指标
+```
+
+### 3. 错误处理
+```python
+# 异常会自动记录到日志中
+# 包括堆栈跟踪和错误上下文
+```
+
+## 🚀 部署指南
+
+### 1. 单机部署
 ```bash
-# 使用内置调试脚本
-./scripts/debug_tools.sh
-
-# 查看实验运行状态
-python -m fedcl.debug.experiment_monitor
+# 伪联邦模式（推荐用于开发和测试）
+python example_dddr_federation.py
 ```
 
-## 🧪 运行测试
-
+### 2. 分布式部署
 ```bash
-# 运行所有测试
-pytest
-
-# 运行联邦学习集成测试
-pytest tests/integration/test_federation_framework.py
-
-# 运行MNIST真实数据测试
-pytest tests/test_real_mnist_federation.py -v
+# 真实联邦模式（生产环境）
+# 需要配置多台机器和网络通信
 ```
 
-## 📈 实验结果示例
-
-运行MNIST联邦学习实验后，可以看到类似的训练日志：
-
+### 3. Docker部署
+```dockerfile
+# Dockerfile示例
+FROM python:3.8-slim
+WORKDIR /app
+COPY requirements.txt .
+RUN pip install -r requirements.txt
+COPY . .
+CMD ["python", "example_dddr_federation.py"]
 ```
-2025-08-04 16:00:24 | INFO | 联邦学习开始，总轮次: 3
-2025-08-04 16:00:24 | INFO | 客户端[test_client_1] | 开始执行训练阶段: default_training
-2025-08-04 16:00:25 | INFO | 客户端[test_client_1] | Epoch 1 完成，损失: 0.6983
-2025-08-04 16:00:25 | INFO | 客户端[test_client_1] | Epoch 2 完成，损失: 0.6634
-2025-08-04 16:00:25 | INFO | 客户端[test_client_1] | Epoch 3 完成，损失: 0.6302
-2025-08-04 16:00:26 | INFO | 服务端 | Round 1 聚合完成，全局模型已更新
-```
-
-## 🛡️ 安全特性
-
-- **通信加密**: 支持TLS加密通信
-- **身份验证**: 客户端-服务端身份验证
-- **差分隐私**: 可选的差分隐私保护
-- **安全聚合**: 防止模型逆向工程
 
 ## 🤝 贡献指南
 
-我们欢迎社区贡献！请遵循以下步骤：
-
-1. Fork 项目仓库
-2. 创建功能分支 (`git checkout -b feature/AmazingFeature`)
-3. 提交更改 (`git commit -m 'Add some AmazingFeature'`)
-4. 推送到分支 (`git push origin feature/AmazingFeature`)
-5. 创建Pull Request
-
 ### 开发环境设置
+1. Fork项目
+2. 创建功能分支
+3. 实现功能
+4. 添加测试
+5. 提交Pull Request
 
-```bash
-# 安装开发依赖
-uv install --group dev
-
-# 运行代码格式化
-black fedcl/
-isort fedcl/
-
-# 运行类型检查
-mypy fedcl/
-```
-
-## 📚 进阶教程
-
-### 1. 多学习器协同训练
-
-```yaml
-# client_config.yaml
-learners:
-  main_learner:
-    class: "default"
-    model:
-      type: "SimpleMLP"
-    priority: 0
-    
-  auxiliary_learner:
-    class: "ewc"  # Experience Weighted Clustering
-    model:
-      type: "SimpleMLP" 
-    priority: 1
-```
-
-### 2. 自定义聚合策略
-
-```python
-@fedcl.aggregator("weighted_fedavg")
-class WeightedFedAvg(BaseAggregator):
-    def aggregate(self, client_updates, client_weights=None):
-        """基于数据量加权的联邦平均"""
-        # 实现加权聚合逻辑
-        return aggregated_model
-```
-
-### 3. 分布式部署
-
-```yaml
-# server_config.yaml
-communication:
-  host: "0.0.0.0"
-  port: 8080
-  ssl_enabled: true
-  ssl_cert: "./certs/server.crt"
-  ssl_key: "./certs/server.key"
-```
-
-## 🐛 故障排除
-
-### 常见问题
-
-1. **内存不足**
-   ```yaml
-   training:
-     batch_size: 16  # 减小批次大小
-   ```
-
-2. **通信超时**
-   ```yaml
-   communication:
-     timeout: 120.0  # 增加超时时间
-   ```
-
-3. **依赖冲突**
-   ```bash
-   uv install --force-reinstall
-   ```
+### 代码规范
+- 使用Python类型注解
+- 遵循PEP 8代码风格
+- 添加详细的文档字符串
+- 编写单元测试
 
 ## 📄 许可证
 
-本项目采用 MIT 许可证 - 详见 [LICENSE](LICENSE) 文件。
+本项目采用MIT许可证，详见LICENSE文件。
 
-## 🙏 致谢
+## 📞 联系方式
 
-- PyTorch团队提供的深度学习框架
-- 联邦学习社区的开源贡献
-- 所有为项目做出贡献的开发者
-
-## 📞 联系我们
-
-- **GitHub Issues**: [提交问题](https://github.com/UPC518/MOE-FedCL/issues)
-- **文档**: [完整文档](docs/)
-- **邮箱**: fedcl-team@example.com
+如有问题或建议，请通过以下方式联系：
+- 提交Issue
+- 发送邮件
+- 参与讨论
 
 ---
 
-**🌟 如果FedCL对您的研究有帮助，请给我们一个星标！**
-
----
-
-## 📖 引用
-
-如果您在研究中使用FedCL，请引用：
-
-```bibtex
-@misc{fedcl2025,
-  title={FedCL: A Federated Continual Learning Framework},
-  author={FedCL Development Team},
-  year={2025},
-  url={https://github.com/UPC518/MOE-FedCL}
-}
-```
+**FedCL - 让联邦学习更简单、更透明、更强大！** 🚀

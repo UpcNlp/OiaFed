@@ -1,0 +1,71 @@
+# Process模式联邦学习配置文件
+# Process模式 = Network模式 + 本地绑定限制
+
+federation:
+  # 通信模式：process (本地HTTP通信)
+  mode: "process"
+  
+  # 服务端配置
+  server:
+    id: "process_server"
+    host: "127.0.0.1"  # 强制本地绑定
+    port: 8000
+    
+  # 客户端配置
+  clients:
+    - id: "process_client_1"
+      port: 8001
+    - id: "process_client_2"  
+      port: 8002
+    - id: "process_client_3"
+      port: 8003
+
+# 训练配置（与Memory模式完全相同）
+training:
+  algorithm: "fedavg"
+  rounds: 3
+  epochs_per_round: 1
+  batch_size: 32
+  learning_rate: 0.01
+  
+  # 客户端选择策略
+  client_selection:
+    strategy: "all"  # all, random, top_k
+    fraction: 1.0
+    min_clients: 2
+
+# 模型配置（与Memory模式完全相同） 
+model:
+  type: "simple_linear"
+  input_dim: 784
+  output_dim: 10
+  
+# 数据配置（与Memory模式完全相同）
+data:
+  dataset: "mnist"
+  distribution: "iid"  # iid, non_iid
+  samples_per_client: 1000
+  
+# 通信配置（Process模式：HTTP + 本地绑定）
+communication:
+  transport:
+    type: "process"
+    timeout: 120.0
+    retry_attempts: 3
+    specific_config:
+      host: "127.0.0.1"  # 本地绑定
+      port: 8000
+      websocket_port: 8001
+      local_only: true
+      
+  heartbeat_interval: 30.0
+  heartbeat_timeout: 90.0
+  registration_timeout: 60.0
+  max_clients: 100
+  rpc_timeout: 120.0
+    
+# 日志配置（与Memory模式完全相同）
+logging:
+  level: "INFO"
+  file: "logs/process_federation.log"
+  format: "%(asctime)s | %(levelname)s | %(name)s:%(funcName)s:%(lineno)d - %(message)s"

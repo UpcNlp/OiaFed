@@ -1,0 +1,16 @@
+client:
+  id: "client_1"
+  transport:
+    type: "memory"  # 传输类型: memory/process/network
+    kwargs:
+      node_id: "client_1"  # 可选，会自动填入client_id
+  learner:
+    type: "simple_learner"  # 注册的学习器名称
+    args: []
+    kwargs:
+      input_dim: 784
+      hidden_dim: 128
+      learning_rate: 0.01
+  rpc:
+    allowed_methods: ["train", "get_model", "set_model", "ping", "get_status"]
+  auto_start: true

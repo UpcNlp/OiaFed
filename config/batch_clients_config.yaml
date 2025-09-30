@@ -1,0 +1,42 @@
+clients:
+  client_1:
+    transport:
+      type: "memory"
+      kwargs:
+        node_id: "client_1"
+    learner:
+      type: "simple_learner"
+      kwargs:
+        input_dim: 784
+        hidden_dim: 128
+    rpc:
+      allowed_methods: ["train", "get_model", "ping"]
+    auto_start: true
+    
+  client_2:
+    transport:
+      type: "memory"  
+      kwargs:
+        node_id: "client_2"
+    learner:
+      type: "simple_learner"
+      kwargs:
+        input_dim: 784
+        hidden_dim: 64  # 不同的配置
+        learning_rate: 0.001
+    rpc:
+      allowed_methods: ["train", "get_model", "ping"]
+    auto_start: true
+    
+  client_3:
+    transport:
+      type: "process"
+      kwargs:
+        max_processes: 2
+        node_id: "client_3"
+    learner:
+      type: "simple_learner" 
+      kwargs:
+        input_dim: 1000
+        hidden_dim: 256
+    auto_start: false  # 手动启动

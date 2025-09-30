@@ -1,0 +1,1378 @@
+2025-09-02 18:50:26.734 | DEBUG    | fedcl.registry:register_aggregator:30 - 注册聚合器: fedavg
+2025-09-02 18:50:26.734 | DEBUG    | fedcl.registry:register_aggregator:30 - 注册聚合器: fedprox
+2025-09-02 18:50:26.734 | DEBUG    | fedcl.registry:register_aggregator:30 - 注册聚合器: scaffold
+2025-09-02 18:50:26.734 | DEBUG    | fedcl.registry:register_aggregator:30 - 注册聚合器: fednova
+2025-09-02 18:50:26.735 | DEBUG    | fedcl.registry:register_aggregator:30 - 注册聚合器: fedadam
+2025-09-02 18:50:26.735 | DEBUG    | fedcl.registry:register_aggregator:30 - 注册聚合器: fedyogi
+2025-09-02 18:50:26.735 | DEBUG    | fedcl.registry:register_aggregator:30 - 注册聚合器: feddyn
+2025-09-02 18:50:26.735 | DEBUG    | fedcl.registry:register_learner:25 - 注册学习器: contrastive
+2025-09-02 18:50:26.735 | DEBUG    | fedcl.registry:register_learner:25 - 注册学习器: personalized_client
+2025-09-02 18:50:26.736 | DEBUG    | fedcl.registry:register_learner:25 - 注册学习器: meta
+2025-09-02 18:50:26.790 | DEBUG    | fedcl.registry:register_learner:25 - 注册学习器: default
+2025-09-02 18:50:26.790 | DEBUG    | fedcl.registry:register_learner:25 - 注册学习器: SimpleLearner
+2025-09-02 18:50:26.790 | DEBUG    | fedcl.registry:register_evaluator:35 - 注册评估器: prototype
+2025-09-02 18:50:26.790 | DEBUG    | fedcl.registry:register_evaluator:35 - 注册评估器: fairness
+2025-09-02 18:50:26.791 | DEBUG    | fedcl.registry:register_trainer:40 - 注册联邦训练器: personalized_federation
+2025-09-02 18:50:26.791 | DEBUG    | fedcl.registry:register_trainer:40 - 注册联邦训练器: standard_federation
+2025-09-02 18:50:26.791 | DEBUG    | fedcl.registry:register_trainer:40 - 注册联邦训练器: SimpleTrainer
+2025-09-02 18:50:26.805 | INFO     | fedcl.utils.auto_logger:__init__:53 - 自动分流日志系统已初始化: logs/exp_20250902-18-50-26
+2025-09-02 18:50:26.809 | INFO     | fedcl:<module>:47 - 🚀 FedCL 透明联邦框架 v0.2.0 已加载
+2025-09-02 18:50:26.809 | INFO     | fedcl:<module>:48 - 💡 使用 fedcl.train() 一行代码启动联邦学习
+2025-09-02 18:50:26.809 | INFO     | fedcl:<module>:49 - 📚 使用 @fedcl.learner 装饰器定义学习器
+2025-09-02 18:50:26.809 | INFO     | __main__:run_from_yaml_config:152 - 开始YAML配置联邦学习演示
+2025-09-02 18:50:26.814 | INFO     | fedcl.comm.memory_transport:__init__:148 - 内存传输器已初始化（长连接模式）
+2025-09-02 18:50:26.815 | INFO     | __main__:run_from_yaml_config:208 - 从YAML配置文件创建服务端和客户端...
+2025-09-02 18:50:26.816 | INFO     | fedcl.fl.server:create_server_from_config:779 - 基于配置创建服务端: yaml_fed_server, 训练器类型: SimpleTrainer
+2025-09-02 18:50:26.825 | INFO     | fedcl.fl.server:__init__:363 - 训练器初始化完成: yaml_fed_server，学习器数量: 0
+2025-09-02 18:50:26.825 | INFO     | fedcl.fl.server:__init__:538 - 服务端管理器初始化完成: yaml_fed_server
+2025-09-02 18:50:26.825 | INFO     | fedcl.fl.server:create_server_from_config:803 - 服务端 yaml_fed_server 创建成功
+2025-09-02 18:50:26.825 | INFO     | fedcl.fl.server:create_server_from_config:809 - 服务端 yaml_fed_server 已自动启动
+2025-09-02 18:50:26.833 | INFO     | fedcl.fl.client:create_client_from_config:638 - 基于配置创建客户端: yaml_client_1, 学习器类型: SimpleLearner
+2025-09-02 18:50:26.833 | INFO     | fedcl.fl.client:create_client_from_config:650 - 客户端 yaml_client_1 创建成功
+2025-09-02 18:50:26.833 | INFO     | fedcl.fl.server:start_server:634 - 联邦学习服务端已启动
+2025-09-02 18:50:26.834 | INFO     | fedcl.fl.server:_poll_for_messages:120 - 启动消息轮询
+2025-09-02 18:50:26.834 | WARNING  | fedcl.fl.server:start_server:627 - 服务端已在运行
+2025-09-02 18:50:26.834 | INFO     | fedcl.comm.memory_transport:connect:156 - 连接已建立: yaml_client_1
+2025-09-02 18:50:26.834 | INFO     | fedcl.fl.client:connect:87 - 连接已建立
+2025-09-02 18:50:26.834 | INFO     | fedcl.fl.client:register:102 - 准备发送注册消息: yaml_client_1 -> yaml_fed_server
+2025-09-02 18:50:26.834 | DEBUG    | fedcl.comm.memory_transport:send:211 - 数据从 yaml_client_1 发送到 yaml_fed_server
+2025-09-02 18:50:26.834 | INFO     | fedcl.comm.memory_transport:send:214 - 发送 -> yaml_fed_server (184B): 成功
+2025-09-02 18:50:26.834 | INFO     | fedcl.fl.client:register:114 - 节点已注册: yaml_client_1
+2025-09-02 18:50:26.834 | INFO     | fedcl.fl.client:subscribe_push:127 - 已订阅推送事件: model_update
+2025-09-02 18:50:26.834 | INFO     | fedcl.fl.client:start:216 - 启动联邦学习客户端
+2025-09-02 18:50:26.839 | INFO     | fedcl.fl.client:start:243 - 客户端启动完成
+2025-09-02 18:50:26.839 | INFO     | fedcl.fl.client:_poll_for_rpc_messages:257 - 启动RPC消息轮询
+2025-09-02 18:50:26.839 | DEBUG    | fedcl.comm.memory_transport:receive:270 - [DEBUG] 检查消息 yaml_fed_server->yaml_client_1, 可用源: []
+2025-09-02 18:50:26.844 | WARNING  | fedcl.comm.memory_transport:receive:274 - 接收超时 client_1->yaml_fed_server
+2025-09-02 18:50:26.845 | WARNING  | fedcl.comm.memory_transport:receive:292 - 接收失败 client_1->yaml_fed_server, 数据大小: 0 字节, 超时: 0.01s
+2025-09-02 18:50:26.845 | DEBUG    | fedcl.comm.memory_transport:receive:254 - 从 yaml_client_1 接收到 yaml_fed_server
+2025-09-02 18:50:26.845 | INFO     | fedcl.comm.memory_transport:receive:257 - 接收成功 yaml_client_1->yaml_fed_server, 数据大小: 184 字节
+2025-09-02 18:50:26.845 | DEBUG    | fedcl.fl.server:_poll_for_messages:145 - 接收到消息从 yaml_client_1: {'type': 'client_registration', 'learner_id': 'yaml_client_1', 'client_id': 'yaml_client_1', 'timestamp': 1756810226.8345687}
+2025-09-02 18:50:26.845 | INFO     | fedcl.fl.server:_handle_transport_message:165 - 收到消息: type=client_registration, data={'type': 'client_registration', 'learner_id': 'yaml_client_1', 'client_id': 'yaml_client_1', 'timestamp': 1756810226.8345687}
+2025-09-02 18:50:26.845 | INFO     | fedcl.fl.server:_handle_learner_registration:179 - 处理学习器注册: {'type': 'client_registration', 'learner_id': 'yaml_client_1', 'client_id': 'yaml_client_1', 'timestamp': 1756810226.8345687}
+2025-09-02 18:50:26.845 | INFO     | fedcl.fl.server:_handle_learner_registration:186 - 提取的learner_id: yaml_client_1
+2025-09-02 18:50:26.845 | INFO     | fedcl.fl.server:_handle_learner_registration:198 - 学习器已注册: yaml_client_1, 当前注册数量: 1
+2025-09-02 18:50:26.845 | INFO     | fedcl.fl.server:add_learner:466 - 添加学习器: yaml_client_1
+2025-09-02 18:50:26.845 | WARNING  | fedcl.methods.trainers.test:send_model:47 - 向新学习器 yaml_client_1 发送初始模型失败: 'SimpleLearnerProxy' object has no attribute 'set_model'
+2025-09-02 18:50:26.850 | WARNING  | fedcl.comm.memory_transport:receive:274 - 接收超时 yaml_fed_server->yaml_client_1
+2025-09-02 18:50:26.850 | WARNING  | fedcl.comm.memory_transport:receive:292 - 接收失败 yaml_fed_server->yaml_client_1, 数据大小: 0 字节, 超时: 0.01s
+2025-09-02 18:50:26.850 | DEBUG    | fedcl.fl.client:_poll_for_rpc_messages:289 - RPC轮询检查 yaml_fed_server: 无消息 (计数: 0)
+2025-09-02 18:50:26.855 | WARNING  | fedcl.comm.memory_transport:receive:274 - 接收超时 client_2->yaml_fed_server
+2025-09-02 18:50:26.856 | WARNING  | fedcl.comm.memory_transport:receive:292 - 接收失败 client_2->yaml_fed_server, 数据大小: 0 字节, 超时: 0.01s
+2025-09-02 18:50:26.861 | WARNING  | fedcl.comm.memory_transport:receive:274 - 接收超时 fed_server->yaml_client_1
+2025-09-02 18:50:26.861 | WARNING  | fedcl.comm.memory_transport:receive:292 - 接收失败 fed_server->yaml_client_1, 数据大小: 0 字节, 超时: 0.01s
+2025-09-02 18:50:26.867 | WARNING  | fedcl.comm.memory_transport:receive:274 - 接收超时 yaml_client_2->yaml_fed_server
+2025-09-02 18:50:26.867 | WARNING  | fedcl.comm.memory_transport:receive:292 - 接收失败 yaml_client_2->yaml_fed_server, 数据大小: 0 字节, 超时: 0.01s
+2025-09-02 18:50:26.872 | WARNING  | fedcl.comm.memory_transport:receive:274 - 接收超时 server->yaml_client_1
+2025-09-02 18:50:26.872 | WARNING  | fedcl.comm.memory_transport:receive:292 - 接收失败 server->yaml_client_1, 数据大小: 0 字节, 超时: 0.01s
+2025-09-02 18:50:26.878 | WARNING  | fedcl.comm.memory_transport:receive:274 - 接收超时 client_3->yaml_fed_server
+2025-09-02 18:50:26.878 | WARNING  | fedcl.comm.memory_transport:receive:292 - 接收失败 client_3->yaml_fed_server, 数据大小: 0 字节, 超时: 0.01s
+2025-09-02 18:50:26.885 | WARNING  | fedcl.comm.memory_transport:receive:274 - 接收超时 yaml_fed_server->yaml_client_1
+2025-09-02 18:50:26.885 | WARNING  | fedcl.comm.memory_transport:receive:292 - 接收失败 yaml_fed_server->yaml_client_1, 数据大小: 0 字节, 超时: 0.01s
+2025-09-02 18:50:26.888 | WARNING  | fedcl.comm.memory_transport:receive:274 - 接收超时 yaml_client_3->yaml_fed_server
+2025-09-02 18:50:26.888 | WARNING  | fedcl.comm.memory_transport:receive:292 - 接收失败 yaml_client_3->yaml_fed_server, 数据大小: 0 字节, 超时: 0.01s
+2025-09-02 18:50:26.895 | WARNING  | fedcl.comm.memory_transport:receive:274 - 接收超时 fed_server->yaml_client_1
+2025-09-02 18:50:26.895 | WARNING  | fedcl.comm.memory_transport:receive:292 - 接收失败 fed_server->yaml_client_1, 数据大小: 0 字节, 超时: 0.01s
+2025-09-02 18:50:26.899 | WARNING  | fedcl.comm.memory_transport:receive:274 - 接收超时 client_4->yaml_fed_server
+2025-09-02 18:50:26.899 | WARNING  | fedcl.comm.memory_transport:receive:292 - 接收失败 client_4->yaml_fed_server, 数据大小: 0 字节, 超时: 0.01s
+2025-09-02 18:50:26.905 | WARNING  | fedcl.comm.memory_transport:receive:274 - 接收超时 server->yaml_client_1
+2025-09-02 18:50:26.906 | WARNING  | fedcl.comm.memory_transport:receive:292 - 接收失败 server->yaml_client_1, 数据大小: 0 字节, 超时: 0.01s
+2025-09-02 18:50:26.909 | WARNING  | fedcl.comm.memory_transport:receive:274 - 接收超时 yaml_client_4->yaml_fed_server
+2025-09-02 18:50:26.909 | WARNING  | fedcl.comm.memory_transport:receive:292 - 接收失败 yaml_client_4->yaml_fed_server, 数据大小: 0 字节, 超时: 0.01s
+2025-09-02 18:50:26.917 | WARNING  | fedcl.comm.memory_transport:receive:274 - 接收超时 yaml_fed_server->yaml_client_1
+2025-09-02 18:50:26.917 | WARNING  | fedcl.comm.memory_transport:receive:292 - 接收失败 yaml_fed_server->yaml_client_1, 数据大小: 0 字节, 超时: 0.01s
+2025-09-02 18:50:26.920 | WARNING  | fedcl.comm.memory_transport:receive:274 - 接收超时 client_5->yaml_fed_server
+2025-09-02 18:50:26.920 | WARNING  | fedcl.comm.memory_transport:receive:292 - 接收失败 client_5->yaml_fed_server, 数据大小: 0 字节, 超时: 0.01s
+2025-09-02 18:50:26.928 | WARNING  | fedcl.comm.memory_transport:receive:274 - 接收超时 fed_server->yaml_client_1
+2025-09-02 18:50:26.928 | WARNING  | fedcl.comm.memory_transport:receive:292 - 接收失败 fed_server->yaml_client_1, 数据大小: 0 字节, 超时: 0.01s
+2025-09-02 18:50:26.930 | WARNING  | fedcl.comm.memory_transport:receive:274 - 接收超时 yaml_client_5->yaml_fed_server
+2025-09-02 18:50:26.930 | WARNING  | fedcl.comm.memory_transport:receive:292 - 接收失败 yaml_client_5->yaml_fed_server, 数据大小: 0 字节, 超时: 0.01s
+2025-09-02 18:50:26.938 | WARNING  | fedcl.comm.memory_transport:receive:274 - 接收超时 server->yaml_client_1
+2025-09-02 18:50:26.938 | WARNING  | fedcl.comm.memory_transport:receive:292 - 接收失败 server->yaml_client_1, 数据大小: 0 字节, 超时: 0.01s
+2025-09-02 18:50:26.941 | WARNING  | fedcl.comm.memory_transport:receive:274 - 接收超时 client_6->yaml_fed_server
+2025-09-02 18:50:26.941 | WARNING  | fedcl.comm.memory_transport:receive:292 - 接收失败 client_6->yaml_fed_server, 数据大小: 0 字节, 超时: 0.01s
+2025-09-02 18:50:26.950 | WARNING  | fedcl.comm.memory_transport:receive:274 - 接收超时 yaml_fed_server->yaml_client_1
+2025-09-02 18:50:26.950 | WARNING  | fedcl.comm.memory_transport:receive:292 - 接收失败 yaml_fed_server->yaml_client_1, 数据大小: 0 字节, 超时: 0.01s
+2025-09-02 18:50:26.951 | WARNING  | fedcl.comm.memory_transport:receive:274 - 接收超时 yaml_client_6->yaml_fed_server
+2025-09-02 18:50:26.951 | WARNING  | fedcl.comm.memory_transport:receive:292 - 接收失败 yaml_client_6->yaml_fed_server, 数据大小: 0 字节, 超时: 0.01s
+2025-09-02 18:50:26.960 | WARNING  | fedcl.comm.memory_transport:receive:274 - 接收超时 fed_server->yaml_client_1
+2025-09-02 18:50:26.960 | WARNING  | fedcl.comm.memory_transport:receive:292 - 接收失败 fed_server->yaml_client_1, 数据大小: 0 字节, 超时: 0.01s
+2025-09-02 18:50:26.962 | WARNING  | fedcl.comm.memory_transport:receive:274 - 接收超时 client_7->yaml_fed_server
+2025-09-02 18:50:26.962 | WARNING  | fedcl.comm.memory_transport:receive:292 - 接收失败 client_7->yaml_fed_server, 数据大小: 0 字节, 超时: 0.01s
+2025-09-02 18:50:26.971 | WARNING  | fedcl.comm.memory_transport:receive:274 - 接收超时 server->yaml_client_1
+2025-09-02 18:50:26.971 | WARNING  | fedcl.comm.memory_transport:receive:292 - 接收失败 server->yaml_client_1, 数据大小: 0 字节, 超时: 0.01s
+2025-09-02 18:50:26.972 | WARNING  | fedcl.comm.memory_transport:receive:274 - 接收超时 yaml_client_7->yaml_fed_server
+2025-09-02 18:50:26.972 | WARNING  | fedcl.comm.memory_transport:receive:292 - 接收失败 yaml_client_7->yaml_fed_server, 数据大小: 0 字节, 超时: 0.01s
+2025-09-02 18:50:26.982 | DEBUG    | fedcl.comm.memory_transport:receive:270 - [DEBUG] 检查消息 yaml_fed_server->yaml_client_1, 可用源: []
+2025-09-02 18:50:26.983 | WARNING  | fedcl.comm.memory_transport:receive:274 - 接收超时 yaml_fed_server->yaml_client_1
+2025-09-02 18:50:26.983 | WARNING  | fedcl.comm.memory_transport:receive:292 - 接收失败 yaml_fed_server->yaml_client_1, 数据大小: 0 字节, 超时: 0.01s
+2025-09-02 18:50:26.983 | WARNING  | fedcl.comm.memory_transport:receive:274 - 接收超时 client_8->yaml_fed_server
+2025-09-02 18:50:26.983 | WARNING  | fedcl.comm.memory_transport:receive:292 - 接收失败 client_8->yaml_fed_server, 数据大小: 0 字节, 超时: 0.01s
+2025-09-02 18:50:26.993 | WARNING  | fedcl.comm.memory_transport:receive:274 - 接收超时 fed_server->yaml_client_1
+2025-09-02 18:50:26.993 | WARNING  | fedcl.comm.memory_transport:receive:292 - 接收失败 fed_server->yaml_client_1, 数据大小: 0 字节, 超时: 0.01s
+2025-09-02 18:50:26.993 | WARNING  | fedcl.comm.memory_transport:receive:274 - 接收超时 yaml_client_8->yaml_fed_server
+2025-09-02 18:50:26.993 | WARNING  | fedcl.comm.memory_transport:receive:292 - 接收失败 yaml_client_8->yaml_fed_server, 数据大小: 0 字节, 超时: 0.01s
+2025-09-02 18:50:27.004 | WARNING  | fedcl.comm.memory_transport:receive:274 - 接收超时 server->yaml_client_1
+2025-09-02 18:50:27.004 | WARNING  | fedcl.comm.memory_transport:receive:292 - 接收失败 server->yaml_client_1, 数据大小: 0 字节, 超时: 0.01s
+2025-09-02 18:50:27.004 | WARNING  | fedcl.comm.memory_transport:receive:274 - 接收超时 client_9->yaml_fed_server
+2025-09-02 18:50:27.004 | WARNING  | fedcl.comm.memory_transport:receive:292 - 接收失败 client_9->yaml_fed_server, 数据大小: 0 字节, 超时: 0.01s
+2025-09-02 18:50:27.014 | WARNING  | fedcl.comm.memory_transport:receive:274 - 接收超时 yaml_client_9->yaml_fed_server
+2025-09-02 18:50:27.014 | WARNING  | fedcl.comm.memory_transport:receive:292 - 接收失败 yaml_client_9->yaml_fed_server, 数据大小: 0 字节, 超时: 0.01s
+2025-09-02 18:50:27.015 | WARNING  | fedcl.comm.memory_transport:receive:274 - 接收超时 yaml_fed_server->yaml_client_1
+2025-09-02 18:50:27.015 | WARNING  | fedcl.comm.memory_transport:receive:292 - 接收失败 yaml_fed_server->yaml_client_1, 数据大小: 0 字节, 超时: 0.01s
+2025-09-02 18:50:27.025 | WARNING  | fedcl.comm.memory_transport:receive:274 - 接收超时 client_10->yaml_fed_server
+2025-09-02 18:50:27.025 | WARNING  | fedcl.comm.memory_transport:receive:292 - 接收失败 client_10->yaml_fed_server, 数据大小: 0 字节, 超时: 0.01s
+2025-09-02 18:50:27.026 | WARNING  | fedcl.comm.memory_transport:receive:274 - 接收超时 fed_server->yaml_client_1
+2025-09-02 18:50:27.027 | WARNING  | fedcl.comm.memory_transport:receive:292 - 接收失败 fed_server->yaml_client_1, 数据大小: 0 字节, 超时: 0.01s
+2025-09-02 18:50:27.036 | WARNING  | fedcl.comm.memory_transport:receive:274 - 接收超时 yaml_client_10->yaml_fed_server
+2025-09-02 18:50:27.037 | WARNING  | fedcl.comm.memory_transport:receive:292 - 接收失败 yaml_client_10->yaml_fed_server, 数据大小: 0 字节, 超时: 0.01s
+2025-09-02 18:50:27.038 | WARNING  | fedcl.comm.memory_transport:receive:274 - 接收超时 server->yaml_client_1
+2025-09-02 18:50:27.038 | WARNING  | fedcl.comm.memory_transport:receive:292 - 接收失败 server->yaml_client_1, 数据大小: 0 字节, 超时: 0.01s
+2025-09-02 18:50:27.050 | WARNING  | fedcl.comm.memory_transport:receive:274 - 接收超时 yaml_fed_server->yaml_client_1
+2025-09-02 18:50:27.050 | WARNING  | fedcl.comm.memory_transport:receive:292 - 接收失败 yaml_fed_server->yaml_client_1, 数据大小: 0 字节, 超时: 0.01s
+2025-09-02 18:50:27.061 | WARNING  | fedcl.comm.memory_transport:receive:274 - 接收超时 fed_server->yaml_client_1
+2025-09-02 18:50:27.061 | WARNING  | fedcl.comm.memory_transport:receive:292 - 接收失败 fed_server->yaml_client_1, 数据大小: 0 字节, 超时: 0.01s
+2025-09-02 18:50:27.071 | WARNING  | fedcl.comm.memory_transport:receive:274 - 接收超时 server->yaml_client_1
+2025-09-02 18:50:27.072 | WARNING  | fedcl.comm.memory_transport:receive:292 - 接收失败 server->yaml_client_1, 数据大小: 0 字节, 超时: 0.01s
+2025-09-02 18:50:27.083 | WARNING  | fedcl.comm.memory_transport:receive:274 - 接收超时 yaml_fed_server->yaml_client_1
+2025-09-02 18:50:27.084 | WARNING  | fedcl.comm.memory_transport:receive:292 - 接收失败 yaml_fed_server->yaml_client_1, 数据大小: 0 字节, 超时: 0.01s
+2025-09-02 18:50:27.094 | WARNING  | fedcl.comm.memory_transport:receive:274 - 接收超时 fed_server->yaml_client_1
+2025-09-02 18:50:27.094 | WARNING  | fedcl.comm.memory_transport:receive:292 - 接收失败 fed_server->yaml_client_1, 数据大小: 0 字节, 超时: 0.01s
+2025-09-02 18:50:27.098 | WARNING  | fedcl.comm.memory_transport:receive:274 - 接收超时 yaml_client_1->yaml_fed_server
+2025-09-02 18:50:27.098 | WARNING  | fedcl.comm.memory_transport:receive:292 - 接收失败 yaml_client_1->yaml_fed_server, 数据大小: 0 字节, 超时: 0.01s
+2025-09-02 18:50:27.105 | WARNING  | fedcl.comm.memory_transport:receive:274 - 接收超时 server->yaml_client_1
+2025-09-02 18:50:27.106 | WARNING  | fedcl.comm.memory_transport:receive:292 - 接收失败 server->yaml_client_1, 数据大小: 0 字节, 超时: 0.01s
+2025-09-02 18:50:27.109 | WARNING  | fedcl.comm.memory_transport:receive:274 - 接收超时 client_1->yaml_fed_server
+2025-09-02 18:50:27.109 | WARNING  | fedcl.comm.memory_transport:receive:292 - 接收失败 client_1->yaml_fed_server, 数据大小: 0 字节, 超时: 0.01s
+2025-09-02 18:50:27.118 | WARNING  | fedcl.comm.memory_transport:receive:274 - 接收超时 yaml_fed_server->yaml_client_1
+2025-09-02 18:50:27.118 | WARNING  | fedcl.comm.memory_transport:receive:292 - 接收失败 yaml_fed_server->yaml_client_1, 数据大小: 0 字节, 超时: 0.01s
+2025-09-02 18:50:27.120 | WARNING  | fedcl.comm.memory_transport:receive:274 - 接收超时 yaml_client_1->yaml_fed_server
+2025-09-02 18:50:27.120 | WARNING  | fedcl.comm.memory_transport:receive:292 - 接收失败 yaml_client_1->yaml_fed_server, 数据大小: 0 字节, 超时: 0.01s
+2025-09-02 18:50:27.129 | WARNING  | fedcl.comm.memory_transport:receive:274 - 接收超时 fed_server->yaml_client_1
+2025-09-02 18:50:27.129 | WARNING  | fedcl.comm.memory_transport:receive:292 - 接收失败 fed_server->yaml_client_1, 数据大小: 0 字节, 超时: 0.01s
+2025-09-02 18:50:27.131 | WARNING  | fedcl.comm.memory_transport:receive:274 - 接收超时 client_2->yaml_fed_server
+2025-09-02 18:50:27.131 | WARNING  | fedcl.comm.memory_transport:receive:292 - 接收失败 client_2->yaml_fed_server, 数据大小: 0 字节, 超时: 0.01s
+2025-09-02 18:50:27.140 | WARNING  | fedcl.comm.memory_transport:receive:274 - 接收超时 server->yaml_client_1
+2025-09-02 18:50:27.140 | WARNING  | fedcl.comm.memory_transport:receive:292 - 接收失败 server->yaml_client_1, 数据大小: 0 字节, 超时: 0.01s
+2025-09-02 18:50:27.142 | WARNING  | fedcl.comm.memory_transport:receive:274 - 接收超时 yaml_client_2->yaml_fed_server
+2025-09-02 18:50:27.142 | WARNING  | fedcl.comm.memory_transport:receive:292 - 接收失败 yaml_client_2->yaml_fed_server, 数据大小: 0 字节, 超时: 0.01s
+2025-09-02 18:50:27.148 | DEBUG    | fedcl.comm.memory_transport:receive:270 - [DEBUG] 检查消息 yaml_fed_server->yaml_client_1, 可用源: []
+2025-09-02 18:50:27.152 | WARNING  | fedcl.comm.memory_transport:receive:274 - 接收超时 yaml_fed_server->yaml_client_1
+2025-09-02 18:50:27.152 | WARNING  | fedcl.comm.memory_transport:receive:292 - 接收失败 yaml_fed_server->yaml_client_1, 数据大小: 0 字节, 超时: 0.01s
+2025-09-02 18:50:27.154 | WARNING  | fedcl.comm.memory_transport:receive:274 - 接收超时 client_3->yaml_fed_server
+2025-09-02 18:50:27.154 | WARNING  | fedcl.comm.memory_transport:receive:292 - 接收失败 client_3->yaml_fed_server, 数据大小: 0 字节, 超时: 0.01s
+2025-09-02 18:50:27.163 | WARNING  | fedcl.comm.memory_transport:receive:274 - 接收超时 fed_server->yaml_client_1
+2025-09-02 18:50:27.163 | WARNING  | fedcl.comm.memory_transport:receive:292 - 接收失败 fed_server->yaml_client_1, 数据大小: 0 字节, 超时: 0.01s
+2025-09-02 18:50:27.165 | WARNING  | fedcl.comm.memory_transport:receive:274 - 接收超时 yaml_client_3->yaml_fed_server
+2025-09-02 18:50:27.165 | WARNING  | fedcl.comm.memory_transport:receive:292 - 接收失败 yaml_client_3->yaml_fed_server, 数据大小: 0 字节, 超时: 0.01s
+2025-09-02 18:50:27.175 | WARNING  | fedcl.comm.memory_transport:receive:274 - 接收超时 server->yaml_client_1
+2025-09-02 18:50:27.175 | WARNING  | fedcl.comm.memory_transport:receive:292 - 接收失败 server->yaml_client_1, 数据大小: 0 字节, 超时: 0.01s
+2025-09-02 18:50:27.176 | WARNING  | fedcl.comm.memory_transport:receive:274 - 接收超时 client_4->yaml_fed_server
+2025-09-02 18:50:27.176 | WARNING  | fedcl.comm.memory_transport:receive:292 - 接收失败 client_4->yaml_fed_server, 数据大小: 0 字节, 超时: 0.01s
+2025-09-02 18:50:27.187 | WARNING  | fedcl.comm.memory_transport:receive:274 - 接收超时 yaml_client_4->yaml_fed_server
+2025-09-02 18:50:27.187 | WARNING  | fedcl.comm.memory_transport:receive:292 - 接收失败 yaml_client_4->yaml_fed_server, 数据大小: 0 字节, 超时: 0.01s
+2025-09-02 18:50:27.187 | WARNING  | fedcl.comm.memory_transport:receive:274 - 接收超时 yaml_fed_server->yaml_client_1
+2025-09-02 18:50:27.187 | WARNING  | fedcl.comm.memory_transport:receive:292 - 接收失败 yaml_fed_server->yaml_client_1, 数据大小: 0 字节, 超时: 0.01s
+2025-09-02 18:50:27.198 | WARNING  | fedcl.comm.memory_transport:receive:274 - 接收超时 client_5->yaml_fed_server
+2025-09-02 18:50:27.198 | WARNING  | fedcl.comm.memory_transport:receive:292 - 接收失败 client_5->yaml_fed_server, 数据大小: 0 字节, 超时: 0.01s
+2025-09-02 18:50:27.198 | WARNING  | fedcl.comm.memory_transport:receive:274 - 接收超时 fed_server->yaml_client_1
+2025-09-02 18:50:27.198 | WARNING  | fedcl.comm.memory_transport:receive:292 - 接收失败 fed_server->yaml_client_1, 数据大小: 0 字节, 超时: 0.01s
+2025-09-02 18:50:27.209 | WARNING  | fedcl.comm.memory_transport:receive:274 - 接收超时 yaml_client_5->yaml_fed_server
+2025-09-02 18:50:27.209 | WARNING  | fedcl.comm.memory_transport:receive:292 - 接收失败 yaml_client_5->yaml_fed_server, 数据大小: 0 字节, 超时: 0.01s
+2025-09-02 18:50:27.209 | WARNING  | fedcl.comm.memory_transport:receive:274 - 接收超时 server->yaml_client_1
+2025-09-02 18:50:27.209 | WARNING  | fedcl.comm.memory_transport:receive:292 - 接收失败 server->yaml_client_1, 数据大小: 0 字节, 超时: 0.01s
+2025-09-02 18:50:27.220 | WARNING  | fedcl.comm.memory_transport:receive:274 - 接收超时 client_6->yaml_fed_server
+2025-09-02 18:50:27.220 | WARNING  | fedcl.comm.memory_transport:receive:292 - 接收失败 client_6->yaml_fed_server, 数据大小: 0 字节, 超时: 0.01s
+2025-09-02 18:50:27.221 | WARNING  | fedcl.comm.memory_transport:receive:274 - 接收超时 yaml_fed_server->yaml_client_1
+2025-09-02 18:50:27.221 | WARNING  | fedcl.comm.memory_transport:receive:292 - 接收失败 yaml_fed_server->yaml_client_1, 数据大小: 0 字节, 超时: 0.01s
+2025-09-02 18:50:27.230 | WARNING  | fedcl.comm.memory_transport:receive:274 - 接收超时 yaml_client_6->yaml_fed_server
+2025-09-02 18:50:27.230 | WARNING  | fedcl.comm.memory_transport:receive:292 - 接收失败 yaml_client_6->yaml_fed_server, 数据大小: 0 字节, 超时: 0.01s
+2025-09-02 18:50:27.232 | WARNING  | fedcl.comm.memory_transport:receive:274 - 接收超时 fed_server->yaml_client_1
+2025-09-02 18:50:27.232 | WARNING  | fedcl.comm.memory_transport:receive:292 - 接收失败 fed_server->yaml_client_1, 数据大小: 0 字节, 超时: 0.01s
+2025-09-02 18:50:27.241 | WARNING  | fedcl.comm.memory_transport:receive:274 - 接收超时 client_7->yaml_fed_server
+2025-09-02 18:50:27.241 | WARNING  | fedcl.comm.memory_transport:receive:292 - 接收失败 client_7->yaml_fed_server, 数据大小: 0 字节, 超时: 0.01s
+2025-09-02 18:50:27.242 | WARNING  | fedcl.comm.memory_transport:receive:274 - 接收超时 server->yaml_client_1
+2025-09-02 18:50:27.242 | WARNING  | fedcl.comm.memory_transport:receive:292 - 接收失败 server->yaml_client_1, 数据大小: 0 字节, 超时: 0.01s
+2025-09-02 18:50:27.251 | WARNING  | fedcl.comm.memory_transport:receive:274 - 接收超时 yaml_client_7->yaml_fed_server
+2025-09-02 18:50:27.251 | WARNING  | fedcl.comm.memory_transport:receive:292 - 接收失败 yaml_client_7->yaml_fed_server, 数据大小: 0 字节, 超时: 0.01s
+2025-09-02 18:50:27.254 | WARNING  | fedcl.comm.memory_transport:receive:274 - 接收超时 yaml_fed_server->yaml_client_1
+2025-09-02 18:50:27.254 | WARNING  | fedcl.comm.memory_transport:receive:292 - 接收失败 yaml_fed_server->yaml_client_1, 数据大小: 0 字节, 超时: 0.01s
+2025-09-02 18:50:27.262 | WARNING  | fedcl.comm.memory_transport:receive:274 - 接收超时 client_8->yaml_fed_server
+2025-09-02 18:50:27.262 | WARNING  | fedcl.comm.memory_transport:receive:292 - 接收失败 client_8->yaml_fed_server, 数据大小: 0 字节, 超时: 0.01s
+2025-09-02 18:50:27.264 | WARNING  | fedcl.comm.memory_transport:receive:274 - 接收超时 fed_server->yaml_client_1
+2025-09-02 18:50:27.264 | WARNING  | fedcl.comm.memory_transport:receive:292 - 接收失败 fed_server->yaml_client_1, 数据大小: 0 字节, 超时: 0.01s
+2025-09-02 18:50:27.272 | WARNING  | fedcl.comm.memory_transport:receive:274 - 接收超时 yaml_client_8->yaml_fed_server
+2025-09-02 18:50:27.272 | WARNING  | fedcl.comm.memory_transport:receive:292 - 接收失败 yaml_client_8->yaml_fed_server, 数据大小: 0 字节, 超时: 0.01s
+2025-09-02 18:50:27.275 | WARNING  | fedcl.comm.memory_transport:receive:274 - 接收超时 server->yaml_client_1
+2025-09-02 18:50:27.275 | WARNING  | fedcl.comm.memory_transport:receive:292 - 接收失败 server->yaml_client_1, 数据大小: 0 字节, 超时: 0.01s
+2025-09-02 18:50:27.283 | WARNING  | fedcl.comm.memory_transport:receive:274 - 接收超时 client_9->yaml_fed_server
+2025-09-02 18:50:27.283 | WARNING  | fedcl.comm.memory_transport:receive:292 - 接收失败 client_9->yaml_fed_server, 数据大小: 0 字节, 超时: 0.01s
+2025-09-02 18:50:27.286 | WARNING  | fedcl.comm.memory_transport:receive:274 - 接收超时 yaml_fed_server->yaml_client_1
+2025-09-02 18:50:27.286 | WARNING  | fedcl.comm.memory_transport:receive:292 - 接收失败 yaml_fed_server->yaml_client_1, 数据大小: 0 字节, 超时: 0.01s
+2025-09-02 18:50:27.293 | WARNING  | fedcl.comm.memory_transport:receive:274 - 接收超时 yaml_client_9->yaml_fed_server
+2025-09-02 18:50:27.293 | WARNING  | fedcl.comm.memory_transport:receive:292 - 接收失败 yaml_client_9->yaml_fed_server, 数据大小: 0 字节, 超时: 0.01s
+2025-09-02 18:50:27.297 | WARNING  | fedcl.comm.memory_transport:receive:274 - 接收超时 fed_server->yaml_client_1
+2025-09-02 18:50:27.297 | WARNING  | fedcl.comm.memory_transport:receive:292 - 接收失败 fed_server->yaml_client_1, 数据大小: 0 字节, 超时: 0.01s
+2025-09-02 18:50:27.303 | WARNING  | fedcl.comm.memory_transport:receive:274 - 接收超时 client_10->yaml_fed_server
+2025-09-02 18:50:27.303 | WARNING  | fedcl.comm.memory_transport:receive:292 - 接收失败 client_10->yaml_fed_server, 数据大小: 0 字节, 超时: 0.01s
+2025-09-02 18:50:27.308 | WARNING  | fedcl.comm.memory_transport:receive:274 - 接收超时 server->yaml_client_1
+2025-09-02 18:50:27.308 | WARNING  | fedcl.comm.memory_transport:receive:292 - 接收失败 server->yaml_client_1, 数据大小: 0 字节, 超时: 0.01s
+2025-09-02 18:50:27.313 | DEBUG    | fedcl.comm.memory_transport:receive:270 - [DEBUG] 检查消息 yaml_fed_server->yaml_client_1, 可用源: []
+2025-09-02 18:50:27.314 | WARNING  | fedcl.comm.memory_transport:receive:274 - 接收超时 yaml_client_10->yaml_fed_server
+2025-09-02 18:50:27.314 | WARNING  | fedcl.comm.memory_transport:receive:292 - 接收失败 yaml_client_10->yaml_fed_server, 数据大小: 0 字节, 超时: 0.01s
+2025-09-02 18:50:27.320 | WARNING  | fedcl.comm.memory_transport:receive:274 - 接收超时 yaml_fed_server->yaml_client_1
+2025-09-02 18:50:27.320 | WARNING  | fedcl.comm.memory_transport:receive:292 - 接收失败 yaml_fed_server->yaml_client_1, 数据大小: 0 字节, 超时: 0.01s
+2025-09-02 18:50:27.330 | WARNING  | fedcl.comm.memory_transport:receive:274 - 接收超时 fed_server->yaml_client_1
+2025-09-02 18:50:27.331 | WARNING  | fedcl.comm.memory_transport:receive:292 - 接收失败 fed_server->yaml_client_1, 数据大小: 0 字节, 超时: 0.01s
+2025-09-02 18:50:27.341 | WARNING  | fedcl.comm.memory_transport:receive:274 - 接收超时 server->yaml_client_1
+2025-09-02 18:50:27.342 | WARNING  | fedcl.comm.memory_transport:receive:292 - 接收失败 server->yaml_client_1, 数据大小: 0 字节, 超时: 0.01s
+2025-09-02 18:50:27.353 | WARNING  | fedcl.comm.memory_transport:receive:274 - 接收超时 yaml_fed_server->yaml_client_1
+2025-09-02 18:50:27.354 | WARNING  | fedcl.comm.memory_transport:receive:292 - 接收失败 yaml_fed_server->yaml_client_1, 数据大小: 0 字节, 超时: 0.01s
+2025-09-02 18:50:27.364 | WARNING  | fedcl.comm.memory_transport:receive:274 - 接收超时 fed_server->yaml_client_1
+2025-09-02 18:50:27.365 | WARNING  | fedcl.comm.memory_transport:receive:292 - 接收失败 fed_server->yaml_client_1, 数据大小: 0 字节, 超时: 0.01s
+2025-09-02 18:50:27.375 | WARNING  | fedcl.comm.memory_transport:receive:274 - 接收超时 yaml_client_1->yaml_fed_server
+2025-09-02 18:50:27.375 | WARNING  | fedcl.comm.memory_transport:receive:292 - 接收失败 yaml_client_1->yaml_fed_server, 数据大小: 0 字节, 超时: 0.01s
+2025-09-02 18:50:27.376 | WARNING  | fedcl.comm.memory_transport:receive:274 - 接收超时 server->yaml_client_1
+2025-09-02 18:50:27.376 | WARNING  | fedcl.comm.memory_transport:receive:292 - 接收失败 server->yaml_client_1, 数据大小: 0 字节, 超时: 0.01s
+2025-09-02 18:50:27.387 | WARNING  | fedcl.comm.memory_transport:receive:274 - 接收超时 client_1->yaml_fed_server
+2025-09-02 18:50:27.387 | WARNING  | fedcl.comm.memory_transport:receive:292 - 接收失败 client_1->yaml_fed_server, 数据大小: 0 字节, 超时: 0.01s
+2025-09-02 18:50:27.388 | WARNING  | fedcl.comm.memory_transport:receive:274 - 接收超时 yaml_fed_server->yaml_client_1
+2025-09-02 18:50:27.388 | WARNING  | fedcl.comm.memory_transport:receive:292 - 接收失败 yaml_fed_server->yaml_client_1, 数据大小: 0 字节, 超时: 0.01s
+2025-09-02 18:50:27.398 | WARNING  | fedcl.comm.memory_transport:receive:274 - 接收超时 yaml_client_1->yaml_fed_server
+2025-09-02 18:50:27.398 | WARNING  | fedcl.comm.memory_transport:receive:292 - 接收失败 yaml_client_1->yaml_fed_server, 数据大小: 0 字节, 超时: 0.01s
+2025-09-02 18:50:27.399 | WARNING  | fedcl.comm.memory_transport:receive:274 - 接收超时 fed_server->yaml_client_1
+2025-09-02 18:50:27.399 | WARNING  | fedcl.comm.memory_transport:receive:292 - 接收失败 fed_server->yaml_client_1, 数据大小: 0 字节, 超时: 0.01s
+2025-09-02 18:50:27.409 | WARNING  | fedcl.comm.memory_transport:receive:274 - 接收超时 client_2->yaml_fed_server
+2025-09-02 18:50:27.409 | WARNING  | fedcl.comm.memory_transport:receive:292 - 接收失败 client_2->yaml_fed_server, 数据大小: 0 字节, 超时: 0.01s
+2025-09-02 18:50:27.410 | WARNING  | fedcl.comm.memory_transport:receive:274 - 接收超时 server->yaml_client_1
+2025-09-02 18:50:27.410 | WARNING  | fedcl.comm.memory_transport:receive:292 - 接收失败 server->yaml_client_1, 数据大小: 0 字节, 超时: 0.01s
+2025-09-02 18:50:27.420 | WARNING  | fedcl.comm.memory_transport:receive:274 - 接收超时 yaml_client_2->yaml_fed_server
+2025-09-02 18:50:27.420 | WARNING  | fedcl.comm.memory_transport:receive:292 - 接收失败 yaml_client_2->yaml_fed_server, 数据大小: 0 字节, 超时: 0.01s
+2025-09-02 18:50:27.422 | WARNING  | fedcl.comm.memory_transport:receive:274 - 接收超时 yaml_fed_server->yaml_client_1
+2025-09-02 18:50:27.422 | WARNING  | fedcl.comm.memory_transport:receive:292 - 接收失败 yaml_fed_server->yaml_client_1, 数据大小: 0 字节, 超时: 0.01s
+2025-09-02 18:50:27.431 | WARNING  | fedcl.comm.memory_transport:receive:274 - 接收超时 client_3->yaml_fed_server
+2025-09-02 18:50:27.431 | WARNING  | fedcl.comm.memory_transport:receive:292 - 接收失败 client_3->yaml_fed_server, 数据大小: 0 字节, 超时: 0.01s
+2025-09-02 18:50:27.433 | WARNING  | fedcl.comm.memory_transport:receive:274 - 接收超时 fed_server->yaml_client_1
+2025-09-02 18:50:27.433 | WARNING  | fedcl.comm.memory_transport:receive:292 - 接收失败 fed_server->yaml_client_1, 数据大小: 0 字节, 超时: 0.01s
+2025-09-02 18:50:27.442 | WARNING  | fedcl.comm.memory_transport:receive:274 - 接收超时 yaml_client_3->yaml_fed_server
+2025-09-02 18:50:27.442 | WARNING  | fedcl.comm.memory_transport:receive:292 - 接收失败 yaml_client_3->yaml_fed_server, 数据大小: 0 字节, 超时: 0.01s
+2025-09-02 18:50:27.445 | WARNING  | fedcl.comm.memory_transport:receive:274 - 接收超时 server->yaml_client_1
+2025-09-02 18:50:27.445 | WARNING  | fedcl.comm.memory_transport:receive:292 - 接收失败 server->yaml_client_1, 数据大小: 0 字节, 超时: 0.01s
+2025-09-02 18:50:27.453 | WARNING  | fedcl.comm.memory_transport:receive:274 - 接收超时 client_4->yaml_fed_server
+2025-09-02 18:50:27.453 | WARNING  | fedcl.comm.memory_transport:receive:292 - 接收失败 client_4->yaml_fed_server, 数据大小: 0 字节, 超时: 0.01s
+2025-09-02 18:50:27.457 | DEBUG    | fedcl.comm.memory_transport:receive:270 - [DEBUG] 检查消息 yaml_fed_server->yaml_client_1, 可用源: []
+2025-09-02 18:50:27.457 | WARNING  | fedcl.comm.memory_transport:receive:274 - 接收超时 yaml_fed_server->yaml_client_1
+2025-09-02 18:50:27.457 | WARNING  | fedcl.comm.memory_transport:receive:292 - 接收失败 yaml_fed_server->yaml_client_1, 数据大小: 0 字节, 超时: 0.01s
+2025-09-02 18:50:27.464 | WARNING  | fedcl.comm.memory_transport:receive:274 - 接收超时 yaml_client_4->yaml_fed_server
+2025-09-02 18:50:27.465 | WARNING  | fedcl.comm.memory_transport:receive:292 - 接收失败 yaml_client_4->yaml_fed_server, 数据大小: 0 字节, 超时: 0.01s
+2025-09-02 18:50:27.468 | WARNING  | fedcl.comm.memory_transport:receive:274 - 接收超时 fed_server->yaml_client_1
+2025-09-02 18:50:27.468 | WARNING  | fedcl.comm.memory_transport:receive:292 - 接收失败 fed_server->yaml_client_1, 数据大小: 0 字节, 超时: 0.01s
+2025-09-02 18:50:27.476 | WARNING  | fedcl.comm.memory_transport:receive:274 - 接收超时 client_5->yaml_fed_server
+2025-09-02 18:50:27.476 | WARNING  | fedcl.comm.memory_transport:receive:292 - 接收失败 client_5->yaml_fed_server, 数据大小: 0 字节, 超时: 0.01s
+2025-09-02 18:50:27.479 | WARNING  | fedcl.comm.memory_transport:receive:274 - 接收超时 server->yaml_client_1
+2025-09-02 18:50:27.479 | WARNING  | fedcl.comm.memory_transport:receive:292 - 接收失败 server->yaml_client_1, 数据大小: 0 字节, 超时: 0.01s
+2025-09-02 18:50:27.487 | WARNING  | fedcl.comm.memory_transport:receive:274 - 接收超时 yaml_client_5->yaml_fed_server
+2025-09-02 18:50:27.487 | WARNING  | fedcl.comm.memory_transport:receive:292 - 接收失败 yaml_client_5->yaml_fed_server, 数据大小: 0 字节, 超时: 0.01s
+2025-09-02 18:50:27.491 | WARNING  | fedcl.comm.memory_transport:receive:274 - 接收超时 yaml_fed_server->yaml_client_1
+2025-09-02 18:50:27.491 | WARNING  | fedcl.comm.memory_transport:receive:292 - 接收失败 yaml_fed_server->yaml_client_1, 数据大小: 0 字节, 超时: 0.01s
+2025-09-02 18:50:27.498 | WARNING  | fedcl.comm.memory_transport:receive:274 - 接收超时 client_6->yaml_fed_server
+2025-09-02 18:50:27.498 | WARNING  | fedcl.comm.memory_transport:receive:292 - 接收失败 client_6->yaml_fed_server, 数据大小: 0 字节, 超时: 0.01s
+2025-09-02 18:50:27.502 | WARNING  | fedcl.comm.memory_transport:receive:274 - 接收超时 fed_server->yaml_client_1
+2025-09-02 18:50:27.502 | WARNING  | fedcl.comm.memory_transport:receive:292 - 接收失败 fed_server->yaml_client_1, 数据大小: 0 字节, 超时: 0.01s
+2025-09-02 18:50:27.509 | WARNING  | fedcl.comm.memory_transport:receive:274 - 接收超时 yaml_client_6->yaml_fed_server
+2025-09-02 18:50:27.509 | WARNING  | fedcl.comm.memory_transport:receive:292 - 接收失败 yaml_client_6->yaml_fed_server, 数据大小: 0 字节, 超时: 0.01s
+2025-09-02 18:50:27.513 | WARNING  | fedcl.comm.memory_transport:receive:274 - 接收超时 server->yaml_client_1
+2025-09-02 18:50:27.514 | WARNING  | fedcl.comm.memory_transport:receive:292 - 接收失败 server->yaml_client_1, 数据大小: 0 字节, 超时: 0.01s
+2025-09-02 18:50:27.520 | WARNING  | fedcl.comm.memory_transport:receive:274 - 接收超时 client_7->yaml_fed_server
+2025-09-02 18:50:27.520 | WARNING  | fedcl.comm.memory_transport:receive:292 - 接收失败 client_7->yaml_fed_server, 数据大小: 0 字节, 超时: 0.01s
+2025-09-02 18:50:27.525 | WARNING  | fedcl.comm.memory_transport:receive:274 - 接收超时 yaml_fed_server->yaml_client_1
+2025-09-02 18:50:27.525 | WARNING  | fedcl.comm.memory_transport:receive:292 - 接收失败 yaml_fed_server->yaml_client_1, 数据大小: 0 字节, 超时: 0.01s
+2025-09-02 18:50:27.531 | WARNING  | fedcl.comm.memory_transport:receive:274 - 接收超时 yaml_client_7->yaml_fed_server
+2025-09-02 18:50:27.531 | WARNING  | fedcl.comm.memory_transport:receive:292 - 接收失败 yaml_client_7->yaml_fed_server, 数据大小: 0 字节, 超时: 0.01s
+2025-09-02 18:50:27.535 | WARNING  | fedcl.comm.memory_transport:receive:274 - 接收超时 fed_server->yaml_client_1
+2025-09-02 18:50:27.535 | WARNING  | fedcl.comm.memory_transport:receive:292 - 接收失败 fed_server->yaml_client_1, 数据大小: 0 字节, 超时: 0.01s
+2025-09-02 18:50:27.541 | WARNING  | fedcl.comm.memory_transport:receive:274 - 接收超时 client_8->yaml_fed_server
+2025-09-02 18:50:27.541 | WARNING  | fedcl.comm.memory_transport:receive:292 - 接收失败 client_8->yaml_fed_server, 数据大小: 0 字节, 超时: 0.01s
+2025-09-02 18:50:27.546 | WARNING  | fedcl.comm.memory_transport:receive:274 - 接收超时 server->yaml_client_1
+2025-09-02 18:50:27.546 | WARNING  | fedcl.comm.memory_transport:receive:292 - 接收失败 server->yaml_client_1, 数据大小: 0 字节, 超时: 0.01s
+2025-09-02 18:50:27.552 | WARNING  | fedcl.comm.memory_transport:receive:274 - 接收超时 yaml_client_8->yaml_fed_server
+2025-09-02 18:50:27.552 | WARNING  | fedcl.comm.memory_transport:receive:292 - 接收失败 yaml_client_8->yaml_fed_server, 数据大小: 0 字节, 超时: 0.01s
+2025-09-02 18:50:27.557 | WARNING  | fedcl.comm.memory_transport:receive:274 - 接收超时 yaml_fed_server->yaml_client_1
+2025-09-02 18:50:27.557 | WARNING  | fedcl.comm.memory_transport:receive:292 - 接收失败 yaml_fed_server->yaml_client_1, 数据大小: 0 字节, 超时: 0.01s
+2025-09-02 18:50:27.562 | WARNING  | fedcl.comm.memory_transport:receive:274 - 接收超时 client_9->yaml_fed_server
+2025-09-02 18:50:27.562 | WARNING  | fedcl.comm.memory_transport:receive:292 - 接收失败 client_9->yaml_fed_server, 数据大小: 0 字节, 超时: 0.01s
+2025-09-02 18:50:27.568 | WARNING  | fedcl.comm.memory_transport:receive:274 - 接收超时 fed_server->yaml_client_1
+2025-09-02 18:50:27.568 | WARNING  | fedcl.comm.memory_transport:receive:292 - 接收失败 fed_server->yaml_client_1, 数据大小: 0 字节, 超时: 0.01s
+2025-09-02 18:50:27.572 | WARNING  | fedcl.comm.memory_transport:receive:274 - 接收超时 yaml_client_9->yaml_fed_server
+2025-09-02 18:50:27.572 | WARNING  | fedcl.comm.memory_transport:receive:292 - 接收失败 yaml_client_9->yaml_fed_server, 数据大小: 0 字节, 超时: 0.01s
+2025-09-02 18:50:27.578 | WARNING  | fedcl.comm.memory_transport:receive:274 - 接收超时 server->yaml_client_1
+2025-09-02 18:50:27.578 | WARNING  | fedcl.comm.memory_transport:receive:292 - 接收失败 server->yaml_client_1, 数据大小: 0 字节, 超时: 0.01s
+2025-09-02 18:50:27.583 | WARNING  | fedcl.comm.memory_transport:receive:274 - 接收超时 client_10->yaml_fed_server
+2025-09-02 18:50:27.583 | WARNING  | fedcl.comm.memory_transport:receive:292 - 接收失败 client_10->yaml_fed_server, 数据大小: 0 字节, 超时: 0.01s
+2025-09-02 18:50:27.590 | WARNING  | fedcl.comm.memory_transport:receive:274 - 接收超时 yaml_fed_server->yaml_client_1
+2025-09-02 18:50:27.590 | WARNING  | fedcl.comm.memory_transport:receive:292 - 接收失败 yaml_fed_server->yaml_client_1, 数据大小: 0 字节, 超时: 0.01s
+2025-09-02 18:50:27.593 | WARNING  | fedcl.comm.memory_transport:receive:274 - 接收超时 yaml_client_10->yaml_fed_server
+2025-09-02 18:50:27.593 | WARNING  | fedcl.comm.memory_transport:receive:292 - 接收失败 yaml_client_10->yaml_fed_server, 数据大小: 0 字节, 超时: 0.01s
+2025-09-02 18:50:27.600 | WARNING  | fedcl.comm.memory_transport:receive:274 - 接收超时 fed_server->yaml_client_1
+2025-09-02 18:50:27.600 | WARNING  | fedcl.comm.memory_transport:receive:292 - 接收失败 fed_server->yaml_client_1, 数据大小: 0 字节, 超时: 0.01s
+2025-09-02 18:50:27.611 | WARNING  | fedcl.comm.memory_transport:receive:274 - 接收超时 server->yaml_client_1
+2025-09-02 18:50:27.611 | WARNING  | fedcl.comm.memory_transport:receive:292 - 接收失败 server->yaml_client_1, 数据大小: 0 字节, 超时: 0.01s
+2025-09-02 18:50:27.621 | DEBUG    | fedcl.comm.memory_transport:receive:270 - [DEBUG] 检查消息 yaml_fed_server->yaml_client_1, 可用源: []
+2025-09-02 18:50:27.623 | WARNING  | fedcl.comm.memory_transport:receive:274 - 接收超时 yaml_fed_server->yaml_client_1
+2025-09-02 18:50:27.623 | WARNING  | fedcl.comm.memory_transport:receive:292 - 接收失败 yaml_fed_server->yaml_client_1, 数据大小: 0 字节, 超时: 0.01s
+2025-09-02 18:50:27.634 | WARNING  | fedcl.comm.memory_transport:receive:274 - 接收超时 fed_server->yaml_client_1
+2025-09-02 18:50:27.634 | WARNING  | fedcl.comm.memory_transport:receive:292 - 接收失败 fed_server->yaml_client_1, 数据大小: 0 字节, 超时: 0.01s
+2025-09-02 18:50:27.645 | WARNING  | fedcl.comm.memory_transport:receive:274 - 接收超时 server->yaml_client_1
+2025-09-02 18:50:27.645 | WARNING  | fedcl.comm.memory_transport:receive:292 - 接收失败 server->yaml_client_1, 数据大小: 0 字节, 超时: 0.01s
+2025-09-02 18:50:27.654 | WARNING  | fedcl.comm.memory_transport:receive:274 - 接收超时 yaml_client_1->yaml_fed_server
+2025-09-02 18:50:27.654 | WARNING  | fedcl.comm.memory_transport:receive:292 - 接收失败 yaml_client_1->yaml_fed_server, 数据大小: 0 字节, 超时: 0.01s
+2025-09-02 18:50:27.656 | WARNING  | fedcl.comm.memory_transport:receive:274 - 接收超时 yaml_fed_server->yaml_client_1
+2025-09-02 18:50:27.657 | WARNING  | fedcl.comm.memory_transport:receive:292 - 接收失败 yaml_fed_server->yaml_client_1, 数据大小: 0 字节, 超时: 0.01s
+2025-09-02 18:50:27.664 | WARNING  | fedcl.comm.memory_transport:receive:274 - 接收超时 client_1->yaml_fed_server
+2025-09-02 18:50:27.665 | WARNING  | fedcl.comm.memory_transport:receive:292 - 接收失败 client_1->yaml_fed_server, 数据大小: 0 字节, 超时: 0.01s
+2025-09-02 18:50:27.667 | WARNING  | fedcl.comm.memory_transport:receive:274 - 接收超时 fed_server->yaml_client_1
+2025-09-02 18:50:27.667 | WARNING  | fedcl.comm.memory_transport:receive:292 - 接收失败 fed_server->yaml_client_1, 数据大小: 0 字节, 超时: 0.01s
+2025-09-02 18:50:27.675 | WARNING  | fedcl.comm.memory_transport:receive:274 - 接收超时 yaml_client_1->yaml_fed_server
+2025-09-02 18:50:27.675 | WARNING  | fedcl.comm.memory_transport:receive:292 - 接收失败 yaml_client_1->yaml_fed_server, 数据大小: 0 字节, 超时: 0.01s
+2025-09-02 18:50:27.677 | WARNING  | fedcl.comm.memory_transport:receive:274 - 接收超时 server->yaml_client_1
+2025-09-02 18:50:27.677 | WARNING  | fedcl.comm.memory_transport:receive:292 - 接收失败 server->yaml_client_1, 数据大小: 0 字节, 超时: 0.01s
+2025-09-02 18:50:27.685 | WARNING  | fedcl.comm.memory_transport:receive:274 - 接收超时 client_2->yaml_fed_server
+2025-09-02 18:50:27.685 | WARNING  | fedcl.comm.memory_transport:receive:292 - 接收失败 client_2->yaml_fed_server, 数据大小: 0 字节, 超时: 0.01s
+2025-09-02 18:50:27.689 | WARNING  | fedcl.comm.memory_transport:receive:274 - 接收超时 yaml_fed_server->yaml_client_1
+2025-09-02 18:50:27.689 | WARNING  | fedcl.comm.memory_transport:receive:292 - 接收失败 yaml_fed_server->yaml_client_1, 数据大小: 0 字节, 超时: 0.01s
+2025-09-02 18:50:27.696 | WARNING  | fedcl.comm.memory_transport:receive:274 - 接收超时 yaml_client_2->yaml_fed_server
+2025-09-02 18:50:27.696 | WARNING  | fedcl.comm.memory_transport:receive:292 - 接收失败 yaml_client_2->yaml_fed_server, 数据大小: 0 字节, 超时: 0.01s
+2025-09-02 18:50:27.699 | WARNING  | fedcl.comm.memory_transport:receive:274 - 接收超时 fed_server->yaml_client_1
+2025-09-02 18:50:27.699 | WARNING  | fedcl.comm.memory_transport:receive:292 - 接收失败 fed_server->yaml_client_1, 数据大小: 0 字节, 超时: 0.01s
+2025-09-02 18:50:27.706 | WARNING  | fedcl.comm.memory_transport:receive:274 - 接收超时 client_3->yaml_fed_server
+2025-09-02 18:50:27.706 | WARNING  | fedcl.comm.memory_transport:receive:292 - 接收失败 client_3->yaml_fed_server, 数据大小: 0 字节, 超时: 0.01s
+2025-09-02 18:50:27.709 | WARNING  | fedcl.comm.memory_transport:receive:274 - 接收超时 server->yaml_client_1
+2025-09-02 18:50:27.709 | WARNING  | fedcl.comm.memory_transport:receive:292 - 接收失败 server->yaml_client_1, 数据大小: 0 字节, 超时: 0.01s
+2025-09-02 18:50:27.716 | WARNING  | fedcl.comm.memory_transport:receive:274 - 接收超时 yaml_client_3->yaml_fed_server
+2025-09-02 18:50:27.716 | WARNING  | fedcl.comm.memory_transport:receive:292 - 接收失败 yaml_client_3->yaml_fed_server, 数据大小: 0 字节, 超时: 0.01s
+2025-09-02 18:50:27.721 | WARNING  | fedcl.comm.memory_transport:receive:274 - 接收超时 yaml_fed_server->yaml_client_1
+2025-09-02 18:50:27.721 | WARNING  | fedcl.comm.memory_transport:receive:292 - 接收失败 yaml_fed_server->yaml_client_1, 数据大小: 0 字节, 超时: 0.01s
+2025-09-02 18:50:27.727 | WARNING  | fedcl.comm.memory_transport:receive:274 - 接收超时 client_4->yaml_fed_server
+2025-09-02 18:50:27.727 | WARNING  | fedcl.comm.memory_transport:receive:292 - 接收失败 client_4->yaml_fed_server, 数据大小: 0 字节, 超时: 0.01s
+2025-09-02 18:50:27.731 | WARNING  | fedcl.comm.memory_transport:receive:274 - 接收超时 fed_server->yaml_client_1
+2025-09-02 18:50:27.731 | WARNING  | fedcl.comm.memory_transport:receive:292 - 接收失败 fed_server->yaml_client_1, 数据大小: 0 字节, 超时: 0.01s
+2025-09-02 18:50:27.738 | WARNING  | fedcl.comm.memory_transport:receive:274 - 接收超时 yaml_client_4->yaml_fed_server
+2025-09-02 18:50:27.738 | WARNING  | fedcl.comm.memory_transport:receive:292 - 接收失败 yaml_client_4->yaml_fed_server, 数据大小: 0 字节, 超时: 0.01s
+2025-09-02 18:50:27.742 | WARNING  | fedcl.comm.memory_transport:receive:274 - 接收超时 server->yaml_client_1
+2025-09-02 18:50:27.742 | WARNING  | fedcl.comm.memory_transport:receive:292 - 接收失败 server->yaml_client_1, 数据大小: 0 字节, 超时: 0.01s
+2025-09-02 18:50:27.749 | WARNING  | fedcl.comm.memory_transport:receive:274 - 接收超时 client_5->yaml_fed_server
+2025-09-02 18:50:27.749 | WARNING  | fedcl.comm.memory_transport:receive:292 - 接收失败 client_5->yaml_fed_server, 数据大小: 0 字节, 超时: 0.01s
+2025-09-02 18:50:27.754 | WARNING  | fedcl.comm.memory_transport:receive:274 - 接收超时 yaml_fed_server->yaml_client_1
+2025-09-02 18:50:27.755 | WARNING  | fedcl.comm.memory_transport:receive:292 - 接收失败 yaml_fed_server->yaml_client_1, 数据大小: 0 字节, 超时: 0.01s
+2025-09-02 18:50:27.760 | WARNING  | fedcl.comm.memory_transport:receive:274 - 接收超时 yaml_client_5->yaml_fed_server
+2025-09-02 18:50:27.760 | WARNING  | fedcl.comm.memory_transport:receive:292 - 接收失败 yaml_client_5->yaml_fed_server, 数据大小: 0 字节, 超时: 0.01s
+2025-09-02 18:50:27.766 | WARNING  | fedcl.comm.memory_transport:receive:274 - 接收超时 fed_server->yaml_client_1
+2025-09-02 18:50:27.766 | WARNING  | fedcl.comm.memory_transport:receive:292 - 接收失败 fed_server->yaml_client_1, 数据大小: 0 字节, 超时: 0.01s
+2025-09-02 18:50:27.771 | WARNING  | fedcl.comm.memory_transport:receive:274 - 接收超时 client_6->yaml_fed_server
+2025-09-02 18:50:27.771 | WARNING  | fedcl.comm.memory_transport:receive:292 - 接收失败 client_6->yaml_fed_server, 数据大小: 0 字节, 超时: 0.01s
+2025-09-02 18:50:27.777 | WARNING  | fedcl.comm.memory_transport:receive:274 - 接收超时 server->yaml_client_1
+2025-09-02 18:50:27.777 | WARNING  | fedcl.comm.memory_transport:receive:292 - 接收失败 server->yaml_client_1, 数据大小: 0 字节, 超时: 0.01s
+2025-09-02 18:50:27.782 | WARNING  | fedcl.comm.memory_transport:receive:274 - 接收超时 yaml_client_6->yaml_fed_server
+2025-09-02 18:50:27.783 | WARNING  | fedcl.comm.memory_transport:receive:292 - 接收失败 yaml_client_6->yaml_fed_server, 数据大小: 0 字节, 超时: 0.01s
+2025-09-02 18:50:27.786 | DEBUG    | fedcl.comm.memory_transport:receive:270 - [DEBUG] 检查消息 yaml_fed_server->yaml_client_1, 可用源: []
+2025-09-02 18:50:27.788 | WARNING  | fedcl.comm.memory_transport:receive:274 - 接收超时 yaml_fed_server->yaml_client_1
+2025-09-02 18:50:27.788 | WARNING  | fedcl.comm.memory_transport:receive:292 - 接收失败 yaml_fed_server->yaml_client_1, 数据大小: 0 字节, 超时: 0.01s
+2025-09-02 18:50:27.793 | WARNING  | fedcl.comm.memory_transport:receive:274 - 接收超时 client_7->yaml_fed_server
+2025-09-02 18:50:27.793 | WARNING  | fedcl.comm.memory_transport:receive:292 - 接收失败 client_7->yaml_fed_server, 数据大小: 0 字节, 超时: 0.01s
+2025-09-02 18:50:27.799 | WARNING  | fedcl.comm.memory_transport:receive:274 - 接收超时 fed_server->yaml_client_1
+2025-09-02 18:50:27.799 | WARNING  | fedcl.comm.memory_transport:receive:292 - 接收失败 fed_server->yaml_client_1, 数据大小: 0 字节, 超时: 0.01s
+2025-09-02 18:50:27.804 | WARNING  | fedcl.comm.memory_transport:receive:274 - 接收超时 yaml_client_7->yaml_fed_server
+2025-09-02 18:50:27.804 | WARNING  | fedcl.comm.memory_transport:receive:292 - 接收失败 yaml_client_7->yaml_fed_server, 数据大小: 0 字节, 超时: 0.01s
+2025-09-02 18:50:27.810 | WARNING  | fedcl.comm.memory_transport:receive:274 - 接收超时 server->yaml_client_1
+2025-09-02 18:50:27.811 | WARNING  | fedcl.comm.memory_transport:receive:292 - 接收失败 server->yaml_client_1, 数据大小: 0 字节, 超时: 0.01s
+2025-09-02 18:50:27.815 | WARNING  | fedcl.comm.memory_transport:receive:274 - 接收超时 client_8->yaml_fed_server
+2025-09-02 18:50:27.815 | WARNING  | fedcl.comm.memory_transport:receive:292 - 接收失败 client_8->yaml_fed_server, 数据大小: 0 字节, 超时: 0.01s
+2025-09-02 18:50:27.823 | WARNING  | fedcl.comm.memory_transport:receive:274 - 接收超时 yaml_fed_server->yaml_client_1
+2025-09-02 18:50:27.823 | WARNING  | fedcl.comm.memory_transport:receive:292 - 接收失败 yaml_fed_server->yaml_client_1, 数据大小: 0 字节, 超时: 0.01s
+2025-09-02 18:50:27.826 | WARNING  | fedcl.comm.memory_transport:receive:274 - 接收超时 yaml_client_8->yaml_fed_server
+2025-09-02 18:50:27.826 | WARNING  | fedcl.comm.memory_transport:receive:292 - 接收失败 yaml_client_8->yaml_fed_server, 数据大小: 0 字节, 超时: 0.01s
+2025-09-02 18:50:27.834 | INFO     | __main__:run_from_yaml_config:224 - 运行演示训练...
+2025-09-02 18:50:27.834 | INFO     | fedcl.fl.server:start_training:570 - 开始联邦学习训练，计划 2 轮
+2025-09-02 18:50:27.834 | INFO     | fedcl.fl.server:wait_for_learners:312 - 等待 1 个学习器注册（超时: 10.0s）
+2025-09-02 18:50:27.834 | INFO     | fedcl.fl.server:wait_for_learners:322 - 所需学习器已注册: ['yaml_client_1']
+2025-09-02 18:50:27.834 | INFO     | fedcl.fl.server:update_learners:479 - 更新学习器列表，当前数量: 1
+2025-09-02 18:50:27.834 | INFO     | fedcl.fl.server:start_training:584 - 开始第 1/2 轮训练
+2025-09-02 18:50:27.834 | WARNING  | fedcl.comm.memory_transport:receive:274 - 接收超时 fed_server->yaml_client_1
+2025-09-02 18:50:27.835 | WARNING  | fedcl.comm.memory_transport:receive:292 - 接收失败 fed_server->yaml_client_1, 数据大小: 0 字节, 超时: 0.01s
+2025-09-02 18:50:27.835 | DEBUG    | fedcl.comm.memory_transport:send:205 - [DEBUG] 存储数据到位置 [yaml_client_1][yaml_fed_server]
+2025-09-02 18:50:27.835 | DEBUG    | fedcl.comm.memory_transport:send:211 - 数据从 yaml_fed_server 发送到 yaml_client_1
+2025-09-02 18:50:27.835 | INFO     | fedcl.comm.memory_transport:send:214 - 发送 -> yaml_client_1 (156B): 成功
+2025-09-02 18:50:27.837 | WARNING  | fedcl.comm.memory_transport:receive:274 - 接收超时 client_9->yaml_fed_server
+2025-09-02 18:50:27.837 | WARNING  | fedcl.comm.memory_transport:receive:292 - 接收失败 client_9->yaml_fed_server, 数据大小: 0 字节, 超时: 0.01s
+2025-09-02 18:50:27.845 | WARNING  | fedcl.comm.memory_transport:receive:274 - 接收超时 server->yaml_client_1
+2025-09-02 18:50:27.845 | WARNING  | fedcl.comm.memory_transport:receive:292 - 接收失败 server->yaml_client_1, 数据大小: 0 字节, 超时: 0.01s
+2025-09-02 18:50:27.846 | DEBUG    | fedcl.comm.memory_transport:receive:254 - 从 yaml_fed_server 接收到 yaml_client_1
+2025-09-02 18:50:27.846 | INFO     | fedcl.comm.memory_transport:receive:257 - 接收成功 yaml_fed_server->yaml_client_1, 数据大小: 156 字节
+2025-09-02 18:50:27.846 | INFO     | fedcl.fl.client:_poll_for_rpc_messages:275 - 客户端接收到RPC消息从 yaml_fed_server: b'{"type": "rpc_call", "method": "train", "args": [null], "kwargs": {}, "request_id": "7b51e970-11cf-46d1-905d-5fcfa94bb441"}'
+2025-09-02 18:50:27.846 | INFO     | fedcl.fl.client:_handle_rpc_message:322 - 处理RPC调用: train
+2025-09-02 18:50:27.846 | INFO     | fedcl.methods.learners.test:train:48 - 开始本地训练
+2025-09-02 18:50:27.848 | WARNING  | fedcl.comm.memory_transport:receive:274 - 接收超时 yaml_client_9->yaml_fed_server
+2025-09-02 18:50:27.848 | WARNING  | fedcl.comm.memory_transport:receive:292 - 接收失败 yaml_client_9->yaml_fed_server, 数据大小: 0 字节, 超时: 0.01s
+2025-09-02 18:50:27.858 | WARNING  | fedcl.comm.memory_transport:receive:274 - 接收超时 client_10->yaml_fed_server
+2025-09-02 18:50:27.858 | WARNING  | fedcl.comm.memory_transport:receive:292 - 接收失败 client_10->yaml_fed_server, 数据大小: 0 字节, 超时: 0.01s
+2025-09-02 18:50:27.868 | WARNING  | fedcl.comm.memory_transport:receive:274 - 接收超时 yaml_client_10->yaml_fed_server
+2025-09-02 18:50:27.868 | WARNING  | fedcl.comm.memory_transport:receive:292 - 接收失败 yaml_client_10->yaml_fed_server, 数据大小: 0 字节, 超时: 0.01s
+2025-09-02 18:50:27.930 | WARNING  | fedcl.comm.memory_transport:receive:274 - 接收超时 yaml_client_1->yaml_fed_server
+2025-09-02 18:50:27.930 | WARNING  | fedcl.comm.memory_transport:receive:292 - 接收失败 yaml_client_1->yaml_fed_server, 数据大小: 0 字节, 超时: 0.01s
+2025-09-02 18:50:27.941 | WARNING  | fedcl.comm.memory_transport:receive:274 - 接收超时 client_1->yaml_fed_server
+2025-09-02 18:50:27.941 | WARNING  | fedcl.comm.memory_transport:receive:292 - 接收失败 client_1->yaml_fed_server, 数据大小: 0 字节, 超时: 0.01s
+2025-09-02 18:50:27.947 | DEBUG    | fedcl.comm.memory_transport:send:205 - [DEBUG] 存储数据到位置 [yaml_client_1][yaml_fed_server]
+2025-09-02 18:50:27.948 | DEBUG    | fedcl.comm.memory_transport:send:211 - 数据从 yaml_fed_server 发送到 yaml_client_1
+2025-09-02 18:50:27.948 | INFO     | fedcl.comm.memory_transport:send:214 - 发送 -> yaml_client_1 (248B): 成功
+2025-09-02 18:50:27.948 | DEBUG    | fedcl.fl.client:_handle_rpc_message:360 - 发送RPC响应到 yaml_fed_server: {'success': True, 'result': {'success': True, 'result': {'model': {'param1': 1.01, 'param2': 2.01}, 'metrics': {'loss': 0.1, 'accuracy': 0.95}, 'samples': 100}}, 'request_id': '7b51e970-11cf-46d1-905d-5fcfa94bb441'}
+2025-09-02 18:50:27.948 | INFO     | fedcl.fl.client:_handle_rpc_message:374 - 自定义学习器设置完成
+2025-09-02 18:50:27.951 | WARNING  | fedcl.comm.memory_transport:receive:274 - 接收超时 yaml_client_1->yaml_fed_server
+2025-09-02 18:50:27.952 | WARNING  | fedcl.comm.memory_transport:receive:292 - 接收失败 yaml_client_1->yaml_fed_server, 数据大小: 0 字节, 超时: 0.01s
+2025-09-02 18:50:27.958 | WARNING  | fedcl.comm.memory_transport:receive:274 - 接收超时 fed_server->yaml_client_1
+2025-09-02 18:50:27.959 | WARNING  | fedcl.comm.memory_transport:receive:292 - 接收失败 fed_server->yaml_client_1, 数据大小: 0 字节, 超时: 0.01s
+2025-09-02 18:50:27.962 | WARNING  | fedcl.comm.memory_transport:receive:274 - 接收超时 client_2->yaml_fed_server
+2025-09-02 18:50:27.962 | WARNING  | fedcl.comm.memory_transport:receive:292 - 接收失败 client_2->yaml_fed_server, 数据大小: 0 字节, 超时: 0.01s
+2025-09-02 18:50:27.969 | WARNING  | fedcl.comm.memory_transport:receive:274 - 接收超时 server->yaml_client_1
+2025-09-02 18:50:27.969 | WARNING  | fedcl.comm.memory_transport:receive:292 - 接收失败 server->yaml_client_1, 数据大小: 0 字节, 超时: 0.01s
+2025-09-02 18:50:27.970 | DEBUG    | fedcl.comm.memory_transport:receive:254 - 从 yaml_fed_server 接收到 yaml_client_1
+2025-09-02 18:50:27.971 | INFO     | fedcl.comm.memory_transport:receive:257 - 接收成功 yaml_fed_server->yaml_client_1, 数据大小: 248 字节
+2025-09-02 18:50:27.971 | INFO     | fedcl.fl.client:_poll_for_rpc_messages:275 - 客户端接收到RPC消息从 yaml_fed_server: b'{"success": true, "result": {"success": true, "result": {"model": {"param1": 1.01, "param2": 2.01}, "metrics": {"loss": 0.1, "accuracy": 0.95}, "samples": 100}}, "request_id": "7b51e970-11cf-46d1-905d-5fcfa94bb441"}'
+2025-09-02 18:50:27.971 | INFO     | fedcl.fl.client:_handle_rpc_message:374 - 自定义学习器设置完成
+2025-09-02 18:50:27.973 | WARNING  | fedcl.comm.memory_transport:receive:274 - 接收超时 yaml_client_2->yaml_fed_server
+2025-09-02 18:50:27.973 | WARNING  | fedcl.comm.memory_transport:receive:292 - 接收失败 yaml_client_2->yaml_fed_server, 数据大小: 0 字节, 超时: 0.01s
+2025-09-02 18:50:27.981 | WARNING  | fedcl.comm.memory_transport:receive:274 - 接收超时 fed_server->yaml_client_1
+2025-09-02 18:50:27.981 | WARNING  | fedcl.comm.memory_transport:receive:292 - 接收失败 fed_server->yaml_client_1, 数据大小: 0 字节, 超时: 0.01s
+2025-09-02 18:50:27.985 | WARNING  | fedcl.comm.memory_transport:receive:274 - 接收超时 client_3->yaml_fed_server
+2025-09-02 18:50:27.985 | WARNING  | fedcl.comm.memory_transport:receive:292 - 接收失败 client_3->yaml_fed_server, 数据大小: 0 字节, 超时: 0.01s
+2025-09-02 18:50:27.992 | WARNING  | fedcl.comm.memory_transport:receive:274 - 接收超时 server->yaml_client_1
+2025-09-02 18:50:27.992 | WARNING  | fedcl.comm.memory_transport:receive:292 - 接收失败 server->yaml_client_1, 数据大小: 0 字节, 超时: 0.01s
+2025-09-02 18:50:27.995 | WARNING  | fedcl.comm.memory_transport:receive:274 - 接收超时 yaml_client_3->yaml_fed_server
+2025-09-02 18:50:27.995 | WARNING  | fedcl.comm.memory_transport:receive:292 - 接收失败 yaml_client_3->yaml_fed_server, 数据大小: 0 字节, 超时: 0.01s
+2025-09-02 18:50:28.004 | WARNING  | fedcl.comm.memory_transport:receive:274 - 接收超时 yaml_fed_server->yaml_client_1
+2025-09-02 18:50:28.004 | WARNING  | fedcl.comm.memory_transport:receive:292 - 接收失败 yaml_fed_server->yaml_client_1, 数据大小: 0 字节, 超时: 0.01s
+2025-09-02 18:50:28.006 | WARNING  | fedcl.comm.memory_transport:receive:274 - 接收超时 client_4->yaml_fed_server
+2025-09-02 18:50:28.006 | WARNING  | fedcl.comm.memory_transport:receive:292 - 接收失败 client_4->yaml_fed_server, 数据大小: 0 字节, 超时: 0.01s
+2025-09-02 18:50:28.015 | WARNING  | fedcl.comm.memory_transport:receive:274 - 接收超时 fed_server->yaml_client_1
+2025-09-02 18:50:28.015 | WARNING  | fedcl.comm.memory_transport:receive:292 - 接收失败 fed_server->yaml_client_1, 数据大小: 0 字节, 超时: 0.01s
+2025-09-02 18:50:28.017 | WARNING  | fedcl.comm.memory_transport:receive:274 - 接收超时 yaml_client_4->yaml_fed_server
+2025-09-02 18:50:28.017 | WARNING  | fedcl.comm.memory_transport:receive:292 - 接收失败 yaml_client_4->yaml_fed_server, 数据大小: 0 字节, 超时: 0.01s
+2025-09-02 18:50:28.026 | WARNING  | fedcl.comm.memory_transport:receive:274 - 接收超时 server->yaml_client_1
+2025-09-02 18:50:28.026 | WARNING  | fedcl.comm.memory_transport:receive:292 - 接收失败 server->yaml_client_1, 数据大小: 0 字节, 超时: 0.01s
+2025-09-02 18:50:28.028 | WARNING  | fedcl.comm.memory_transport:receive:274 - 接收超时 client_5->yaml_fed_server
+2025-09-02 18:50:28.029 | WARNING  | fedcl.comm.memory_transport:receive:292 - 接收失败 client_5->yaml_fed_server, 数据大小: 0 字节, 超时: 0.01s
+2025-09-02 18:50:28.038 | WARNING  | fedcl.comm.memory_transport:receive:274 - 接收超时 yaml_fed_server->yaml_client_1
+2025-09-02 18:50:28.038 | WARNING  | fedcl.comm.memory_transport:receive:292 - 接收失败 yaml_fed_server->yaml_client_1, 数据大小: 0 字节, 超时: 0.01s
+2025-09-02 18:50:28.040 | WARNING  | fedcl.comm.memory_transport:receive:274 - 接收超时 yaml_client_5->yaml_fed_server
+2025-09-02 18:50:28.040 | WARNING  | fedcl.comm.memory_transport:receive:292 - 接收失败 yaml_client_5->yaml_fed_server, 数据大小: 0 字节, 超时: 0.01s
+2025-09-02 18:50:28.050 | WARNING  | fedcl.comm.memory_transport:receive:274 - 接收超时 fed_server->yaml_client_1
+2025-09-02 18:50:28.050 | WARNING  | fedcl.comm.memory_transport:receive:292 - 接收失败 fed_server->yaml_client_1, 数据大小: 0 字节, 超时: 0.01s
+2025-09-02 18:50:28.051 | WARNING  | fedcl.comm.memory_transport:receive:274 - 接收超时 client_6->yaml_fed_server
+2025-09-02 18:50:28.051 | WARNING  | fedcl.comm.memory_transport:receive:292 - 接收失败 client_6->yaml_fed_server, 数据大小: 0 字节, 超时: 0.01s
+2025-09-02 18:50:28.061 | WARNING  | fedcl.comm.memory_transport:receive:274 - 接收超时 server->yaml_client_1
+2025-09-02 18:50:28.061 | WARNING  | fedcl.comm.memory_transport:receive:292 - 接收失败 server->yaml_client_1, 数据大小: 0 字节, 超时: 0.01s
+2025-09-02 18:50:28.062 | WARNING  | fedcl.comm.memory_transport:receive:274 - 接收超时 yaml_client_6->yaml_fed_server
+2025-09-02 18:50:28.062 | WARNING  | fedcl.comm.memory_transport:receive:292 - 接收失败 yaml_client_6->yaml_fed_server, 数据大小: 0 字节, 超时: 0.01s
+2025-09-02 18:50:28.073 | WARNING  | fedcl.comm.memory_transport:receive:274 - 接收超时 yaml_fed_server->yaml_client_1
+2025-09-02 18:50:28.073 | WARNING  | fedcl.comm.memory_transport:receive:292 - 接收失败 yaml_fed_server->yaml_client_1, 数据大小: 0 字节, 超时: 0.01s
+2025-09-02 18:50:28.073 | DEBUG    | fedcl.fl.client:_poll_for_rpc_messages:289 - RPC轮询检查 yaml_fed_server: 无消息 (计数: 100)
+2025-09-02 18:50:28.073 | WARNING  | fedcl.comm.memory_transport:receive:274 - 接收超时 client_7->yaml_fed_server
+2025-09-02 18:50:28.073 | WARNING  | fedcl.comm.memory_transport:receive:292 - 接收失败 client_7->yaml_fed_server, 数据大小: 0 字节, 超时: 0.01s
+2025-09-02 18:50:28.084 | WARNING  | fedcl.comm.memory_transport:receive:274 - 接收超时 fed_server->yaml_client_1
+2025-09-02 18:50:28.084 | WARNING  | fedcl.comm.memory_transport:receive:292 - 接收失败 fed_server->yaml_client_1, 数据大小: 0 字节, 超时: 0.01s
+2025-09-02 18:50:28.085 | WARNING  | fedcl.comm.memory_transport:receive:274 - 接收超时 yaml_client_7->yaml_fed_server
+2025-09-02 18:50:28.085 | WARNING  | fedcl.comm.memory_transport:receive:292 - 接收失败 yaml_client_7->yaml_fed_server, 数据大小: 0 字节, 超时: 0.01s
+2025-09-02 18:50:28.096 | WARNING  | fedcl.comm.memory_transport:receive:274 - 接收超时 server->yaml_client_1
+2025-09-02 18:50:28.096 | WARNING  | fedcl.comm.memory_transport:receive:292 - 接收失败 server->yaml_client_1, 数据大小: 0 字节, 超时: 0.01s
+2025-09-02 18:50:28.096 | WARNING  | fedcl.comm.memory_transport:receive:274 - 接收超时 client_8->yaml_fed_server
+2025-09-02 18:50:28.096 | WARNING  | fedcl.comm.memory_transport:receive:292 - 接收失败 client_8->yaml_fed_server, 数据大小: 0 字节, 超时: 0.01s
+2025-09-02 18:50:28.101 | DEBUG    | fedcl.comm.memory_transport:receive:270 - [DEBUG] 检查消息 yaml_fed_server->yaml_client_1, 可用源: []
+2025-09-02 18:50:28.107 | WARNING  | fedcl.comm.memory_transport:receive:274 - 接收超时 yaml_client_8->yaml_fed_server
+2025-09-02 18:50:28.107 | WARNING  | fedcl.comm.memory_transport:receive:292 - 接收失败 yaml_client_8->yaml_fed_server, 数据大小: 0 字节, 超时: 0.01s
+2025-09-02 18:50:28.108 | WARNING  | fedcl.comm.memory_transport:receive:274 - 接收超时 yaml_fed_server->yaml_client_1
+2025-09-02 18:50:28.108 | WARNING  | fedcl.comm.memory_transport:receive:292 - 接收失败 yaml_fed_server->yaml_client_1, 数据大小: 0 字节, 超时: 0.01s
+2025-09-02 18:50:28.118 | WARNING  | fedcl.comm.memory_transport:receive:274 - 接收超时 client_9->yaml_fed_server
+2025-09-02 18:50:28.118 | WARNING  | fedcl.comm.memory_transport:receive:292 - 接收失败 client_9->yaml_fed_server, 数据大小: 0 字节, 超时: 0.01s
+2025-09-02 18:50:28.119 | WARNING  | fedcl.comm.memory_transport:receive:274 - 接收超时 fed_server->yaml_client_1
+2025-09-02 18:50:28.120 | WARNING  | fedcl.comm.memory_transport:receive:292 - 接收失败 fed_server->yaml_client_1, 数据大小: 0 字节, 超时: 0.01s
+2025-09-02 18:50:28.129 | WARNING  | fedcl.comm.memory_transport:receive:274 - 接收超时 yaml_client_9->yaml_fed_server
+2025-09-02 18:50:28.129 | WARNING  | fedcl.comm.memory_transport:receive:292 - 接收失败 yaml_client_9->yaml_fed_server, 数据大小: 0 字节, 超时: 0.01s
+2025-09-02 18:50:28.131 | WARNING  | fedcl.comm.memory_transport:receive:274 - 接收超时 server->yaml_client_1
+2025-09-02 18:50:28.131 | WARNING  | fedcl.comm.memory_transport:receive:292 - 接收失败 server->yaml_client_1, 数据大小: 0 字节, 超时: 0.01s
+2025-09-02 18:50:28.141 | WARNING  | fedcl.comm.memory_transport:receive:274 - 接收超时 client_10->yaml_fed_server
+2025-09-02 18:50:28.141 | WARNING  | fedcl.comm.memory_transport:receive:292 - 接收失败 client_10->yaml_fed_server, 数据大小: 0 字节, 超时: 0.01s
+2025-09-02 18:50:28.143 | WARNING  | fedcl.comm.memory_transport:receive:274 - 接收超时 yaml_fed_server->yaml_client_1
+2025-09-02 18:50:28.143 | WARNING  | fedcl.comm.memory_transport:receive:292 - 接收失败 yaml_fed_server->yaml_client_1, 数据大小: 0 字节, 超时: 0.01s
+2025-09-02 18:50:28.152 | WARNING  | fedcl.comm.memory_transport:receive:274 - 接收超时 yaml_client_10->yaml_fed_server
+2025-09-02 18:50:28.152 | WARNING  | fedcl.comm.memory_transport:receive:292 - 接收失败 yaml_client_10->yaml_fed_server, 数据大小: 0 字节, 超时: 0.01s
+2025-09-02 18:50:28.154 | WARNING  | fedcl.comm.memory_transport:receive:274 - 接收超时 fed_server->yaml_client_1
+2025-09-02 18:50:28.154 | WARNING  | fedcl.comm.memory_transport:receive:292 - 接收失败 fed_server->yaml_client_1, 数据大小: 0 字节, 超时: 0.01s
+2025-09-02 18:50:28.165 | WARNING  | fedcl.comm.memory_transport:receive:274 - 接收超时 server->yaml_client_1
+2025-09-02 18:50:28.165 | WARNING  | fedcl.comm.memory_transport:receive:292 - 接收失败 server->yaml_client_1, 数据大小: 0 字节, 超时: 0.01s
+2025-09-02 18:50:28.177 | WARNING  | fedcl.comm.memory_transport:receive:274 - 接收超时 yaml_fed_server->yaml_client_1
+2025-09-02 18:50:28.177 | WARNING  | fedcl.comm.memory_transport:receive:292 - 接收失败 yaml_fed_server->yaml_client_1, 数据大小: 0 字节, 超时: 0.01s
+2025-09-02 18:50:28.187 | WARNING  | fedcl.comm.memory_transport:receive:274 - 接收超时 fed_server->yaml_client_1
+2025-09-02 18:50:28.187 | WARNING  | fedcl.comm.memory_transport:receive:292 - 接收失败 fed_server->yaml_client_1, 数据大小: 0 字节, 超时: 0.01s
+2025-09-02 18:50:28.197 | WARNING  | fedcl.comm.memory_transport:receive:274 - 接收超时 server->yaml_client_1
+2025-09-02 18:50:28.197 | WARNING  | fedcl.comm.memory_transport:receive:292 - 接收失败 server->yaml_client_1, 数据大小: 0 字节, 超时: 0.01s
+2025-09-02 18:50:28.208 | WARNING  | fedcl.comm.memory_transport:receive:274 - 接收超时 yaml_fed_server->yaml_client_1
+2025-09-02 18:50:28.208 | WARNING  | fedcl.comm.memory_transport:receive:292 - 接收失败 yaml_fed_server->yaml_client_1, 数据大小: 0 字节, 超时: 0.01s
+2025-09-02 18:50:28.213 | WARNING  | fedcl.comm.memory_transport:receive:274 - 接收超时 yaml_client_1->yaml_fed_server
+2025-09-02 18:50:28.213 | WARNING  | fedcl.comm.memory_transport:receive:292 - 接收失败 yaml_client_1->yaml_fed_server, 数据大小: 0 字节, 超时: 0.01s
+2025-09-02 18:50:28.219 | WARNING  | fedcl.comm.memory_transport:receive:274 - 接收超时 fed_server->yaml_client_1
+2025-09-02 18:50:28.219 | WARNING  | fedcl.comm.memory_transport:receive:292 - 接收失败 fed_server->yaml_client_1, 数据大小: 0 字节, 超时: 0.01s
+2025-09-02 18:50:28.224 | WARNING  | fedcl.comm.memory_transport:receive:274 - 接收超时 client_1->yaml_fed_server
+2025-09-02 18:50:28.224 | WARNING  | fedcl.comm.memory_transport:receive:292 - 接收失败 client_1->yaml_fed_server, 数据大小: 0 字节, 超时: 0.01s
+2025-09-02 18:50:28.229 | WARNING  | fedcl.comm.memory_transport:receive:274 - 接收超时 server->yaml_client_1
+2025-09-02 18:50:28.229 | WARNING  | fedcl.comm.memory_transport:receive:292 - 接收失败 server->yaml_client_1, 数据大小: 0 字节, 超时: 0.01s
+2025-09-02 18:50:28.234 | WARNING  | fedcl.comm.memory_transport:receive:274 - 接收超时 yaml_client_1->yaml_fed_server
+2025-09-02 18:50:28.234 | WARNING  | fedcl.comm.memory_transport:receive:292 - 接收失败 yaml_client_1->yaml_fed_server, 数据大小: 0 字节, 超时: 0.01s
+2025-09-02 18:50:28.241 | WARNING  | fedcl.comm.memory_transport:receive:274 - 接收超时 yaml_fed_server->yaml_client_1
+2025-09-02 18:50:28.241 | WARNING  | fedcl.comm.memory_transport:receive:292 - 接收失败 yaml_fed_server->yaml_client_1, 数据大小: 0 字节, 超时: 0.01s
+2025-09-02 18:50:28.245 | WARNING  | fedcl.comm.memory_transport:receive:274 - 接收超时 client_2->yaml_fed_server
+2025-09-02 18:50:28.245 | WARNING  | fedcl.comm.memory_transport:receive:292 - 接收失败 client_2->yaml_fed_server, 数据大小: 0 字节, 超时: 0.01s
+2025-09-02 18:50:28.252 | WARNING  | fedcl.comm.memory_transport:receive:274 - 接收超时 fed_server->yaml_client_1
+2025-09-02 18:50:28.252 | WARNING  | fedcl.comm.memory_transport:receive:292 - 接收失败 fed_server->yaml_client_1, 数据大小: 0 字节, 超时: 0.01s
+2025-09-02 18:50:28.255 | WARNING  | fedcl.comm.memory_transport:receive:274 - 接收超时 yaml_client_2->yaml_fed_server
+2025-09-02 18:50:28.255 | WARNING  | fedcl.comm.memory_transport:receive:292 - 接收失败 yaml_client_2->yaml_fed_server, 数据大小: 0 字节, 超时: 0.01s
+2025-09-02 18:50:28.262 | WARNING  | fedcl.comm.memory_transport:receive:274 - 接收超时 server->yaml_client_1
+2025-09-02 18:50:28.262 | WARNING  | fedcl.comm.memory_transport:receive:292 - 接收失败 server->yaml_client_1, 数据大小: 0 字节, 超时: 0.01s
+2025-09-02 18:50:28.266 | WARNING  | fedcl.comm.memory_transport:receive:274 - 接收超时 client_3->yaml_fed_server
+2025-09-02 18:50:28.266 | WARNING  | fedcl.comm.memory_transport:receive:292 - 接收失败 client_3->yaml_fed_server, 数据大小: 0 字节, 超时: 0.01s
+2025-09-02 18:50:28.266 | DEBUG    | fedcl.comm.memory_transport:receive:270 - [DEBUG] 检查消息 yaml_fed_server->yaml_client_1, 可用源: []
+2025-09-02 18:50:28.274 | WARNING  | fedcl.comm.memory_transport:receive:274 - 接收超时 yaml_fed_server->yaml_client_1
+2025-09-02 18:50:28.274 | WARNING  | fedcl.comm.memory_transport:receive:292 - 接收失败 yaml_fed_server->yaml_client_1, 数据大小: 0 字节, 超时: 0.01s
+2025-09-02 18:50:28.276 | WARNING  | fedcl.comm.memory_transport:receive:274 - 接收超时 yaml_client_3->yaml_fed_server
+2025-09-02 18:50:28.276 | WARNING  | fedcl.comm.memory_transport:receive:292 - 接收失败 yaml_client_3->yaml_fed_server, 数据大小: 0 字节, 超时: 0.01s
+2025-09-02 18:50:28.285 | WARNING  | fedcl.comm.memory_transport:receive:274 - 接收超时 fed_server->yaml_client_1
+2025-09-02 18:50:28.285 | WARNING  | fedcl.comm.memory_transport:receive:292 - 接收失败 fed_server->yaml_client_1, 数据大小: 0 字节, 超时: 0.01s
+2025-09-02 18:50:28.287 | WARNING  | fedcl.comm.memory_transport:receive:274 - 接收超时 client_4->yaml_fed_server
+2025-09-02 18:50:28.287 | WARNING  | fedcl.comm.memory_transport:receive:292 - 接收失败 client_4->yaml_fed_server, 数据大小: 0 字节, 超时: 0.01s
+2025-09-02 18:50:28.296 | WARNING  | fedcl.comm.memory_transport:receive:274 - 接收超时 server->yaml_client_1
+2025-09-02 18:50:28.296 | WARNING  | fedcl.comm.memory_transport:receive:292 - 接收失败 server->yaml_client_1, 数据大小: 0 字节, 超时: 0.01s
+2025-09-02 18:50:28.298 | WARNING  | fedcl.comm.memory_transport:receive:274 - 接收超时 yaml_client_4->yaml_fed_server
+2025-09-02 18:50:28.299 | WARNING  | fedcl.comm.memory_transport:receive:292 - 接收失败 yaml_client_4->yaml_fed_server, 数据大小: 0 字节, 超时: 0.01s
+2025-09-02 18:50:28.308 | WARNING  | fedcl.comm.memory_transport:receive:274 - 接收超时 yaml_fed_server->yaml_client_1
+2025-09-02 18:50:28.309 | WARNING  | fedcl.comm.memory_transport:receive:292 - 接收失败 yaml_fed_server->yaml_client_1, 数据大小: 0 字节, 超时: 0.01s
+2025-09-02 18:50:28.310 | WARNING  | fedcl.comm.memory_transport:receive:274 - 接收超时 client_5->yaml_fed_server
+2025-09-02 18:50:28.310 | WARNING  | fedcl.comm.memory_transport:receive:292 - 接收失败 client_5->yaml_fed_server, 数据大小: 0 字节, 超时: 0.01s
+2025-09-02 18:50:28.320 | WARNING  | fedcl.comm.memory_transport:receive:274 - 接收超时 fed_server->yaml_client_1
+2025-09-02 18:50:28.320 | WARNING  | fedcl.comm.memory_transport:receive:292 - 接收失败 fed_server->yaml_client_1, 数据大小: 0 字节, 超时: 0.01s
+2025-09-02 18:50:28.321 | WARNING  | fedcl.comm.memory_transport:receive:274 - 接收超时 yaml_client_5->yaml_fed_server
+2025-09-02 18:50:28.321 | WARNING  | fedcl.comm.memory_transport:receive:292 - 接收失败 yaml_client_5->yaml_fed_server, 数据大小: 0 字节, 超时: 0.01s
+2025-09-02 18:50:28.331 | WARNING  | fedcl.comm.memory_transport:receive:274 - 接收超时 server->yaml_client_1
+2025-09-02 18:50:28.331 | WARNING  | fedcl.comm.memory_transport:receive:292 - 接收失败 server->yaml_client_1, 数据大小: 0 字节, 超时: 0.01s
+2025-09-02 18:50:28.332 | WARNING  | fedcl.comm.memory_transport:receive:274 - 接收超时 client_6->yaml_fed_server
+2025-09-02 18:50:28.332 | WARNING  | fedcl.comm.memory_transport:receive:292 - 接收失败 client_6->yaml_fed_server, 数据大小: 0 字节, 超时: 0.01s
+2025-09-02 18:50:28.343 | WARNING  | fedcl.comm.memory_transport:receive:274 - 接收超时 yaml_client_6->yaml_fed_server
+2025-09-02 18:50:28.343 | WARNING  | fedcl.comm.memory_transport:receive:292 - 接收失败 yaml_client_6->yaml_fed_server, 数据大小: 0 字节, 超时: 0.01s
+2025-09-02 18:50:28.343 | WARNING  | fedcl.comm.memory_transport:receive:274 - 接收超时 yaml_fed_server->yaml_client_1
+2025-09-02 18:50:28.343 | WARNING  | fedcl.comm.memory_transport:receive:292 - 接收失败 yaml_fed_server->yaml_client_1, 数据大小: 0 字节, 超时: 0.01s
+2025-09-02 18:50:28.354 | WARNING  | fedcl.comm.memory_transport:receive:274 - 接收超时 client_7->yaml_fed_server
+2025-09-02 18:50:28.354 | WARNING  | fedcl.comm.memory_transport:receive:292 - 接收失败 client_7->yaml_fed_server, 数据大小: 0 字节, 超时: 0.01s
+2025-09-02 18:50:28.354 | WARNING  | fedcl.comm.memory_transport:receive:274 - 接收超时 fed_server->yaml_client_1
+2025-09-02 18:50:28.355 | WARNING  | fedcl.comm.memory_transport:receive:292 - 接收失败 fed_server->yaml_client_1, 数据大小: 0 字节, 超时: 0.01s
+2025-09-02 18:50:28.365 | WARNING  | fedcl.comm.memory_transport:receive:274 - 接收超时 yaml_client_7->yaml_fed_server
+2025-09-02 18:50:28.365 | WARNING  | fedcl.comm.memory_transport:receive:292 - 接收失败 yaml_client_7->yaml_fed_server, 数据大小: 0 字节, 超时: 0.01s
+2025-09-02 18:50:28.366 | WARNING  | fedcl.comm.memory_transport:receive:274 - 接收超时 server->yaml_client_1
+2025-09-02 18:50:28.366 | WARNING  | fedcl.comm.memory_transport:receive:292 - 接收失败 server->yaml_client_1, 数据大小: 0 字节, 超时: 0.01s
+2025-09-02 18:50:28.377 | WARNING  | fedcl.comm.memory_transport:receive:274 - 接收超时 client_8->yaml_fed_server
+2025-09-02 18:50:28.377 | WARNING  | fedcl.comm.memory_transport:receive:292 - 接收失败 client_8->yaml_fed_server, 数据大小: 0 字节, 超时: 0.01s
+2025-09-02 18:50:28.378 | WARNING  | fedcl.comm.memory_transport:receive:274 - 接收超时 yaml_fed_server->yaml_client_1
+2025-09-02 18:50:28.378 | WARNING  | fedcl.comm.memory_transport:receive:292 - 接收失败 yaml_fed_server->yaml_client_1, 数据大小: 0 字节, 超时: 0.01s
+2025-09-02 18:50:28.388 | WARNING  | fedcl.comm.memory_transport:receive:274 - 接收超时 yaml_client_8->yaml_fed_server
+2025-09-02 18:50:28.388 | WARNING  | fedcl.comm.memory_transport:receive:292 - 接收失败 yaml_client_8->yaml_fed_server, 数据大小: 0 字节, 超时: 0.01s
+2025-09-02 18:50:28.389 | WARNING  | fedcl.comm.memory_transport:receive:274 - 接收超时 fed_server->yaml_client_1
+2025-09-02 18:50:28.389 | WARNING  | fedcl.comm.memory_transport:receive:292 - 接收失败 fed_server->yaml_client_1, 数据大小: 0 字节, 超时: 0.01s
+2025-09-02 18:50:28.399 | WARNING  | fedcl.comm.memory_transport:receive:274 - 接收超时 client_9->yaml_fed_server
+2025-09-02 18:50:28.399 | WARNING  | fedcl.comm.memory_transport:receive:292 - 接收失败 client_9->yaml_fed_server, 数据大小: 0 字节, 超时: 0.01s
+2025-09-02 18:50:28.400 | WARNING  | fedcl.comm.memory_transport:receive:274 - 接收超时 server->yaml_client_1
+2025-09-02 18:50:28.400 | WARNING  | fedcl.comm.memory_transport:receive:292 - 接收失败 server->yaml_client_1, 数据大小: 0 字节, 超时: 0.01s
+2025-09-02 18:50:28.410 | WARNING  | fedcl.comm.memory_transport:receive:274 - 接收超时 yaml_client_9->yaml_fed_server
+2025-09-02 18:50:28.410 | WARNING  | fedcl.comm.memory_transport:receive:292 - 接收失败 yaml_client_9->yaml_fed_server, 数据大小: 0 字节, 超时: 0.01s
+2025-09-02 18:50:28.411 | DEBUG    | fedcl.comm.memory_transport:receive:270 - [DEBUG] 检查消息 yaml_fed_server->yaml_client_1, 可用源: []
+2025-09-02 18:50:28.411 | WARNING  | fedcl.comm.memory_transport:receive:274 - 接收超时 yaml_fed_server->yaml_client_1
+2025-09-02 18:50:28.412 | WARNING  | fedcl.comm.memory_transport:receive:292 - 接收失败 yaml_fed_server->yaml_client_1, 数据大小: 0 字节, 超时: 0.01s
+2025-09-02 18:50:28.420 | WARNING  | fedcl.comm.memory_transport:receive:274 - 接收超时 client_10->yaml_fed_server
+2025-09-02 18:50:28.420 | WARNING  | fedcl.comm.memory_transport:receive:292 - 接收失败 client_10->yaml_fed_server, 数据大小: 0 字节, 超时: 0.01s
+2025-09-02 18:50:28.423 | WARNING  | fedcl.comm.memory_transport:receive:274 - 接收超时 fed_server->yaml_client_1
+2025-09-02 18:50:28.423 | WARNING  | fedcl.comm.memory_transport:receive:292 - 接收失败 fed_server->yaml_client_1, 数据大小: 0 字节, 超时: 0.01s
+2025-09-02 18:50:28.432 | WARNING  | fedcl.comm.memory_transport:receive:274 - 接收超时 yaml_client_10->yaml_fed_server
+2025-09-02 18:50:28.432 | WARNING  | fedcl.comm.memory_transport:receive:292 - 接收失败 yaml_client_10->yaml_fed_server, 数据大小: 0 字节, 超时: 0.01s
+2025-09-02 18:50:28.434 | WARNING  | fedcl.comm.memory_transport:receive:274 - 接收超时 server->yaml_client_1
+2025-09-02 18:50:28.434 | WARNING  | fedcl.comm.memory_transport:receive:292 - 接收失败 server->yaml_client_1, 数据大小: 0 字节, 超时: 0.01s
+2025-09-02 18:50:28.446 | WARNING  | fedcl.comm.memory_transport:receive:274 - 接收超时 yaml_fed_server->yaml_client_1
+2025-09-02 18:50:28.446 | WARNING  | fedcl.comm.memory_transport:receive:292 - 接收失败 yaml_fed_server->yaml_client_1, 数据大小: 0 字节, 超时: 0.01s
+2025-09-02 18:50:28.457 | WARNING  | fedcl.comm.memory_transport:receive:274 - 接收超时 fed_server->yaml_client_1
+2025-09-02 18:50:28.457 | WARNING  | fedcl.comm.memory_transport:receive:292 - 接收失败 fed_server->yaml_client_1, 数据大小: 0 字节, 超时: 0.01s
+2025-09-02 18:50:28.468 | WARNING  | fedcl.comm.memory_transport:receive:274 - 接收超时 server->yaml_client_1
+2025-09-02 18:50:28.468 | WARNING  | fedcl.comm.memory_transport:receive:292 - 接收失败 server->yaml_client_1, 数据大小: 0 字节, 超时: 0.01s
+2025-09-02 18:50:28.480 | WARNING  | fedcl.comm.memory_transport:receive:274 - 接收超时 yaml_fed_server->yaml_client_1
+2025-09-02 18:50:28.480 | WARNING  | fedcl.comm.memory_transport:receive:292 - 接收失败 yaml_fed_server->yaml_client_1, 数据大小: 0 字节, 超时: 0.01s
+2025-09-02 18:50:28.490 | WARNING  | fedcl.comm.memory_transport:receive:274 - 接收超时 fed_server->yaml_client_1
+2025-09-02 18:50:28.490 | WARNING  | fedcl.comm.memory_transport:receive:292 - 接收失败 fed_server->yaml_client_1, 数据大小: 0 字节, 超时: 0.01s
+2025-09-02 18:50:28.492 | WARNING  | fedcl.comm.memory_transport:receive:274 - 接收超时 yaml_client_1->yaml_fed_server
+2025-09-02 18:50:28.492 | WARNING  | fedcl.comm.memory_transport:receive:292 - 接收失败 yaml_client_1->yaml_fed_server, 数据大小: 0 字节, 超时: 0.01s
+2025-09-02 18:50:28.500 | WARNING  | fedcl.comm.memory_transport:receive:274 - 接收超时 server->yaml_client_1
+2025-09-02 18:50:28.500 | WARNING  | fedcl.comm.memory_transport:receive:292 - 接收失败 server->yaml_client_1, 数据大小: 0 字节, 超时: 0.01s
+2025-09-02 18:50:28.503 | WARNING  | fedcl.comm.memory_transport:receive:274 - 接收超时 client_1->yaml_fed_server
+2025-09-02 18:50:28.503 | WARNING  | fedcl.comm.memory_transport:receive:292 - 接收失败 client_1->yaml_fed_server, 数据大小: 0 字节, 超时: 0.01s
+2025-09-02 18:50:28.512 | WARNING  | fedcl.comm.memory_transport:receive:274 - 接收超时 yaml_fed_server->yaml_client_1
+2025-09-02 18:50:28.512 | WARNING  | fedcl.comm.memory_transport:receive:292 - 接收失败 yaml_fed_server->yaml_client_1, 数据大小: 0 字节, 超时: 0.01s
+2025-09-02 18:50:28.513 | WARNING  | fedcl.comm.memory_transport:receive:274 - 接收超时 yaml_client_1->yaml_fed_server
+2025-09-02 18:50:28.513 | WARNING  | fedcl.comm.memory_transport:receive:292 - 接收失败 yaml_client_1->yaml_fed_server, 数据大小: 0 字节, 超时: 0.01s
+2025-09-02 18:50:28.523 | WARNING  | fedcl.comm.memory_transport:receive:274 - 接收超时 fed_server->yaml_client_1
+2025-09-02 18:50:28.523 | WARNING  | fedcl.comm.memory_transport:receive:292 - 接收失败 fed_server->yaml_client_1, 数据大小: 0 字节, 超时: 0.01s
+2025-09-02 18:50:28.524 | WARNING  | fedcl.comm.memory_transport:receive:274 - 接收超时 client_2->yaml_fed_server
+2025-09-02 18:50:28.524 | WARNING  | fedcl.comm.memory_transport:receive:292 - 接收失败 client_2->yaml_fed_server, 数据大小: 0 字节, 超时: 0.01s
+2025-09-02 18:50:28.533 | WARNING  | fedcl.comm.memory_transport:receive:274 - 接收超时 server->yaml_client_1
+2025-09-02 18:50:28.533 | WARNING  | fedcl.comm.memory_transport:receive:292 - 接收失败 server->yaml_client_1, 数据大小: 0 字节, 超时: 0.01s
+2025-09-02 18:50:28.534 | WARNING  | fedcl.comm.memory_transport:receive:274 - 接收超时 yaml_client_2->yaml_fed_server
+2025-09-02 18:50:28.534 | WARNING  | fedcl.comm.memory_transport:receive:292 - 接收失败 yaml_client_2->yaml_fed_server, 数据大小: 0 字节, 超时: 0.01s
+2025-09-02 18:50:28.545 | WARNING  | fedcl.comm.memory_transport:receive:274 - 接收超时 client_3->yaml_fed_server
+2025-09-02 18:50:28.545 | WARNING  | fedcl.comm.memory_transport:receive:292 - 接收失败 client_3->yaml_fed_server, 数据大小: 0 字节, 超时: 0.01s
+2025-09-02 18:50:28.545 | WARNING  | fedcl.comm.memory_transport:receive:274 - 接收超时 yaml_fed_server->yaml_client_1
+2025-09-02 18:50:28.545 | WARNING  | fedcl.comm.memory_transport:receive:292 - 接收失败 yaml_fed_server->yaml_client_1, 数据大小: 0 字节, 超时: 0.01s
+2025-09-02 18:50:28.555 | WARNING  | fedcl.comm.memory_transport:receive:274 - 接收超时 yaml_client_3->yaml_fed_server
+2025-09-02 18:50:28.555 | WARNING  | fedcl.comm.memory_transport:receive:292 - 接收失败 yaml_client_3->yaml_fed_server, 数据大小: 0 字节, 超时: 0.01s
+2025-09-02 18:50:28.555 | WARNING  | fedcl.comm.memory_transport:receive:274 - 接收超时 fed_server->yaml_client_1
+2025-09-02 18:50:28.555 | WARNING  | fedcl.comm.memory_transport:receive:292 - 接收失败 fed_server->yaml_client_1, 数据大小: 0 字节, 超时: 0.01s
+2025-09-02 18:50:28.566 | WARNING  | fedcl.comm.memory_transport:receive:274 - 接收超时 client_4->yaml_fed_server
+2025-09-02 18:50:28.566 | WARNING  | fedcl.comm.memory_transport:receive:292 - 接收失败 client_4->yaml_fed_server, 数据大小: 0 字节, 超时: 0.01s
+2025-09-02 18:50:28.566 | WARNING  | fedcl.comm.memory_transport:receive:274 - 接收超时 server->yaml_client_1
+2025-09-02 18:50:28.566 | WARNING  | fedcl.comm.memory_transport:receive:292 - 接收失败 server->yaml_client_1, 数据大小: 0 字节, 超时: 0.01s
+2025-09-02 18:50:28.575 | DEBUG    | fedcl.comm.memory_transport:receive:270 - [DEBUG] 检查消息 yaml_fed_server->yaml_client_1, 可用源: []
+2025-09-02 18:50:28.576 | WARNING  | fedcl.comm.memory_transport:receive:274 - 接收超时 yaml_client_4->yaml_fed_server
+2025-09-02 18:50:28.576 | WARNING  | fedcl.comm.memory_transport:receive:292 - 接收失败 yaml_client_4->yaml_fed_server, 数据大小: 0 字节, 超时: 0.01s
+2025-09-02 18:50:28.578 | WARNING  | fedcl.comm.memory_transport:receive:274 - 接收超时 yaml_fed_server->yaml_client_1
+2025-09-02 18:50:28.578 | WARNING  | fedcl.comm.memory_transport:receive:292 - 接收失败 yaml_fed_server->yaml_client_1, 数据大小: 0 字节, 超时: 0.01s
+2025-09-02 18:50:28.586 | WARNING  | fedcl.comm.memory_transport:receive:274 - 接收超时 client_5->yaml_fed_server
+2025-09-02 18:50:28.587 | WARNING  | fedcl.comm.memory_transport:receive:292 - 接收失败 client_5->yaml_fed_server, 数据大小: 0 字节, 超时: 0.01s
+2025-09-02 18:50:28.588 | WARNING  | fedcl.comm.memory_transport:receive:274 - 接收超时 fed_server->yaml_client_1
+2025-09-02 18:50:28.588 | WARNING  | fedcl.comm.memory_transport:receive:292 - 接收失败 fed_server->yaml_client_1, 数据大小: 0 字节, 超时: 0.01s
+2025-09-02 18:50:28.598 | WARNING  | fedcl.comm.memory_transport:receive:274 - 接收超时 yaml_client_5->yaml_fed_server
+2025-09-02 18:50:28.598 | WARNING  | fedcl.comm.memory_transport:receive:292 - 接收失败 yaml_client_5->yaml_fed_server, 数据大小: 0 字节, 超时: 0.01s
+2025-09-02 18:50:28.599 | WARNING  | fedcl.comm.memory_transport:receive:274 - 接收超时 server->yaml_client_1
+2025-09-02 18:50:28.599 | WARNING  | fedcl.comm.memory_transport:receive:292 - 接收失败 server->yaml_client_1, 数据大小: 0 字节, 超时: 0.01s
+2025-09-02 18:50:28.609 | WARNING  | fedcl.comm.memory_transport:receive:274 - 接收超时 client_6->yaml_fed_server
+2025-09-02 18:50:28.609 | WARNING  | fedcl.comm.memory_transport:receive:292 - 接收失败 client_6->yaml_fed_server, 数据大小: 0 字节, 超时: 0.01s
+2025-09-02 18:50:28.611 | WARNING  | fedcl.comm.memory_transport:receive:274 - 接收超时 yaml_fed_server->yaml_client_1
+2025-09-02 18:50:28.611 | WARNING  | fedcl.comm.memory_transport:receive:292 - 接收失败 yaml_fed_server->yaml_client_1, 数据大小: 0 字节, 超时: 0.01s
+2025-09-02 18:50:28.620 | WARNING  | fedcl.comm.memory_transport:receive:274 - 接收超时 yaml_client_6->yaml_fed_server
+2025-09-02 18:50:28.620 | WARNING  | fedcl.comm.memory_transport:receive:292 - 接收失败 yaml_client_6->yaml_fed_server, 数据大小: 0 字节, 超时: 0.01s
+2025-09-02 18:50:28.623 | WARNING  | fedcl.comm.memory_transport:receive:274 - 接收超时 fed_server->yaml_client_1
+2025-09-02 18:50:28.623 | WARNING  | fedcl.comm.memory_transport:receive:292 - 接收失败 fed_server->yaml_client_1, 数据大小: 0 字节, 超时: 0.01s
+2025-09-02 18:50:28.631 | WARNING  | fedcl.comm.memory_transport:receive:274 - 接收超时 client_7->yaml_fed_server
+2025-09-02 18:50:28.631 | WARNING  | fedcl.comm.memory_transport:receive:292 - 接收失败 client_7->yaml_fed_server, 数据大小: 0 字节, 超时: 0.01s
+2025-09-02 18:50:28.634 | WARNING  | fedcl.comm.memory_transport:receive:274 - 接收超时 server->yaml_client_1
+2025-09-02 18:50:28.634 | WARNING  | fedcl.comm.memory_transport:receive:292 - 接收失败 server->yaml_client_1, 数据大小: 0 字节, 超时: 0.01s
+2025-09-02 18:50:28.643 | WARNING  | fedcl.comm.memory_transport:receive:274 - 接收超时 yaml_client_7->yaml_fed_server
+2025-09-02 18:50:28.643 | WARNING  | fedcl.comm.memory_transport:receive:292 - 接收失败 yaml_client_7->yaml_fed_server, 数据大小: 0 字节, 超时: 0.01s
+2025-09-02 18:50:28.646 | WARNING  | fedcl.comm.memory_transport:receive:274 - 接收超时 yaml_fed_server->yaml_client_1
+2025-09-02 18:50:28.646 | WARNING  | fedcl.comm.memory_transport:receive:292 - 接收失败 yaml_fed_server->yaml_client_1, 数据大小: 0 字节, 超时: 0.01s
+2025-09-02 18:50:28.654 | WARNING  | fedcl.comm.memory_transport:receive:274 - 接收超时 client_8->yaml_fed_server
+2025-09-02 18:50:28.654 | WARNING  | fedcl.comm.memory_transport:receive:292 - 接收失败 client_8->yaml_fed_server, 数据大小: 0 字节, 超时: 0.01s
+2025-09-02 18:50:28.657 | WARNING  | fedcl.comm.memory_transport:receive:274 - 接收超时 fed_server->yaml_client_1
+2025-09-02 18:50:28.657 | WARNING  | fedcl.comm.memory_transport:receive:292 - 接收失败 fed_server->yaml_client_1, 数据大小: 0 字节, 超时: 0.01s
+2025-09-02 18:50:28.665 | WARNING  | fedcl.comm.memory_transport:receive:274 - 接收超时 yaml_client_8->yaml_fed_server
+2025-09-02 18:50:28.665 | WARNING  | fedcl.comm.memory_transport:receive:292 - 接收失败 yaml_client_8->yaml_fed_server, 数据大小: 0 字节, 超时: 0.01s
+2025-09-02 18:50:28.668 | WARNING  | fedcl.comm.memory_transport:receive:274 - 接收超时 server->yaml_client_1
+2025-09-02 18:50:28.668 | WARNING  | fedcl.comm.memory_transport:receive:292 - 接收失败 server->yaml_client_1, 数据大小: 0 字节, 超时: 0.01s
+2025-09-02 18:50:28.676 | WARNING  | fedcl.comm.memory_transport:receive:274 - 接收超时 client_9->yaml_fed_server
+2025-09-02 18:50:28.676 | WARNING  | fedcl.comm.memory_transport:receive:292 - 接收失败 client_9->yaml_fed_server, 数据大小: 0 字节, 超时: 0.01s
+2025-09-02 18:50:28.681 | WARNING  | fedcl.comm.memory_transport:receive:274 - 接收超时 yaml_fed_server->yaml_client_1
+2025-09-02 18:50:28.681 | WARNING  | fedcl.comm.memory_transport:receive:292 - 接收失败 yaml_fed_server->yaml_client_1, 数据大小: 0 字节, 超时: 0.01s
+2025-09-02 18:50:28.687 | WARNING  | fedcl.comm.memory_transport:receive:274 - 接收超时 yaml_client_9->yaml_fed_server
+2025-09-02 18:50:28.687 | WARNING  | fedcl.comm.memory_transport:receive:292 - 接收失败 yaml_client_9->yaml_fed_server, 数据大小: 0 字节, 超时: 0.01s
+2025-09-02 18:50:28.692 | WARNING  | fedcl.comm.memory_transport:receive:274 - 接收超时 fed_server->yaml_client_1
+2025-09-02 18:50:28.692 | WARNING  | fedcl.comm.memory_transport:receive:292 - 接收失败 fed_server->yaml_client_1, 数据大小: 0 字节, 超时: 0.01s
+2025-09-02 18:50:28.699 | WARNING  | fedcl.comm.memory_transport:receive:274 - 接收超时 client_10->yaml_fed_server
+2025-09-02 18:50:28.699 | WARNING  | fedcl.comm.memory_transport:receive:292 - 接收失败 client_10->yaml_fed_server, 数据大小: 0 字节, 超时: 0.01s
+2025-09-02 18:50:28.703 | WARNING  | fedcl.comm.memory_transport:receive:274 - 接收超时 server->yaml_client_1
+2025-09-02 18:50:28.703 | WARNING  | fedcl.comm.memory_transport:receive:292 - 接收失败 server->yaml_client_1, 数据大小: 0 字节, 超时: 0.01s
+2025-09-02 18:50:28.710 | WARNING  | fedcl.comm.memory_transport:receive:274 - 接收超时 yaml_client_10->yaml_fed_server
+2025-09-02 18:50:28.710 | WARNING  | fedcl.comm.memory_transport:receive:292 - 接收失败 yaml_client_10->yaml_fed_server, 数据大小: 0 字节, 超时: 0.01s
+2025-09-02 18:50:28.715 | WARNING  | fedcl.comm.memory_transport:receive:274 - 接收超时 yaml_fed_server->yaml_client_1
+2025-09-02 18:50:28.715 | WARNING  | fedcl.comm.memory_transport:receive:292 - 接收失败 yaml_fed_server->yaml_client_1, 数据大小: 0 字节, 超时: 0.01s
+2025-09-02 18:50:28.726 | WARNING  | fedcl.comm.memory_transport:receive:274 - 接收超时 fed_server->yaml_client_1
+2025-09-02 18:50:28.726 | WARNING  | fedcl.comm.memory_transport:receive:292 - 接收失败 fed_server->yaml_client_1, 数据大小: 0 字节, 超时: 0.01s
+2025-09-02 18:50:28.737 | WARNING  | fedcl.comm.memory_transport:receive:274 - 接收超时 server->yaml_client_1
+2025-09-02 18:50:28.737 | WARNING  | fedcl.comm.memory_transport:receive:292 - 接收失败 server->yaml_client_1, 数据大小: 0 字节, 超时: 0.01s
+2025-09-02 18:50:28.742 | DEBUG    | fedcl.comm.memory_transport:receive:270 - [DEBUG] 检查消息 yaml_fed_server->yaml_client_1, 可用源: []
+2025-09-02 18:50:28.749 | WARNING  | fedcl.comm.memory_transport:receive:274 - 接收超时 yaml_fed_server->yaml_client_1
+2025-09-02 18:50:28.749 | WARNING  | fedcl.comm.memory_transport:receive:292 - 接收失败 yaml_fed_server->yaml_client_1, 数据大小: 0 字节, 超时: 0.01s
+2025-09-02 18:50:28.760 | WARNING  | fedcl.comm.memory_transport:receive:274 - 接收超时 fed_server->yaml_client_1
+2025-09-02 18:50:28.760 | WARNING  | fedcl.comm.memory_transport:receive:292 - 接收失败 fed_server->yaml_client_1, 数据大小: 0 字节, 超时: 0.01s
+2025-09-02 18:50:28.771 | WARNING  | fedcl.comm.memory_transport:receive:274 - 接收超时 yaml_client_1->yaml_fed_server
+2025-09-02 18:50:28.771 | WARNING  | fedcl.comm.memory_transport:receive:292 - 接收失败 yaml_client_1->yaml_fed_server, 数据大小: 0 字节, 超时: 0.01s
+2025-09-02 18:50:28.771 | WARNING  | fedcl.comm.memory_transport:receive:274 - 接收超时 server->yaml_client_1
+2025-09-02 18:50:28.772 | WARNING  | fedcl.comm.memory_transport:receive:292 - 接收失败 server->yaml_client_1, 数据大小: 0 字节, 超时: 0.01s
+2025-09-02 18:50:28.782 | WARNING  | fedcl.comm.memory_transport:receive:274 - 接收超时 client_1->yaml_fed_server
+2025-09-02 18:50:28.783 | WARNING  | fedcl.comm.memory_transport:receive:292 - 接收失败 client_1->yaml_fed_server, 数据大小: 0 字节, 超时: 0.01s
+2025-09-02 18:50:28.784 | WARNING  | fedcl.comm.memory_transport:receive:274 - 接收超时 yaml_fed_server->yaml_client_1
+2025-09-02 18:50:28.784 | WARNING  | fedcl.comm.memory_transport:receive:292 - 接收失败 yaml_fed_server->yaml_client_1, 数据大小: 0 字节, 超时: 0.01s
+2025-09-02 18:50:28.793 | WARNING  | fedcl.comm.memory_transport:receive:274 - 接收超时 yaml_client_1->yaml_fed_server
+2025-09-02 18:50:28.793 | WARNING  | fedcl.comm.memory_transport:receive:292 - 接收失败 yaml_client_1->yaml_fed_server, 数据大小: 0 字节, 超时: 0.01s
+2025-09-02 18:50:28.794 | WARNING  | fedcl.comm.memory_transport:receive:274 - 接收超时 fed_server->yaml_client_1
+2025-09-02 18:50:28.794 | WARNING  | fedcl.comm.memory_transport:receive:292 - 接收失败 fed_server->yaml_client_1, 数据大小: 0 字节, 超时: 0.01s
+2025-09-02 18:50:28.803 | WARNING  | fedcl.comm.memory_transport:receive:274 - 接收超时 client_2->yaml_fed_server
+2025-09-02 18:50:28.803 | WARNING  | fedcl.comm.memory_transport:receive:292 - 接收失败 client_2->yaml_fed_server, 数据大小: 0 字节, 超时: 0.01s
+2025-09-02 18:50:28.805 | WARNING  | fedcl.comm.memory_transport:receive:274 - 接收超时 server->yaml_client_1
+2025-09-02 18:50:28.805 | WARNING  | fedcl.comm.memory_transport:receive:292 - 接收失败 server->yaml_client_1, 数据大小: 0 字节, 超时: 0.01s
+2025-09-02 18:50:28.814 | WARNING  | fedcl.comm.memory_transport:receive:274 - 接收超时 yaml_client_2->yaml_fed_server
+2025-09-02 18:50:28.814 | WARNING  | fedcl.comm.memory_transport:receive:292 - 接收失败 yaml_client_2->yaml_fed_server, 数据大小: 0 字节, 超时: 0.01s
+2025-09-02 18:50:28.816 | WARNING  | fedcl.comm.memory_transport:receive:274 - 接收超时 yaml_fed_server->yaml_client_1
+2025-09-02 18:50:28.816 | WARNING  | fedcl.comm.memory_transport:receive:292 - 接收失败 yaml_fed_server->yaml_client_1, 数据大小: 0 字节, 超时: 0.01s
+2025-09-02 18:50:28.824 | WARNING  | fedcl.comm.memory_transport:receive:274 - 接收超时 client_3->yaml_fed_server
+2025-09-02 18:50:28.824 | WARNING  | fedcl.comm.memory_transport:receive:292 - 接收失败 client_3->yaml_fed_server, 数据大小: 0 字节, 超时: 0.01s
+2025-09-02 18:50:28.827 | WARNING  | fedcl.comm.memory_transport:receive:274 - 接收超时 fed_server->yaml_client_1
+2025-09-02 18:50:28.827 | WARNING  | fedcl.comm.memory_transport:receive:292 - 接收失败 fed_server->yaml_client_1, 数据大小: 0 字节, 超时: 0.01s
+2025-09-02 18:50:28.835 | WARNING  | fedcl.comm.memory_transport:receive:274 - 接收超时 yaml_client_3->yaml_fed_server
+2025-09-02 18:50:28.835 | WARNING  | fedcl.comm.memory_transport:receive:292 - 接收失败 yaml_client_3->yaml_fed_server, 数据大小: 0 字节, 超时: 0.01s
+2025-09-02 18:50:28.837 | WARNING  | fedcl.comm.memory_transport:receive:274 - 接收超时 server->yaml_client_1
+2025-09-02 18:50:28.837 | WARNING  | fedcl.comm.memory_transport:receive:292 - 接收失败 server->yaml_client_1, 数据大小: 0 字节, 超时: 0.01s
+2025-09-02 18:50:28.845 | WARNING  | fedcl.comm.memory_transport:receive:274 - 接收超时 client_4->yaml_fed_server
+2025-09-02 18:50:28.845 | WARNING  | fedcl.comm.memory_transport:receive:292 - 接收失败 client_4->yaml_fed_server, 数据大小: 0 字节, 超时: 0.01s
+2025-09-02 18:50:28.849 | WARNING  | fedcl.comm.memory_transport:receive:274 - 接收超时 yaml_fed_server->yaml_client_1
+2025-09-02 18:50:28.849 | WARNING  | fedcl.comm.memory_transport:receive:292 - 接收失败 yaml_fed_server->yaml_client_1, 数据大小: 0 字节, 超时: 0.01s
+2025-09-02 18:50:28.856 | WARNING  | fedcl.comm.memory_transport:receive:274 - 接收超时 yaml_client_4->yaml_fed_server
+2025-09-02 18:50:28.856 | WARNING  | fedcl.comm.memory_transport:receive:292 - 接收失败 yaml_client_4->yaml_fed_server, 数据大小: 0 字节, 超时: 0.01s
+2025-09-02 18:50:28.859 | WARNING  | fedcl.comm.memory_transport:receive:274 - 接收超时 fed_server->yaml_client_1
+2025-09-02 18:50:28.860 | WARNING  | fedcl.comm.memory_transport:receive:292 - 接收失败 fed_server->yaml_client_1, 数据大小: 0 字节, 超时: 0.01s
+2025-09-02 18:50:28.866 | WARNING  | fedcl.comm.memory_transport:receive:274 - 接收超时 client_5->yaml_fed_server
+2025-09-02 18:50:28.867 | WARNING  | fedcl.comm.memory_transport:receive:292 - 接收失败 client_5->yaml_fed_server, 数据大小: 0 字节, 超时: 0.01s
+2025-09-02 18:50:28.870 | WARNING  | fedcl.comm.memory_transport:receive:274 - 接收超时 server->yaml_client_1
+2025-09-02 18:50:28.870 | WARNING  | fedcl.comm.memory_transport:receive:292 - 接收失败 server->yaml_client_1, 数据大小: 0 字节, 超时: 0.01s
+2025-09-02 18:50:28.877 | WARNING  | fedcl.comm.memory_transport:receive:274 - 接收超时 yaml_client_5->yaml_fed_server
+2025-09-02 18:50:28.877 | WARNING  | fedcl.comm.memory_transport:receive:292 - 接收失败 yaml_client_5->yaml_fed_server, 数据大小: 0 字节, 超时: 0.01s
+2025-09-02 18:50:28.882 | WARNING  | fedcl.comm.memory_transport:receive:274 - 接收超时 yaml_fed_server->yaml_client_1
+2025-09-02 18:50:28.882 | WARNING  | fedcl.comm.memory_transport:receive:292 - 接收失败 yaml_fed_server->yaml_client_1, 数据大小: 0 字节, 超时: 0.01s
+2025-09-02 18:50:28.887 | WARNING  | fedcl.comm.memory_transport:receive:274 - 接收超时 client_6->yaml_fed_server
+2025-09-02 18:50:28.887 | WARNING  | fedcl.comm.memory_transport:receive:292 - 接收失败 client_6->yaml_fed_server, 数据大小: 0 字节, 超时: 0.01s
+2025-09-02 18:50:28.892 | WARNING  | fedcl.comm.memory_transport:receive:274 - 接收超时 fed_server->yaml_client_1
+2025-09-02 18:50:28.892 | WARNING  | fedcl.comm.memory_transport:receive:292 - 接收失败 fed_server->yaml_client_1, 数据大小: 0 字节, 超时: 0.01s
+2025-09-02 18:50:28.898 | WARNING  | fedcl.comm.memory_transport:receive:274 - 接收超时 yaml_client_6->yaml_fed_server
+2025-09-02 18:50:28.898 | WARNING  | fedcl.comm.memory_transport:receive:292 - 接收失败 yaml_client_6->yaml_fed_server, 数据大小: 0 字节, 超时: 0.01s
+2025-09-02 18:50:28.902 | WARNING  | fedcl.comm.memory_transport:receive:274 - 接收超时 server->yaml_client_1
+2025-09-02 18:50:28.902 | WARNING  | fedcl.comm.memory_transport:receive:292 - 接收失败 server->yaml_client_1, 数据大小: 0 字节, 超时: 0.01s
+2025-09-02 18:50:28.905 | DEBUG    | fedcl.comm.memory_transport:receive:270 - [DEBUG] 检查消息 yaml_fed_server->yaml_client_1, 可用源: []
+2025-09-02 18:50:28.908 | WARNING  | fedcl.comm.memory_transport:receive:274 - 接收超时 client_7->yaml_fed_server
+2025-09-02 18:50:28.908 | WARNING  | fedcl.comm.memory_transport:receive:292 - 接收失败 client_7->yaml_fed_server, 数据大小: 0 字节, 超时: 0.01s
+2025-09-02 18:50:28.914 | WARNING  | fedcl.comm.memory_transport:receive:274 - 接收超时 yaml_fed_server->yaml_client_1
+2025-09-02 18:50:28.914 | WARNING  | fedcl.comm.memory_transport:receive:292 - 接收失败 yaml_fed_server->yaml_client_1, 数据大小: 0 字节, 超时: 0.01s
+2025-09-02 18:50:28.919 | WARNING  | fedcl.comm.memory_transport:receive:274 - 接收超时 yaml_client_7->yaml_fed_server
+2025-09-02 18:50:28.919 | WARNING  | fedcl.comm.memory_transport:receive:292 - 接收失败 yaml_client_7->yaml_fed_server, 数据大小: 0 字节, 超时: 0.01s
+2025-09-02 18:50:28.925 | WARNING  | fedcl.comm.memory_transport:receive:274 - 接收超时 fed_server->yaml_client_1
+2025-09-02 18:50:28.925 | WARNING  | fedcl.comm.memory_transport:receive:292 - 接收失败 fed_server->yaml_client_1, 数据大小: 0 字节, 超时: 0.01s
+2025-09-02 18:50:28.930 | WARNING  | fedcl.comm.memory_transport:receive:274 - 接收超时 client_8->yaml_fed_server
+2025-09-02 18:50:28.930 | WARNING  | fedcl.comm.memory_transport:receive:292 - 接收失败 client_8->yaml_fed_server, 数据大小: 0 字节, 超时: 0.01s
+2025-09-02 18:50:28.936 | WARNING  | fedcl.comm.memory_transport:receive:274 - 接收超时 server->yaml_client_1
+2025-09-02 18:50:28.936 | WARNING  | fedcl.comm.memory_transport:receive:292 - 接收失败 server->yaml_client_1, 数据大小: 0 字节, 超时: 0.01s
+2025-09-02 18:50:28.942 | WARNING  | fedcl.comm.memory_transport:receive:274 - 接收超时 yaml_client_8->yaml_fed_server
+2025-09-02 18:50:28.942 | WARNING  | fedcl.comm.memory_transport:receive:292 - 接收失败 yaml_client_8->yaml_fed_server, 数据大小: 0 字节, 超时: 0.01s
+2025-09-02 18:50:28.948 | WARNING  | fedcl.comm.memory_transport:receive:274 - 接收超时 yaml_fed_server->yaml_client_1
+2025-09-02 18:50:28.948 | WARNING  | fedcl.comm.memory_transport:receive:292 - 接收失败 yaml_fed_server->yaml_client_1, 数据大小: 0 字节, 超时: 0.01s
+2025-09-02 18:50:28.953 | WARNING  | fedcl.comm.memory_transport:receive:274 - 接收超时 client_9->yaml_fed_server
+2025-09-02 18:50:28.953 | WARNING  | fedcl.comm.memory_transport:receive:292 - 接收失败 client_9->yaml_fed_server, 数据大小: 0 字节, 超时: 0.01s
+2025-09-02 18:50:28.959 | WARNING  | fedcl.comm.memory_transport:receive:274 - 接收超时 fed_server->yaml_client_1
+2025-09-02 18:50:28.960 | WARNING  | fedcl.comm.memory_transport:receive:292 - 接收失败 fed_server->yaml_client_1, 数据大小: 0 字节, 超时: 0.01s
+2025-09-02 18:50:28.964 | WARNING  | fedcl.comm.memory_transport:receive:274 - 接收超时 yaml_client_9->yaml_fed_server
+2025-09-02 18:50:28.964 | WARNING  | fedcl.comm.memory_transport:receive:292 - 接收失败 yaml_client_9->yaml_fed_server, 数据大小: 0 字节, 超时: 0.01s
+2025-09-02 18:50:28.971 | WARNING  | fedcl.comm.memory_transport:receive:274 - 接收超时 server->yaml_client_1
+2025-09-02 18:50:28.971 | WARNING  | fedcl.comm.memory_transport:receive:292 - 接收失败 server->yaml_client_1, 数据大小: 0 字节, 超时: 0.01s
+2025-09-02 18:50:28.975 | WARNING  | fedcl.comm.memory_transport:receive:274 - 接收超时 client_10->yaml_fed_server
+2025-09-02 18:50:28.975 | WARNING  | fedcl.comm.memory_transport:receive:292 - 接收失败 client_10->yaml_fed_server, 数据大小: 0 字节, 超时: 0.01s
+2025-09-02 18:50:28.983 | WARNING  | fedcl.comm.memory_transport:receive:274 - 接收超时 yaml_fed_server->yaml_client_1
+2025-09-02 18:50:28.983 | WARNING  | fedcl.comm.memory_transport:receive:292 - 接收失败 yaml_fed_server->yaml_client_1, 数据大小: 0 字节, 超时: 0.01s
+2025-09-02 18:50:28.986 | WARNING  | fedcl.comm.memory_transport:receive:274 - 接收超时 yaml_client_10->yaml_fed_server
+2025-09-02 18:50:28.986 | WARNING  | fedcl.comm.memory_transport:receive:292 - 接收失败 yaml_client_10->yaml_fed_server, 数据大小: 0 字节, 超时: 0.01s
+2025-09-02 18:50:28.994 | WARNING  | fedcl.comm.memory_transport:receive:274 - 接收超时 fed_server->yaml_client_1
+2025-09-02 18:50:28.994 | WARNING  | fedcl.comm.memory_transport:receive:292 - 接收失败 fed_server->yaml_client_1, 数据大小: 0 字节, 超时: 0.01s
+2025-09-02 18:50:29.005 | WARNING  | fedcl.comm.memory_transport:receive:274 - 接收超时 server->yaml_client_1
+2025-09-02 18:50:29.005 | WARNING  | fedcl.comm.memory_transport:receive:292 - 接收失败 server->yaml_client_1, 数据大小: 0 字节, 超时: 0.01s
+2025-09-02 18:50:29.017 | WARNING  | fedcl.comm.memory_transport:receive:274 - 接收超时 yaml_fed_server->yaml_client_1
+2025-09-02 18:50:29.017 | WARNING  | fedcl.comm.memory_transport:receive:292 - 接收失败 yaml_fed_server->yaml_client_1, 数据大小: 0 字节, 超时: 0.01s
+2025-09-02 18:50:29.028 | WARNING  | fedcl.comm.memory_transport:receive:274 - 接收超时 fed_server->yaml_client_1
+2025-09-02 18:50:29.028 | WARNING  | fedcl.comm.memory_transport:receive:292 - 接收失败 fed_server->yaml_client_1, 数据大小: 0 字节, 超时: 0.01s
+2025-09-02 18:50:29.039 | WARNING  | fedcl.comm.memory_transport:receive:274 - 接收超时 server->yaml_client_1
+2025-09-02 18:50:29.039 | WARNING  | fedcl.comm.memory_transport:receive:292 - 接收失败 server->yaml_client_1, 数据大小: 0 字节, 超时: 0.01s
+2025-09-02 18:50:29.048 | WARNING  | fedcl.comm.memory_transport:receive:274 - 接收超时 yaml_client_1->yaml_fed_server
+2025-09-02 18:50:29.048 | WARNING  | fedcl.comm.memory_transport:receive:292 - 接收失败 yaml_client_1->yaml_fed_server, 数据大小: 0 字节, 超时: 0.01s
+2025-09-02 18:50:29.049 | DEBUG    | fedcl.comm.memory_transport:receive:270 - [DEBUG] 检查消息 yaml_fed_server->yaml_client_1, 可用源: []
+2025-09-02 18:50:29.050 | WARNING  | fedcl.comm.memory_transport:receive:274 - 接收超时 yaml_fed_server->yaml_client_1
+2025-09-02 18:50:29.050 | WARNING  | fedcl.comm.memory_transport:receive:292 - 接收失败 yaml_fed_server->yaml_client_1, 数据大小: 0 字节, 超时: 0.01s
+2025-09-02 18:50:29.058 | WARNING  | fedcl.comm.memory_transport:receive:274 - 接收超时 client_1->yaml_fed_server
+2025-09-02 18:50:29.058 | WARNING  | fedcl.comm.memory_transport:receive:292 - 接收失败 client_1->yaml_fed_server, 数据大小: 0 字节, 超时: 0.01s
+2025-09-02 18:50:29.061 | WARNING  | fedcl.comm.memory_transport:receive:274 - 接收超时 fed_server->yaml_client_1
+2025-09-02 18:50:29.062 | WARNING  | fedcl.comm.memory_transport:receive:292 - 接收失败 fed_server->yaml_client_1, 数据大小: 0 字节, 超时: 0.01s
+2025-09-02 18:50:29.069 | WARNING  | fedcl.comm.memory_transport:receive:274 - 接收超时 yaml_client_1->yaml_fed_server
+2025-09-02 18:50:29.069 | WARNING  | fedcl.comm.memory_transport:receive:292 - 接收失败 yaml_client_1->yaml_fed_server, 数据大小: 0 字节, 超时: 0.01s
+2025-09-02 18:50:29.073 | WARNING  | fedcl.comm.memory_transport:receive:274 - 接收超时 server->yaml_client_1
+2025-09-02 18:50:29.073 | WARNING  | fedcl.comm.memory_transport:receive:292 - 接收失败 server->yaml_client_1, 数据大小: 0 字节, 超时: 0.01s
+2025-09-02 18:50:29.080 | WARNING  | fedcl.comm.memory_transport:receive:274 - 接收超时 client_2->yaml_fed_server
+2025-09-02 18:50:29.080 | WARNING  | fedcl.comm.memory_transport:receive:292 - 接收失败 client_2->yaml_fed_server, 数据大小: 0 字节, 超时: 0.01s
+2025-09-02 18:50:29.085 | WARNING  | fedcl.comm.memory_transport:receive:274 - 接收超时 yaml_fed_server->yaml_client_1
+2025-09-02 18:50:29.085 | WARNING  | fedcl.comm.memory_transport:receive:292 - 接收失败 yaml_fed_server->yaml_client_1, 数据大小: 0 字节, 超时: 0.01s
+2025-09-02 18:50:29.092 | WARNING  | fedcl.comm.memory_transport:receive:274 - 接收超时 yaml_client_2->yaml_fed_server
+2025-09-02 18:50:29.092 | WARNING  | fedcl.comm.memory_transport:receive:292 - 接收失败 yaml_client_2->yaml_fed_server, 数据大小: 0 字节, 超时: 0.01s
+2025-09-02 18:50:29.096 | WARNING  | fedcl.comm.memory_transport:receive:274 - 接收超时 fed_server->yaml_client_1
+2025-09-02 18:50:29.096 | WARNING  | fedcl.comm.memory_transport:receive:292 - 接收失败 fed_server->yaml_client_1, 数据大小: 0 字节, 超时: 0.01s
+2025-09-02 18:50:29.103 | WARNING  | fedcl.comm.memory_transport:receive:274 - 接收超时 client_3->yaml_fed_server
+2025-09-02 18:50:29.103 | WARNING  | fedcl.comm.memory_transport:receive:292 - 接收失败 client_3->yaml_fed_server, 数据大小: 0 字节, 超时: 0.01s
+2025-09-02 18:50:29.107 | WARNING  | fedcl.comm.memory_transport:receive:274 - 接收超时 server->yaml_client_1
+2025-09-02 18:50:29.108 | WARNING  | fedcl.comm.memory_transport:receive:292 - 接收失败 server->yaml_client_1, 数据大小: 0 字节, 超时: 0.01s
+2025-09-02 18:50:29.113 | WARNING  | fedcl.comm.memory_transport:receive:274 - 接收超时 yaml_client_3->yaml_fed_server
+2025-09-02 18:50:29.113 | WARNING  | fedcl.comm.memory_transport:receive:292 - 接收失败 yaml_client_3->yaml_fed_server, 数据大小: 0 字节, 超时: 0.01s
+2025-09-02 18:50:29.119 | WARNING  | fedcl.comm.memory_transport:receive:274 - 接收超时 yaml_fed_server->yaml_client_1
+2025-09-02 18:50:29.119 | WARNING  | fedcl.comm.memory_transport:receive:292 - 接收失败 yaml_fed_server->yaml_client_1, 数据大小: 0 字节, 超时: 0.01s
+2025-09-02 18:50:29.124 | WARNING  | fedcl.comm.memory_transport:receive:274 - 接收超时 client_4->yaml_fed_server
+2025-09-02 18:50:29.124 | WARNING  | fedcl.comm.memory_transport:receive:292 - 接收失败 client_4->yaml_fed_server, 数据大小: 0 字节, 超时: 0.01s
+2025-09-02 18:50:29.130 | WARNING  | fedcl.comm.memory_transport:receive:274 - 接收超时 fed_server->yaml_client_1
+2025-09-02 18:50:29.130 | WARNING  | fedcl.comm.memory_transport:receive:292 - 接收失败 fed_server->yaml_client_1, 数据大小: 0 字节, 超时: 0.01s
+2025-09-02 18:50:29.134 | WARNING  | fedcl.comm.memory_transport:receive:274 - 接收超时 yaml_client_4->yaml_fed_server
+2025-09-02 18:50:29.134 | WARNING  | fedcl.comm.memory_transport:receive:292 - 接收失败 yaml_client_4->yaml_fed_server, 数据大小: 0 字节, 超时: 0.01s
+2025-09-02 18:50:29.140 | WARNING  | fedcl.comm.memory_transport:receive:274 - 接收超时 server->yaml_client_1
+2025-09-02 18:50:29.140 | WARNING  | fedcl.comm.memory_transport:receive:292 - 接收失败 server->yaml_client_1, 数据大小: 0 字节, 超时: 0.01s
+2025-09-02 18:50:29.145 | WARNING  | fedcl.comm.memory_transport:receive:274 - 接收超时 client_5->yaml_fed_server
+2025-09-02 18:50:29.145 | WARNING  | fedcl.comm.memory_transport:receive:292 - 接收失败 client_5->yaml_fed_server, 数据大小: 0 字节, 超时: 0.01s
+2025-09-02 18:50:29.152 | WARNING  | fedcl.comm.memory_transport:receive:274 - 接收超时 yaml_fed_server->yaml_client_1
+2025-09-02 18:50:29.152 | WARNING  | fedcl.comm.memory_transport:receive:292 - 接收失败 yaml_fed_server->yaml_client_1, 数据大小: 0 字节, 超时: 0.01s
+2025-09-02 18:50:29.155 | WARNING  | fedcl.comm.memory_transport:receive:274 - 接收超时 yaml_client_5->yaml_fed_server
+2025-09-02 18:50:29.155 | WARNING  | fedcl.comm.memory_transport:receive:292 - 接收失败 yaml_client_5->yaml_fed_server, 数据大小: 0 字节, 超时: 0.01s
+2025-09-02 18:50:29.162 | WARNING  | fedcl.comm.memory_transport:receive:274 - 接收超时 fed_server->yaml_client_1
+2025-09-02 18:50:29.162 | WARNING  | fedcl.comm.memory_transport:receive:292 - 接收失败 fed_server->yaml_client_1, 数据大小: 0 字节, 超时: 0.01s
+2025-09-02 18:50:29.166 | WARNING  | fedcl.comm.memory_transport:receive:274 - 接收超时 client_6->yaml_fed_server
+2025-09-02 18:50:29.166 | WARNING  | fedcl.comm.memory_transport:receive:292 - 接收失败 client_6->yaml_fed_server, 数据大小: 0 字节, 超时: 0.01s
+2025-09-02 18:50:29.173 | WARNING  | fedcl.comm.memory_transport:receive:274 - 接收超时 server->yaml_client_1
+2025-09-02 18:50:29.173 | WARNING  | fedcl.comm.memory_transport:receive:292 - 接收失败 server->yaml_client_1, 数据大小: 0 字节, 超时: 0.01s
+2025-09-02 18:50:29.176 | WARNING  | fedcl.comm.memory_transport:receive:274 - 接收超时 yaml_client_6->yaml_fed_server
+2025-09-02 18:50:29.176 | WARNING  | fedcl.comm.memory_transport:receive:292 - 接收失败 yaml_client_6->yaml_fed_server, 数据大小: 0 字节, 超时: 0.01s
+2025-09-02 18:50:29.184 | WARNING  | fedcl.comm.memory_transport:receive:274 - 接收超时 yaml_fed_server->yaml_client_1
+2025-09-02 18:50:29.184 | WARNING  | fedcl.comm.memory_transport:receive:292 - 接收失败 yaml_fed_server->yaml_client_1, 数据大小: 0 字节, 超时: 0.01s
+2025-09-02 18:50:29.187 | WARNING  | fedcl.comm.memory_transport:receive:274 - 接收超时 client_7->yaml_fed_server
+2025-09-02 18:50:29.187 | WARNING  | fedcl.comm.memory_transport:receive:292 - 接收失败 client_7->yaml_fed_server, 数据大小: 0 字节, 超时: 0.01s
+2025-09-02 18:50:29.195 | WARNING  | fedcl.comm.memory_transport:receive:274 - 接收超时 fed_server->yaml_client_1
+2025-09-02 18:50:29.195 | WARNING  | fedcl.comm.memory_transport:receive:292 - 接收失败 fed_server->yaml_client_1, 数据大小: 0 字节, 超时: 0.01s
+2025-09-02 18:50:29.195 | DEBUG    | fedcl.fl.client:_poll_for_rpc_messages:289 - RPC轮询检查 fed_server: 无消息 (计数: 200)
+2025-09-02 18:50:29.197 | WARNING  | fedcl.comm.memory_transport:receive:274 - 接收超时 yaml_client_7->yaml_fed_server
+2025-09-02 18:50:29.198 | WARNING  | fedcl.comm.memory_transport:receive:292 - 接收失败 yaml_client_7->yaml_fed_server, 数据大小: 0 字节, 超时: 0.01s
+2025-09-02 18:50:29.206 | WARNING  | fedcl.comm.memory_transport:receive:274 - 接收超时 server->yaml_client_1
+2025-09-02 18:50:29.206 | WARNING  | fedcl.comm.memory_transport:receive:292 - 接收失败 server->yaml_client_1, 数据大小: 0 字节, 超时: 0.01s
+2025-09-02 18:50:29.208 | WARNING  | fedcl.comm.memory_transport:receive:274 - 接收超时 client_8->yaml_fed_server
+2025-09-02 18:50:29.208 | WARNING  | fedcl.comm.memory_transport:receive:292 - 接收失败 client_8->yaml_fed_server, 数据大小: 0 字节, 超时: 0.01s
+2025-09-02 18:50:29.215 | DEBUG    | fedcl.comm.memory_transport:receive:270 - [DEBUG] 检查消息 yaml_fed_server->yaml_client_1, 可用源: []
+2025-09-02 18:50:29.217 | WARNING  | fedcl.comm.memory_transport:receive:274 - 接收超时 yaml_fed_server->yaml_client_1
+2025-09-02 18:50:29.217 | WARNING  | fedcl.comm.memory_transport:receive:292 - 接收失败 yaml_fed_server->yaml_client_1, 数据大小: 0 字节, 超时: 0.01s
+2025-09-02 18:50:29.218 | WARNING  | fedcl.comm.memory_transport:receive:274 - 接收超时 yaml_client_8->yaml_fed_server
+2025-09-02 18:50:29.218 | WARNING  | fedcl.comm.memory_transport:receive:292 - 接收失败 yaml_client_8->yaml_fed_server, 数据大小: 0 字节, 超时: 0.01s
+2025-09-02 18:50:29.228 | WARNING  | fedcl.comm.memory_transport:receive:274 - 接收超时 fed_server->yaml_client_1
+2025-09-02 18:50:29.228 | WARNING  | fedcl.comm.memory_transport:receive:292 - 接收失败 fed_server->yaml_client_1, 数据大小: 0 字节, 超时: 0.01s
+2025-09-02 18:50:29.229 | WARNING  | fedcl.comm.memory_transport:receive:274 - 接收超时 client_9->yaml_fed_server
+2025-09-02 18:50:29.229 | WARNING  | fedcl.comm.memory_transport:receive:292 - 接收失败 client_9->yaml_fed_server, 数据大小: 0 字节, 超时: 0.01s
+2025-09-02 18:50:29.239 | WARNING  | fedcl.comm.memory_transport:receive:274 - 接收超时 server->yaml_client_1
+2025-09-02 18:50:29.239 | WARNING  | fedcl.comm.memory_transport:receive:292 - 接收失败 server->yaml_client_1, 数据大小: 0 字节, 超时: 0.01s
+2025-09-02 18:50:29.241 | WARNING  | fedcl.comm.memory_transport:receive:274 - 接收超时 yaml_client_9->yaml_fed_server
+2025-09-02 18:50:29.241 | WARNING  | fedcl.comm.memory_transport:receive:292 - 接收失败 yaml_client_9->yaml_fed_server, 数据大小: 0 字节, 超时: 0.01s
+2025-09-02 18:50:29.252 | WARNING  | fedcl.comm.memory_transport:receive:274 - 接收超时 client_10->yaml_fed_server
+2025-09-02 18:50:29.252 | WARNING  | fedcl.comm.memory_transport:receive:292 - 接收失败 client_10->yaml_fed_server, 数据大小: 0 字节, 超时: 0.01s
+2025-09-02 18:50:29.252 | WARNING  | fedcl.comm.memory_transport:receive:274 - 接收超时 yaml_fed_server->yaml_client_1
+2025-09-02 18:50:29.252 | WARNING  | fedcl.comm.memory_transport:receive:292 - 接收失败 yaml_fed_server->yaml_client_1, 数据大小: 0 字节, 超时: 0.01s
+2025-09-02 18:50:29.263 | WARNING  | fedcl.comm.memory_transport:receive:274 - 接收超时 yaml_client_10->yaml_fed_server
+2025-09-02 18:50:29.263 | WARNING  | fedcl.comm.memory_transport:receive:292 - 接收失败 yaml_client_10->yaml_fed_server, 数据大小: 0 字节, 超时: 0.01s
+2025-09-02 18:50:29.263 | WARNING  | fedcl.comm.memory_transport:receive:274 - 接收超时 fed_server->yaml_client_1
+2025-09-02 18:50:29.263 | WARNING  | fedcl.comm.memory_transport:receive:292 - 接收失败 fed_server->yaml_client_1, 数据大小: 0 字节, 超时: 0.01s
+2025-09-02 18:50:29.274 | WARNING  | fedcl.comm.memory_transport:receive:274 - 接收超时 server->yaml_client_1
+2025-09-02 18:50:29.274 | WARNING  | fedcl.comm.memory_transport:receive:292 - 接收失败 server->yaml_client_1, 数据大小: 0 字节, 超时: 0.01s
+2025-09-02 18:50:29.286 | WARNING  | fedcl.comm.memory_transport:receive:274 - 接收超时 yaml_fed_server->yaml_client_1
+2025-09-02 18:50:29.286 | WARNING  | fedcl.comm.memory_transport:receive:292 - 接收失败 yaml_fed_server->yaml_client_1, 数据大小: 0 字节, 超时: 0.01s
+2025-09-02 18:50:29.297 | WARNING  | fedcl.comm.memory_transport:receive:274 - 接收超时 fed_server->yaml_client_1
+2025-09-02 18:50:29.297 | WARNING  | fedcl.comm.memory_transport:receive:292 - 接收失败 fed_server->yaml_client_1, 数据大小: 0 字节, 超时: 0.01s
+2025-09-02 18:50:29.308 | WARNING  | fedcl.comm.memory_transport:receive:274 - 接收超时 server->yaml_client_1
+2025-09-02 18:50:29.308 | WARNING  | fedcl.comm.memory_transport:receive:292 - 接收失败 server->yaml_client_1, 数据大小: 0 字节, 超时: 0.01s
+2025-09-02 18:50:29.320 | WARNING  | fedcl.comm.memory_transport:receive:274 - 接收超时 yaml_fed_server->yaml_client_1
+2025-09-02 18:50:29.320 | WARNING  | fedcl.comm.memory_transport:receive:292 - 接收失败 yaml_fed_server->yaml_client_1, 数据大小: 0 字节, 超时: 0.01s
+2025-09-02 18:50:29.324 | WARNING  | fedcl.comm.memory_transport:receive:274 - 接收超时 yaml_client_1->yaml_fed_server
+2025-09-02 18:50:29.324 | WARNING  | fedcl.comm.memory_transport:receive:292 - 接收失败 yaml_client_1->yaml_fed_server, 数据大小: 0 字节, 超时: 0.01s
+2025-09-02 18:50:29.330 | WARNING  | fedcl.comm.memory_transport:receive:274 - 接收超时 fed_server->yaml_client_1
+2025-09-02 18:50:29.330 | WARNING  | fedcl.comm.memory_transport:receive:292 - 接收失败 fed_server->yaml_client_1, 数据大小: 0 字节, 超时: 0.01s
+2025-09-02 18:50:29.334 | WARNING  | fedcl.comm.memory_transport:receive:274 - 接收超时 client_1->yaml_fed_server
+2025-09-02 18:50:29.334 | WARNING  | fedcl.comm.memory_transport:receive:292 - 接收失败 client_1->yaml_fed_server, 数据大小: 0 字节, 超时: 0.01s
+2025-09-02 18:50:29.342 | WARNING  | fedcl.comm.memory_transport:receive:274 - 接收超时 server->yaml_client_1
+2025-09-02 18:50:29.342 | WARNING  | fedcl.comm.memory_transport:receive:292 - 接收失败 server->yaml_client_1, 数据大小: 0 字节, 超时: 0.01s
+2025-09-02 18:50:29.345 | WARNING  | fedcl.comm.memory_transport:receive:274 - 接收超时 yaml_client_1->yaml_fed_server
+2025-09-02 18:50:29.345 | WARNING  | fedcl.comm.memory_transport:receive:292 - 接收失败 yaml_client_1->yaml_fed_server, 数据大小: 0 字节, 超时: 0.01s
+2025-09-02 18:50:29.354 | WARNING  | fedcl.comm.memory_transport:receive:274 - 接收超时 yaml_fed_server->yaml_client_1
+2025-09-02 18:50:29.354 | WARNING  | fedcl.comm.memory_transport:receive:292 - 接收失败 yaml_fed_server->yaml_client_1, 数据大小: 0 字节, 超时: 0.01s
+2025-09-02 18:50:29.355 | WARNING  | fedcl.comm.memory_transport:receive:274 - 接收超时 client_2->yaml_fed_server
+2025-09-02 18:50:29.355 | WARNING  | fedcl.comm.memory_transport:receive:292 - 接收失败 client_2->yaml_fed_server, 数据大小: 0 字节, 超时: 0.01s
+2025-09-02 18:50:29.365 | WARNING  | fedcl.comm.memory_transport:receive:274 - 接收超时 fed_server->yaml_client_1
+2025-09-02 18:50:29.365 | WARNING  | fedcl.comm.memory_transport:receive:292 - 接收失败 fed_server->yaml_client_1, 数据大小: 0 字节, 超时: 0.01s
+2025-09-02 18:50:29.367 | WARNING  | fedcl.comm.memory_transport:receive:274 - 接收超时 yaml_client_2->yaml_fed_server
+2025-09-02 18:50:29.367 | WARNING  | fedcl.comm.memory_transport:receive:292 - 接收失败 yaml_client_2->yaml_fed_server, 数据大小: 0 字节, 超时: 0.01s
+2025-09-02 18:50:29.377 | WARNING  | fedcl.comm.memory_transport:receive:274 - 接收超时 server->yaml_client_1
+2025-09-02 18:50:29.377 | WARNING  | fedcl.comm.memory_transport:receive:292 - 接收失败 server->yaml_client_1, 数据大小: 0 字节, 超时: 0.01s
+2025-09-02 18:50:29.378 | WARNING  | fedcl.comm.memory_transport:receive:274 - 接收超时 client_3->yaml_fed_server
+2025-09-02 18:50:29.378 | WARNING  | fedcl.comm.memory_transport:receive:292 - 接收失败 client_3->yaml_fed_server, 数据大小: 0 字节, 超时: 0.01s
+2025-09-02 18:50:29.381 | DEBUG    | fedcl.comm.memory_transport:receive:270 - [DEBUG] 检查消息 yaml_fed_server->yaml_client_1, 可用源: []
+2025-09-02 18:50:29.389 | WARNING  | fedcl.comm.memory_transport:receive:274 - 接收超时 yaml_client_3->yaml_fed_server
+2025-09-02 18:50:29.389 | WARNING  | fedcl.comm.memory_transport:receive:292 - 接收失败 yaml_client_3->yaml_fed_server, 数据大小: 0 字节, 超时: 0.01s
+2025-09-02 18:50:29.389 | WARNING  | fedcl.comm.memory_transport:receive:274 - 接收超时 yaml_fed_server->yaml_client_1
+2025-09-02 18:50:29.389 | WARNING  | fedcl.comm.memory_transport:receive:292 - 接收失败 yaml_fed_server->yaml_client_1, 数据大小: 0 字节, 超时: 0.01s
+2025-09-02 18:50:29.400 | WARNING  | fedcl.comm.memory_transport:receive:274 - 接收超时 client_4->yaml_fed_server
+2025-09-02 18:50:29.400 | WARNING  | fedcl.comm.memory_transport:receive:292 - 接收失败 client_4->yaml_fed_server, 数据大小: 0 字节, 超时: 0.01s
+2025-09-02 18:50:29.400 | WARNING  | fedcl.comm.memory_transport:receive:274 - 接收超时 fed_server->yaml_client_1
+2025-09-02 18:50:29.401 | WARNING  | fedcl.comm.memory_transport:receive:292 - 接收失败 fed_server->yaml_client_1, 数据大小: 0 字节, 超时: 0.01s
+2025-09-02 18:50:29.411 | WARNING  | fedcl.comm.memory_transport:receive:274 - 接收超时 yaml_client_4->yaml_fed_server
+2025-09-02 18:50:29.412 | WARNING  | fedcl.comm.memory_transport:receive:292 - 接收失败 yaml_client_4->yaml_fed_server, 数据大小: 0 字节, 超时: 0.01s
+2025-09-02 18:50:29.412 | WARNING  | fedcl.comm.memory_transport:receive:274 - 接收超时 server->yaml_client_1
+2025-09-02 18:50:29.412 | WARNING  | fedcl.comm.memory_transport:receive:292 - 接收失败 server->yaml_client_1, 数据大小: 0 字节, 超时: 0.01s
+2025-09-02 18:50:29.422 | WARNING  | fedcl.comm.memory_transport:receive:274 - 接收超时 client_5->yaml_fed_server
+2025-09-02 18:50:29.422 | WARNING  | fedcl.comm.memory_transport:receive:292 - 接收失败 client_5->yaml_fed_server, 数据大小: 0 字节, 超时: 0.01s
+2025-09-02 18:50:29.423 | WARNING  | fedcl.comm.memory_transport:receive:274 - 接收超时 yaml_fed_server->yaml_client_1
+2025-09-02 18:50:29.423 | WARNING  | fedcl.comm.memory_transport:receive:292 - 接收失败 yaml_fed_server->yaml_client_1, 数据大小: 0 字节, 超时: 0.01s
+2025-09-02 18:50:29.432 | WARNING  | fedcl.comm.memory_transport:receive:274 - 接收超时 yaml_client_5->yaml_fed_server
+2025-09-02 18:50:29.432 | WARNING  | fedcl.comm.memory_transport:receive:292 - 接收失败 yaml_client_5->yaml_fed_server, 数据大小: 0 字节, 超时: 0.01s
+2025-09-02 18:50:29.433 | WARNING  | fedcl.comm.memory_transport:receive:274 - 接收超时 fed_server->yaml_client_1
+2025-09-02 18:50:29.434 | WARNING  | fedcl.comm.memory_transport:receive:292 - 接收失败 fed_server->yaml_client_1, 数据大小: 0 字节, 超时: 0.01s
+2025-09-02 18:50:29.443 | WARNING  | fedcl.comm.memory_transport:receive:274 - 接收超时 client_6->yaml_fed_server
+2025-09-02 18:50:29.443 | WARNING  | fedcl.comm.memory_transport:receive:292 - 接收失败 client_6->yaml_fed_server, 数据大小: 0 字节, 超时: 0.01s
+2025-09-02 18:50:29.444 | WARNING  | fedcl.comm.memory_transport:receive:274 - 接收超时 server->yaml_client_1
+2025-09-02 18:50:29.444 | WARNING  | fedcl.comm.memory_transport:receive:292 - 接收失败 server->yaml_client_1, 数据大小: 0 字节, 超时: 0.01s
+2025-09-02 18:50:29.453 | WARNING  | fedcl.comm.memory_transport:receive:274 - 接收超时 yaml_client_6->yaml_fed_server
+2025-09-02 18:50:29.453 | WARNING  | fedcl.comm.memory_transport:receive:292 - 接收失败 yaml_client_6->yaml_fed_server, 数据大小: 0 字节, 超时: 0.01s
+2025-09-02 18:50:29.456 | WARNING  | fedcl.comm.memory_transport:receive:274 - 接收超时 yaml_fed_server->yaml_client_1
+2025-09-02 18:50:29.456 | WARNING  | fedcl.comm.memory_transport:receive:292 - 接收失败 yaml_fed_server->yaml_client_1, 数据大小: 0 字节, 超时: 0.01s
+2025-09-02 18:50:29.464 | WARNING  | fedcl.comm.memory_transport:receive:274 - 接收超时 client_7->yaml_fed_server
+2025-09-02 18:50:29.464 | WARNING  | fedcl.comm.memory_transport:receive:292 - 接收失败 client_7->yaml_fed_server, 数据大小: 0 字节, 超时: 0.01s
+2025-09-02 18:50:29.466 | WARNING  | fedcl.comm.memory_transport:receive:274 - 接收超时 fed_server->yaml_client_1
+2025-09-02 18:50:29.466 | WARNING  | fedcl.comm.memory_transport:receive:292 - 接收失败 fed_server->yaml_client_1, 数据大小: 0 字节, 超时: 0.01s
+2025-09-02 18:50:29.474 | WARNING  | fedcl.comm.memory_transport:receive:274 - 接收超时 yaml_client_7->yaml_fed_server
+2025-09-02 18:50:29.474 | WARNING  | fedcl.comm.memory_transport:receive:292 - 接收失败 yaml_client_7->yaml_fed_server, 数据大小: 0 字节, 超时: 0.01s
+2025-09-02 18:50:29.476 | WARNING  | fedcl.comm.memory_transport:receive:274 - 接收超时 server->yaml_client_1
+2025-09-02 18:50:29.477 | WARNING  | fedcl.comm.memory_transport:receive:292 - 接收失败 server->yaml_client_1, 数据大小: 0 字节, 超时: 0.01s
+2025-09-02 18:50:29.484 | WARNING  | fedcl.comm.memory_transport:receive:274 - 接收超时 client_8->yaml_fed_server
+2025-09-02 18:50:29.485 | WARNING  | fedcl.comm.memory_transport:receive:292 - 接收失败 client_8->yaml_fed_server, 数据大小: 0 字节, 超时: 0.01s
+2025-09-02 18:50:29.488 | WARNING  | fedcl.comm.memory_transport:receive:274 - 接收超时 yaml_fed_server->yaml_client_1
+2025-09-02 18:50:29.488 | WARNING  | fedcl.comm.memory_transport:receive:292 - 接收失败 yaml_fed_server->yaml_client_1, 数据大小: 0 字节, 超时: 0.01s
+2025-09-02 18:50:29.495 | WARNING  | fedcl.comm.memory_transport:receive:274 - 接收超时 yaml_client_8->yaml_fed_server
+2025-09-02 18:50:29.495 | WARNING  | fedcl.comm.memory_transport:receive:292 - 接收失败 yaml_client_8->yaml_fed_server, 数据大小: 0 字节, 超时: 0.01s
+2025-09-02 18:50:29.498 | WARNING  | fedcl.comm.memory_transport:receive:274 - 接收超时 fed_server->yaml_client_1
+2025-09-02 18:50:29.499 | WARNING  | fedcl.comm.memory_transport:receive:292 - 接收失败 fed_server->yaml_client_1, 数据大小: 0 字节, 超时: 0.01s
+2025-09-02 18:50:29.505 | WARNING  | fedcl.comm.memory_transport:receive:274 - 接收超时 client_9->yaml_fed_server
+2025-09-02 18:50:29.505 | WARNING  | fedcl.comm.memory_transport:receive:292 - 接收失败 client_9->yaml_fed_server, 数据大小: 0 字节, 超时: 0.01s
+2025-09-02 18:50:29.509 | WARNING  | fedcl.comm.memory_transport:receive:274 - 接收超时 server->yaml_client_1
+2025-09-02 18:50:29.509 | WARNING  | fedcl.comm.memory_transport:receive:292 - 接收失败 server->yaml_client_1, 数据大小: 0 字节, 超时: 0.01s
+2025-09-02 18:50:29.516 | WARNING  | fedcl.comm.memory_transport:receive:274 - 接收超时 yaml_client_9->yaml_fed_server
+2025-09-02 18:50:29.516 | WARNING  | fedcl.comm.memory_transport:receive:292 - 接收失败 yaml_client_9->yaml_fed_server, 数据大小: 0 字节, 超时: 0.01s
+2025-09-02 18:50:29.520 | WARNING  | fedcl.comm.memory_transport:receive:274 - 接收超时 yaml_fed_server->yaml_client_1
+2025-09-02 18:50:29.521 | WARNING  | fedcl.comm.memory_transport:receive:292 - 接收失败 yaml_fed_server->yaml_client_1, 数据大小: 0 字节, 超时: 0.01s
+2025-09-02 18:50:29.526 | WARNING  | fedcl.comm.memory_transport:receive:274 - 接收超时 client_10->yaml_fed_server
+2025-09-02 18:50:29.526 | WARNING  | fedcl.comm.memory_transport:receive:292 - 接收失败 client_10->yaml_fed_server, 数据大小: 0 字节, 超时: 0.01s
+2025-09-02 18:50:29.531 | WARNING  | fedcl.comm.memory_transport:receive:274 - 接收超时 fed_server->yaml_client_1
+2025-09-02 18:50:29.531 | WARNING  | fedcl.comm.memory_transport:receive:292 - 接收失败 fed_server->yaml_client_1, 数据大小: 0 字节, 超时: 0.01s
+2025-09-02 18:50:29.537 | WARNING  | fedcl.comm.memory_transport:receive:274 - 接收超时 yaml_client_10->yaml_fed_server
+2025-09-02 18:50:29.538 | WARNING  | fedcl.comm.memory_transport:receive:292 - 接收失败 yaml_client_10->yaml_fed_server, 数据大小: 0 字节, 超时: 0.01s
+2025-09-02 18:50:29.542 | WARNING  | fedcl.comm.memory_transport:receive:274 - 接收超时 server->yaml_client_1
+2025-09-02 18:50:29.542 | WARNING  | fedcl.comm.memory_transport:receive:292 - 接收失败 server->yaml_client_1, 数据大小: 0 字节, 超时: 0.01s
+2025-09-02 18:50:29.545 | DEBUG    | fedcl.comm.memory_transport:receive:270 - [DEBUG] 检查消息 yaml_fed_server->yaml_client_1, 可用源: []
+2025-09-02 18:50:29.554 | WARNING  | fedcl.comm.memory_transport:receive:274 - 接收超时 yaml_fed_server->yaml_client_1
+2025-09-02 18:50:29.554 | WARNING  | fedcl.comm.memory_transport:receive:292 - 接收失败 yaml_fed_server->yaml_client_1, 数据大小: 0 字节, 超时: 0.01s
+2025-09-02 18:50:29.565 | WARNING  | fedcl.comm.memory_transport:receive:274 - 接收超时 fed_server->yaml_client_1
+2025-09-02 18:50:29.565 | WARNING  | fedcl.comm.memory_transport:receive:292 - 接收失败 fed_server->yaml_client_1, 数据大小: 0 字节, 超时: 0.01s
+2025-09-02 18:50:29.576 | WARNING  | fedcl.comm.memory_transport:receive:274 - 接收超时 server->yaml_client_1
+2025-09-02 18:50:29.576 | WARNING  | fedcl.comm.memory_transport:receive:292 - 接收失败 server->yaml_client_1, 数据大小: 0 字节, 超时: 0.01s
+2025-09-02 18:50:29.588 | WARNING  | fedcl.comm.memory_transport:receive:274 - 接收超时 yaml_fed_server->yaml_client_1
+2025-09-02 18:50:29.588 | WARNING  | fedcl.comm.memory_transport:receive:292 - 接收失败 yaml_fed_server->yaml_client_1, 数据大小: 0 字节, 超时: 0.01s
+2025-09-02 18:50:29.599 | WARNING  | fedcl.comm.memory_transport:receive:274 - 接收超时 yaml_client_1->yaml_fed_server
+2025-09-02 18:50:29.599 | WARNING  | fedcl.comm.memory_transport:receive:292 - 接收失败 yaml_client_1->yaml_fed_server, 数据大小: 0 字节, 超时: 0.01s
+2025-09-02 18:50:29.599 | WARNING  | fedcl.comm.memory_transport:receive:274 - 接收超时 fed_server->yaml_client_1
+2025-09-02 18:50:29.599 | WARNING  | fedcl.comm.memory_transport:receive:292 - 接收失败 fed_server->yaml_client_1, 数据大小: 0 字节, 超时: 0.01s
+2025-09-02 18:50:29.610 | WARNING  | fedcl.comm.memory_transport:receive:274 - 接收超时 client_1->yaml_fed_server
+2025-09-02 18:50:29.610 | WARNING  | fedcl.comm.memory_transport:receive:292 - 接收失败 client_1->yaml_fed_server, 数据大小: 0 字节, 超时: 0.01s
+2025-09-02 18:50:29.610 | WARNING  | fedcl.comm.memory_transport:receive:274 - 接收超时 server->yaml_client_1
+2025-09-02 18:50:29.610 | WARNING  | fedcl.comm.memory_transport:receive:292 - 接收失败 server->yaml_client_1, 数据大小: 0 字节, 超时: 0.01s
+2025-09-02 18:50:29.621 | WARNING  | fedcl.comm.memory_transport:receive:274 - 接收超时 yaml_client_1->yaml_fed_server
+2025-09-02 18:50:29.621 | WARNING  | fedcl.comm.memory_transport:receive:292 - 接收失败 yaml_client_1->yaml_fed_server, 数据大小: 0 字节, 超时: 0.01s
+2025-09-02 18:50:29.623 | WARNING  | fedcl.comm.memory_transport:receive:274 - 接收超时 yaml_fed_server->yaml_client_1
+2025-09-02 18:50:29.623 | WARNING  | fedcl.comm.memory_transport:receive:292 - 接收失败 yaml_fed_server->yaml_client_1, 数据大小: 0 字节, 超时: 0.01s
+2025-09-02 18:50:29.633 | WARNING  | fedcl.comm.memory_transport:receive:274 - 接收超时 client_2->yaml_fed_server
+2025-09-02 18:50:29.633 | WARNING  | fedcl.comm.memory_transport:receive:292 - 接收失败 client_2->yaml_fed_server, 数据大小: 0 字节, 超时: 0.01s
+2025-09-02 18:50:29.633 | WARNING  | fedcl.comm.memory_transport:receive:274 - 接收超时 fed_server->yaml_client_1
+2025-09-02 18:50:29.633 | WARNING  | fedcl.comm.memory_transport:receive:292 - 接收失败 fed_server->yaml_client_1, 数据大小: 0 字节, 超时: 0.01s
+2025-09-02 18:50:29.644 | WARNING  | fedcl.comm.memory_transport:receive:274 - 接收超时 yaml_client_2->yaml_fed_server
+2025-09-02 18:50:29.644 | WARNING  | fedcl.comm.memory_transport:receive:292 - 接收失败 yaml_client_2->yaml_fed_server, 数据大小: 0 字节, 超时: 0.01s
+2025-09-02 18:50:29.644 | WARNING  | fedcl.comm.memory_transport:receive:274 - 接收超时 server->yaml_client_1
+2025-09-02 18:50:29.644 | WARNING  | fedcl.comm.memory_transport:receive:292 - 接收失败 server->yaml_client_1, 数据大小: 0 字节, 超时: 0.01s
+2025-09-02 18:50:29.655 | WARNING  | fedcl.comm.memory_transport:receive:274 - 接收超时 client_3->yaml_fed_server
+2025-09-02 18:50:29.655 | WARNING  | fedcl.comm.memory_transport:receive:292 - 接收失败 client_3->yaml_fed_server, 数据大小: 0 字节, 超时: 0.01s
+2025-09-02 18:50:29.657 | WARNING  | fedcl.comm.memory_transport:receive:274 - 接收超时 yaml_fed_server->yaml_client_1
+2025-09-02 18:50:29.657 | WARNING  | fedcl.comm.memory_transport:receive:292 - 接收失败 yaml_fed_server->yaml_client_1, 数据大小: 0 字节, 超时: 0.01s
+2025-09-02 18:50:29.665 | WARNING  | fedcl.comm.memory_transport:receive:274 - 接收超时 yaml_client_3->yaml_fed_server
+2025-09-02 18:50:29.666 | WARNING  | fedcl.comm.memory_transport:receive:292 - 接收失败 yaml_client_3->yaml_fed_server, 数据大小: 0 字节, 超时: 0.01s
+2025-09-02 18:50:29.667 | WARNING  | fedcl.comm.memory_transport:receive:274 - 接收超时 fed_server->yaml_client_1
+2025-09-02 18:50:29.667 | WARNING  | fedcl.comm.memory_transport:receive:292 - 接收失败 fed_server->yaml_client_1, 数据大小: 0 字节, 超时: 0.01s
+2025-09-02 18:50:29.677 | WARNING  | fedcl.comm.memory_transport:receive:274 - 接收超时 client_4->yaml_fed_server
+2025-09-02 18:50:29.677 | WARNING  | fedcl.comm.memory_transport:receive:292 - 接收失败 client_4->yaml_fed_server, 数据大小: 0 字节, 超时: 0.01s
+2025-09-02 18:50:29.678 | WARNING  | fedcl.comm.memory_transport:receive:274 - 接收超时 server->yaml_client_1
+2025-09-02 18:50:29.678 | WARNING  | fedcl.comm.memory_transport:receive:292 - 接收失败 server->yaml_client_1, 数据大小: 0 字节, 超时: 0.01s
+2025-09-02 18:50:29.687 | WARNING  | fedcl.comm.memory_transport:receive:274 - 接收超时 yaml_client_4->yaml_fed_server
+2025-09-02 18:50:29.687 | WARNING  | fedcl.comm.memory_transport:receive:292 - 接收失败 yaml_client_4->yaml_fed_server, 数据大小: 0 字节, 超时: 0.01s
+2025-09-02 18:50:29.688 | DEBUG    | fedcl.comm.memory_transport:receive:270 - [DEBUG] 检查消息 yaml_fed_server->yaml_client_1, 可用源: []
+2025-09-02 18:50:29.689 | WARNING  | fedcl.comm.memory_transport:receive:274 - 接收超时 yaml_fed_server->yaml_client_1
+2025-09-02 18:50:29.690 | WARNING  | fedcl.comm.memory_transport:receive:292 - 接收失败 yaml_fed_server->yaml_client_1, 数据大小: 0 字节, 超时: 0.01s
+2025-09-02 18:50:29.697 | WARNING  | fedcl.comm.memory_transport:receive:274 - 接收超时 client_5->yaml_fed_server
+2025-09-02 18:50:29.697 | WARNING  | fedcl.comm.memory_transport:receive:292 - 接收失败 client_5->yaml_fed_server, 数据大小: 0 字节, 超时: 0.01s
+2025-09-02 18:50:29.700 | WARNING  | fedcl.comm.memory_transport:receive:274 - 接收超时 fed_server->yaml_client_1
+2025-09-02 18:50:29.700 | WARNING  | fedcl.comm.memory_transport:receive:292 - 接收失败 fed_server->yaml_client_1, 数据大小: 0 字节, 超时: 0.01s
+2025-09-02 18:50:29.709 | WARNING  | fedcl.comm.memory_transport:receive:274 - 接收超时 yaml_client_5->yaml_fed_server
+2025-09-02 18:50:29.709 | WARNING  | fedcl.comm.memory_transport:receive:292 - 接收失败 yaml_client_5->yaml_fed_server, 数据大小: 0 字节, 超时: 0.01s
+2025-09-02 18:50:29.711 | WARNING  | fedcl.comm.memory_transport:receive:274 - 接收超时 server->yaml_client_1
+2025-09-02 18:50:29.711 | WARNING  | fedcl.comm.memory_transport:receive:292 - 接收失败 server->yaml_client_1, 数据大小: 0 字节, 超时: 0.01s
+2025-09-02 18:50:29.720 | WARNING  | fedcl.comm.memory_transport:receive:274 - 接收超时 client_6->yaml_fed_server
+2025-09-02 18:50:29.720 | WARNING  | fedcl.comm.memory_transport:receive:292 - 接收失败 client_6->yaml_fed_server, 数据大小: 0 字节, 超时: 0.01s
+2025-09-02 18:50:29.723 | WARNING  | fedcl.comm.memory_transport:receive:274 - 接收超时 yaml_fed_server->yaml_client_1
+2025-09-02 18:50:29.723 | WARNING  | fedcl.comm.memory_transport:receive:292 - 接收失败 yaml_fed_server->yaml_client_1, 数据大小: 0 字节, 超时: 0.01s
+2025-09-02 18:50:29.730 | WARNING  | fedcl.comm.memory_transport:receive:274 - 接收超时 yaml_client_6->yaml_fed_server
+2025-09-02 18:50:29.730 | WARNING  | fedcl.comm.memory_transport:receive:292 - 接收失败 yaml_client_6->yaml_fed_server, 数据大小: 0 字节, 超时: 0.01s
+2025-09-02 18:50:29.733 | WARNING  | fedcl.comm.memory_transport:receive:274 - 接收超时 fed_server->yaml_client_1
+2025-09-02 18:50:29.734 | WARNING  | fedcl.comm.memory_transport:receive:292 - 接收失败 fed_server->yaml_client_1, 数据大小: 0 字节, 超时: 0.01s
+2025-09-02 18:50:29.740 | WARNING  | fedcl.comm.memory_transport:receive:274 - 接收超时 client_7->yaml_fed_server
+2025-09-02 18:50:29.740 | WARNING  | fedcl.comm.memory_transport:receive:292 - 接收失败 client_7->yaml_fed_server, 数据大小: 0 字节, 超时: 0.01s
+2025-09-02 18:50:29.745 | WARNING  | fedcl.comm.memory_transport:receive:274 - 接收超时 server->yaml_client_1
+2025-09-02 18:50:29.745 | WARNING  | fedcl.comm.memory_transport:receive:292 - 接收失败 server->yaml_client_1, 数据大小: 0 字节, 超时: 0.01s
+2025-09-02 18:50:29.751 | WARNING  | fedcl.comm.memory_transport:receive:274 - 接收超时 yaml_client_7->yaml_fed_server
+2025-09-02 18:50:29.752 | WARNING  | fedcl.comm.memory_transport:receive:292 - 接收失败 yaml_client_7->yaml_fed_server, 数据大小: 0 字节, 超时: 0.01s
+2025-09-02 18:50:29.757 | WARNING  | fedcl.comm.memory_transport:receive:274 - 接收超时 yaml_fed_server->yaml_client_1
+2025-09-02 18:50:29.757 | WARNING  | fedcl.comm.memory_transport:receive:292 - 接收失败 yaml_fed_server->yaml_client_1, 数据大小: 0 字节, 超时: 0.01s
+2025-09-02 18:50:29.762 | WARNING  | fedcl.comm.memory_transport:receive:274 - 接收超时 client_8->yaml_fed_server
+2025-09-02 18:50:29.762 | WARNING  | fedcl.comm.memory_transport:receive:292 - 接收失败 client_8->yaml_fed_server, 数据大小: 0 字节, 超时: 0.01s
+2025-09-02 18:50:29.768 | WARNING  | fedcl.comm.memory_transport:receive:274 - 接收超时 fed_server->yaml_client_1
+2025-09-02 18:50:29.768 | WARNING  | fedcl.comm.memory_transport:receive:292 - 接收失败 fed_server->yaml_client_1, 数据大小: 0 字节, 超时: 0.01s
+2025-09-02 18:50:29.773 | WARNING  | fedcl.comm.memory_transport:receive:274 - 接收超时 yaml_client_8->yaml_fed_server
+2025-09-02 18:50:29.773 | WARNING  | fedcl.comm.memory_transport:receive:292 - 接收失败 yaml_client_8->yaml_fed_server, 数据大小: 0 字节, 超时: 0.01s
+2025-09-02 18:50:29.780 | WARNING  | fedcl.comm.memory_transport:receive:274 - 接收超时 server->yaml_client_1
+2025-09-02 18:50:29.780 | WARNING  | fedcl.comm.memory_transport:receive:292 - 接收失败 server->yaml_client_1, 数据大小: 0 字节, 超时: 0.01s
+2025-09-02 18:50:29.784 | WARNING  | fedcl.comm.memory_transport:receive:274 - 接收超时 client_9->yaml_fed_server
+2025-09-02 18:50:29.784 | WARNING  | fedcl.comm.memory_transport:receive:292 - 接收失败 client_9->yaml_fed_server, 数据大小: 0 字节, 超时: 0.01s
+2025-09-02 18:50:29.791 | WARNING  | fedcl.comm.memory_transport:receive:274 - 接收超时 yaml_fed_server->yaml_client_1
+2025-09-02 18:50:29.791 | WARNING  | fedcl.comm.memory_transport:receive:292 - 接收失败 yaml_fed_server->yaml_client_1, 数据大小: 0 字节, 超时: 0.01s
+2025-09-02 18:50:29.794 | WARNING  | fedcl.comm.memory_transport:receive:274 - 接收超时 yaml_client_9->yaml_fed_server
+2025-09-02 18:50:29.795 | WARNING  | fedcl.comm.memory_transport:receive:292 - 接收失败 yaml_client_9->yaml_fed_server, 数据大小: 0 字节, 超时: 0.01s
+2025-09-02 18:50:29.801 | WARNING  | fedcl.comm.memory_transport:receive:274 - 接收超时 fed_server->yaml_client_1
+2025-09-02 18:50:29.801 | WARNING  | fedcl.comm.memory_transport:receive:292 - 接收失败 fed_server->yaml_client_1, 数据大小: 0 字节, 超时: 0.01s
+2025-09-02 18:50:29.805 | WARNING  | fedcl.comm.memory_transport:receive:274 - 接收超时 client_10->yaml_fed_server
+2025-09-02 18:50:29.805 | WARNING  | fedcl.comm.memory_transport:receive:292 - 接收失败 client_10->yaml_fed_server, 数据大小: 0 字节, 超时: 0.01s
+2025-09-02 18:50:29.812 | WARNING  | fedcl.comm.memory_transport:receive:274 - 接收超时 server->yaml_client_1
+2025-09-02 18:50:29.812 | WARNING  | fedcl.comm.memory_transport:receive:292 - 接收失败 server->yaml_client_1, 数据大小: 0 字节, 超时: 0.01s
+2025-09-02 18:50:29.815 | WARNING  | fedcl.comm.memory_transport:receive:274 - 接收超时 yaml_client_10->yaml_fed_server
+2025-09-02 18:50:29.816 | WARNING  | fedcl.comm.memory_transport:receive:292 - 接收失败 yaml_client_10->yaml_fed_server, 数据大小: 0 字节, 超时: 0.01s
+2025-09-02 18:50:29.823 | WARNING  | fedcl.comm.memory_transport:receive:274 - 接收超时 yaml_fed_server->yaml_client_1
+2025-09-02 18:50:29.824 | WARNING  | fedcl.comm.memory_transport:receive:292 - 接收失败 yaml_fed_server->yaml_client_1, 数据大小: 0 字节, 超时: 0.01s
+2025-09-02 18:50:29.834 | WARNING  | fedcl.comm.memory_transport:receive:274 - 接收超时 fed_server->yaml_client_1
+2025-09-02 18:50:29.834 | WARNING  | fedcl.comm.memory_transport:receive:292 - 接收失败 fed_server->yaml_client_1, 数据大小: 0 字节, 超时: 0.01s
+2025-09-02 18:50:29.844 | WARNING  | fedcl.comm.memory_transport:receive:274 - 接收超时 server->yaml_client_1
+2025-09-02 18:50:29.844 | WARNING  | fedcl.comm.memory_transport:receive:292 - 接收失败 server->yaml_client_1, 数据大小: 0 字节, 超时: 0.01s
+2025-09-02 18:50:29.852 | DEBUG    | fedcl.comm.memory_transport:receive:270 - [DEBUG] 检查消息 yaml_fed_server->yaml_client_1, 可用源: []
+2025-09-02 18:50:29.856 | WARNING  | fedcl.comm.memory_transport:receive:274 - 接收超时 yaml_fed_server->yaml_client_1
+2025-09-02 18:50:29.856 | WARNING  | fedcl.comm.memory_transport:receive:292 - 接收失败 yaml_fed_server->yaml_client_1, 数据大小: 0 字节, 超时: 0.01s
+2025-09-02 18:50:29.867 | WARNING  | fedcl.comm.memory_transport:receive:274 - 接收超时 fed_server->yaml_client_1
+2025-09-02 18:50:29.867 | WARNING  | fedcl.comm.memory_transport:receive:292 - 接收失败 fed_server->yaml_client_1, 数据大小: 0 字节, 超时: 0.01s
+2025-09-02 18:50:29.877 | WARNING  | fedcl.comm.memory_transport:receive:274 - 接收超时 yaml_client_1->yaml_fed_server
+2025-09-02 18:50:29.877 | WARNING  | fedcl.comm.memory_transport:receive:292 - 接收失败 yaml_client_1->yaml_fed_server, 数据大小: 0 字节, 超时: 0.01s
+2025-09-02 18:50:29.879 | WARNING  | fedcl.comm.memory_transport:receive:274 - 接收超时 server->yaml_client_1
+2025-09-02 18:50:29.879 | WARNING  | fedcl.comm.memory_transport:receive:292 - 接收失败 server->yaml_client_1, 数据大小: 0 字节, 超时: 0.01s
+2025-09-02 18:50:29.888 | WARNING  | fedcl.comm.memory_transport:receive:274 - 接收超时 client_1->yaml_fed_server
+2025-09-02 18:50:29.889 | WARNING  | fedcl.comm.memory_transport:receive:292 - 接收失败 client_1->yaml_fed_server, 数据大小: 0 字节, 超时: 0.01s
+2025-09-02 18:50:29.891 | WARNING  | fedcl.comm.memory_transport:receive:274 - 接收超时 yaml_fed_server->yaml_client_1
+2025-09-02 18:50:29.891 | WARNING  | fedcl.comm.memory_transport:receive:292 - 接收失败 yaml_fed_server->yaml_client_1, 数据大小: 0 字节, 超时: 0.01s
+2025-09-02 18:50:29.900 | WARNING  | fedcl.comm.memory_transport:receive:274 - 接收超时 yaml_client_1->yaml_fed_server
+2025-09-02 18:50:29.900 | WARNING  | fedcl.comm.memory_transport:receive:292 - 接收失败 yaml_client_1->yaml_fed_server, 数据大小: 0 字节, 超时: 0.01s
+2025-09-02 18:50:29.902 | WARNING  | fedcl.comm.memory_transport:receive:274 - 接收超时 fed_server->yaml_client_1
+2025-09-02 18:50:29.902 | WARNING  | fedcl.comm.memory_transport:receive:292 - 接收失败 fed_server->yaml_client_1, 数据大小: 0 字节, 超时: 0.01s
+2025-09-02 18:50:29.911 | WARNING  | fedcl.comm.memory_transport:receive:274 - 接收超时 client_2->yaml_fed_server
+2025-09-02 18:50:29.911 | WARNING  | fedcl.comm.memory_transport:receive:292 - 接收失败 client_2->yaml_fed_server, 数据大小: 0 字节, 超时: 0.01s
+2025-09-02 18:50:29.913 | WARNING  | fedcl.comm.memory_transport:receive:274 - 接收超时 server->yaml_client_1
+2025-09-02 18:50:29.913 | WARNING  | fedcl.comm.memory_transport:receive:292 - 接收失败 server->yaml_client_1, 数据大小: 0 字节, 超时: 0.01s
+2025-09-02 18:50:29.922 | WARNING  | fedcl.comm.memory_transport:receive:274 - 接收超时 yaml_client_2->yaml_fed_server
+2025-09-02 18:50:29.922 | WARNING  | fedcl.comm.memory_transport:receive:292 - 接收失败 yaml_client_2->yaml_fed_server, 数据大小: 0 字节, 超时: 0.01s
+2025-09-02 18:50:29.925 | WARNING  | fedcl.comm.memory_transport:receive:274 - 接收超时 yaml_fed_server->yaml_client_1
+2025-09-02 18:50:29.926 | WARNING  | fedcl.comm.memory_transport:receive:292 - 接收失败 yaml_fed_server->yaml_client_1, 数据大小: 0 字节, 超时: 0.01s
+2025-09-02 18:50:29.933 | WARNING  | fedcl.comm.memory_transport:receive:274 - 接收超时 client_3->yaml_fed_server
+2025-09-02 18:50:29.933 | WARNING  | fedcl.comm.memory_transport:receive:292 - 接收失败 client_3->yaml_fed_server, 数据大小: 0 字节, 超时: 0.01s
+2025-09-02 18:50:29.937 | WARNING  | fedcl.comm.memory_transport:receive:274 - 接收超时 fed_server->yaml_client_1
+2025-09-02 18:50:29.937 | WARNING  | fedcl.comm.memory_transport:receive:292 - 接收失败 fed_server->yaml_client_1, 数据大小: 0 字节, 超时: 0.01s
+2025-09-02 18:50:29.944 | WARNING  | fedcl.comm.memory_transport:receive:274 - 接收超时 yaml_client_3->yaml_fed_server
+2025-09-02 18:50:29.944 | WARNING  | fedcl.comm.memory_transport:receive:292 - 接收失败 yaml_client_3->yaml_fed_server, 数据大小: 0 字节, 超时: 0.01s
+2025-09-02 18:50:29.948 | WARNING  | fedcl.comm.memory_transport:receive:274 - 接收超时 server->yaml_client_1
+2025-09-02 18:50:29.948 | WARNING  | fedcl.comm.memory_transport:receive:292 - 接收失败 server->yaml_client_1, 数据大小: 0 字节, 超时: 0.01s
+2025-09-02 18:50:29.956 | WARNING  | fedcl.comm.memory_transport:receive:274 - 接收超时 client_4->yaml_fed_server
+2025-09-02 18:50:29.956 | WARNING  | fedcl.comm.memory_transport:receive:292 - 接收失败 client_4->yaml_fed_server, 数据大小: 0 字节, 超时: 0.01s
+2025-09-02 18:50:29.960 | WARNING  | fedcl.comm.memory_transport:receive:274 - 接收超时 yaml_fed_server->yaml_client_1
+2025-09-02 18:50:29.960 | WARNING  | fedcl.comm.memory_transport:receive:292 - 接收失败 yaml_fed_server->yaml_client_1, 数据大小: 0 字节, 超时: 0.01s
+2025-09-02 18:50:29.967 | WARNING  | fedcl.comm.memory_transport:receive:274 - 接收超时 yaml_client_4->yaml_fed_server
+2025-09-02 18:50:29.967 | WARNING  | fedcl.comm.memory_transport:receive:292 - 接收失败 yaml_client_4->yaml_fed_server, 数据大小: 0 字节, 超时: 0.01s
+2025-09-02 18:50:29.971 | WARNING  | fedcl.comm.memory_transport:receive:274 - 接收超时 fed_server->yaml_client_1
+2025-09-02 18:50:29.971 | WARNING  | fedcl.comm.memory_transport:receive:292 - 接收失败 fed_server->yaml_client_1, 数据大小: 0 字节, 超时: 0.01s
+2025-09-02 18:50:29.978 | WARNING  | fedcl.comm.memory_transport:receive:274 - 接收超时 client_5->yaml_fed_server
+2025-09-02 18:50:29.978 | WARNING  | fedcl.comm.memory_transport:receive:292 - 接收失败 client_5->yaml_fed_server, 数据大小: 0 字节, 超时: 0.01s
+2025-09-02 18:50:29.983 | WARNING  | fedcl.comm.memory_transport:receive:274 - 接收超时 server->yaml_client_1
+2025-09-02 18:50:29.983 | WARNING  | fedcl.comm.memory_transport:receive:292 - 接收失败 server->yaml_client_1, 数据大小: 0 字节, 超时: 0.01s
+2025-09-02 18:50:29.989 | WARNING  | fedcl.comm.memory_transport:receive:274 - 接收超时 yaml_client_5->yaml_fed_server
+2025-09-02 18:50:29.989 | WARNING  | fedcl.comm.memory_transport:receive:292 - 接收失败 yaml_client_5->yaml_fed_server, 数据大小: 0 字节, 超时: 0.01s
+2025-09-02 18:50:29.995 | WARNING  | fedcl.comm.memory_transport:receive:274 - 接收超时 yaml_fed_server->yaml_client_1
+2025-09-02 18:50:29.995 | WARNING  | fedcl.comm.memory_transport:receive:292 - 接收失败 yaml_fed_server->yaml_client_1, 数据大小: 0 字节, 超时: 0.01s
+2025-09-02 18:50:30.000 | WARNING  | fedcl.comm.memory_transport:receive:274 - 接收超时 client_6->yaml_fed_server
+2025-09-02 18:50:30.001 | WARNING  | fedcl.comm.memory_transport:receive:292 - 接收失败 client_6->yaml_fed_server, 数据大小: 0 字节, 超时: 0.01s
+2025-09-02 18:50:30.006 | WARNING  | fedcl.comm.memory_transport:receive:274 - 接收超时 fed_server->yaml_client_1
+2025-09-02 18:50:30.006 | WARNING  | fedcl.comm.memory_transport:receive:292 - 接收失败 fed_server->yaml_client_1, 数据大小: 0 字节, 超时: 0.01s
+2025-09-02 18:50:30.012 | WARNING  | fedcl.comm.memory_transport:receive:274 - 接收超时 yaml_client_6->yaml_fed_server
+2025-09-02 18:50:30.012 | WARNING  | fedcl.comm.memory_transport:receive:292 - 接收失败 yaml_client_6->yaml_fed_server, 数据大小: 0 字节, 超时: 0.01s
+2025-09-02 18:50:30.017 | WARNING  | fedcl.comm.memory_transport:receive:274 - 接收超时 server->yaml_client_1
+2025-09-02 18:50:30.017 | WARNING  | fedcl.comm.memory_transport:receive:292 - 接收失败 server->yaml_client_1, 数据大小: 0 字节, 超时: 0.01s
+2025-09-02 18:50:30.020 | DEBUG    | fedcl.comm.memory_transport:receive:270 - [DEBUG] 检查消息 yaml_fed_server->yaml_client_1, 可用源: []
+2025-09-02 18:50:30.022 | WARNING  | fedcl.comm.memory_transport:receive:274 - 接收超时 client_7->yaml_fed_server
+2025-09-02 18:50:30.022 | WARNING  | fedcl.comm.memory_transport:receive:292 - 接收失败 client_7->yaml_fed_server, 数据大小: 0 字节, 超时: 0.01s
+2025-09-02 18:50:30.029 | WARNING  | fedcl.comm.memory_transport:receive:274 - 接收超时 yaml_fed_server->yaml_client_1
+2025-09-02 18:50:30.029 | WARNING  | fedcl.comm.memory_transport:receive:292 - 接收失败 yaml_fed_server->yaml_client_1, 数据大小: 0 字节, 超时: 0.01s
+2025-09-02 18:50:30.033 | WARNING  | fedcl.comm.memory_transport:receive:274 - 接收超时 yaml_client_7->yaml_fed_server
+2025-09-02 18:50:30.033 | WARNING  | fedcl.comm.memory_transport:receive:292 - 接收失败 yaml_client_7->yaml_fed_server, 数据大小: 0 字节, 超时: 0.01s
+2025-09-02 18:50:30.040 | WARNING  | fedcl.comm.memory_transport:receive:274 - 接收超时 fed_server->yaml_client_1
+2025-09-02 18:50:30.040 | WARNING  | fedcl.comm.memory_transport:receive:292 - 接收失败 fed_server->yaml_client_1, 数据大小: 0 字节, 超时: 0.01s
+2025-09-02 18:50:30.044 | WARNING  | fedcl.comm.memory_transport:receive:274 - 接收超时 client_8->yaml_fed_server
+2025-09-02 18:50:30.044 | WARNING  | fedcl.comm.memory_transport:receive:292 - 接收失败 client_8->yaml_fed_server, 数据大小: 0 字节, 超时: 0.01s
+2025-09-02 18:50:30.051 | WARNING  | fedcl.comm.memory_transport:receive:274 - 接收超时 server->yaml_client_1
+2025-09-02 18:50:30.051 | WARNING  | fedcl.comm.memory_transport:receive:292 - 接收失败 server->yaml_client_1, 数据大小: 0 字节, 超时: 0.01s
+2025-09-02 18:50:30.056 | WARNING  | fedcl.comm.memory_transport:receive:274 - 接收超时 yaml_client_8->yaml_fed_server
+2025-09-02 18:50:30.056 | WARNING  | fedcl.comm.memory_transport:receive:292 - 接收失败 yaml_client_8->yaml_fed_server, 数据大小: 0 字节, 超时: 0.01s
+2025-09-02 18:50:30.062 | WARNING  | fedcl.comm.memory_transport:receive:274 - 接收超时 yaml_fed_server->yaml_client_1
+2025-09-02 18:50:30.063 | WARNING  | fedcl.comm.memory_transport:receive:292 - 接收失败 yaml_fed_server->yaml_client_1, 数据大小: 0 字节, 超时: 0.01s
+2025-09-02 18:50:30.066 | WARNING  | fedcl.comm.memory_transport:receive:274 - 接收超时 client_9->yaml_fed_server
+2025-09-02 18:50:30.066 | WARNING  | fedcl.comm.memory_transport:receive:292 - 接收失败 client_9->yaml_fed_server, 数据大小: 0 字节, 超时: 0.01s
+2025-09-02 18:50:30.073 | WARNING  | fedcl.comm.memory_transport:receive:274 - 接收超时 fed_server->yaml_client_1
+2025-09-02 18:50:30.073 | WARNING  | fedcl.comm.memory_transport:receive:292 - 接收失败 fed_server->yaml_client_1, 数据大小: 0 字节, 超时: 0.01s
+2025-09-02 18:50:30.077 | WARNING  | fedcl.comm.memory_transport:receive:274 - 接收超时 yaml_client_9->yaml_fed_server
+2025-09-02 18:50:30.077 | WARNING  | fedcl.comm.memory_transport:receive:292 - 接收失败 yaml_client_9->yaml_fed_server, 数据大小: 0 字节, 超时: 0.01s
+2025-09-02 18:50:30.083 | WARNING  | fedcl.comm.memory_transport:receive:274 - 接收超时 server->yaml_client_1
+2025-09-02 18:50:30.084 | WARNING  | fedcl.comm.memory_transport:receive:292 - 接收失败 server->yaml_client_1, 数据大小: 0 字节, 超时: 0.01s
+2025-09-02 18:50:30.087 | WARNING  | fedcl.comm.memory_transport:receive:274 - 接收超时 client_10->yaml_fed_server
+2025-09-02 18:50:30.087 | WARNING  | fedcl.comm.memory_transport:receive:292 - 接收失败 client_10->yaml_fed_server, 数据大小: 0 字节, 超时: 0.01s
+2025-09-02 18:50:30.095 | WARNING  | fedcl.comm.memory_transport:receive:274 - 接收超时 yaml_fed_server->yaml_client_1
+2025-09-02 18:50:30.095 | WARNING  | fedcl.comm.memory_transport:receive:292 - 接收失败 yaml_fed_server->yaml_client_1, 数据大小: 0 字节, 超时: 0.01s
+2025-09-02 18:50:30.098 | WARNING  | fedcl.comm.memory_transport:receive:274 - 接收超时 yaml_client_10->yaml_fed_server
+2025-09-02 18:50:30.098 | WARNING  | fedcl.comm.memory_transport:receive:292 - 接收失败 yaml_client_10->yaml_fed_server, 数据大小: 0 字节, 超时: 0.01s
+2025-09-02 18:50:30.106 | WARNING  | fedcl.comm.memory_transport:receive:274 - 接收超时 fed_server->yaml_client_1
+2025-09-02 18:50:30.106 | WARNING  | fedcl.comm.memory_transport:receive:292 - 接收失败 fed_server->yaml_client_1, 数据大小: 0 字节, 超时: 0.01s
+2025-09-02 18:50:30.116 | WARNING  | fedcl.comm.memory_transport:receive:274 - 接收超时 server->yaml_client_1
+2025-09-02 18:50:30.116 | WARNING  | fedcl.comm.memory_transport:receive:292 - 接收失败 server->yaml_client_1, 数据大小: 0 字节, 超时: 0.01s
+2025-09-02 18:50:30.128 | WARNING  | fedcl.comm.memory_transport:receive:274 - 接收超时 yaml_fed_server->yaml_client_1
+2025-09-02 18:50:30.128 | WARNING  | fedcl.comm.memory_transport:receive:292 - 接收失败 yaml_fed_server->yaml_client_1, 数据大小: 0 字节, 超时: 0.01s
+2025-09-02 18:50:30.138 | WARNING  | fedcl.comm.memory_transport:receive:274 - 接收超时 fed_server->yaml_client_1
+2025-09-02 18:50:30.139 | WARNING  | fedcl.comm.memory_transport:receive:292 - 接收失败 fed_server->yaml_client_1, 数据大小: 0 字节, 超时: 0.01s
+2025-09-02 18:50:30.149 | WARNING  | fedcl.comm.memory_transport:receive:274 - 接收超时 server->yaml_client_1
+2025-09-02 18:50:30.149 | WARNING  | fedcl.comm.memory_transport:receive:292 - 接收失败 server->yaml_client_1, 数据大小: 0 字节, 超时: 0.01s
+2025-09-02 18:50:30.159 | WARNING  | fedcl.comm.memory_transport:receive:274 - 接收超时 yaml_client_1->yaml_fed_server
+2025-09-02 18:50:30.159 | WARNING  | fedcl.comm.memory_transport:receive:292 - 接收失败 yaml_client_1->yaml_fed_server, 数据大小: 0 字节, 超时: 0.01s
+2025-09-02 18:50:30.160 | WARNING  | fedcl.comm.memory_transport:receive:274 - 接收超时 yaml_fed_server->yaml_client_1
+2025-09-02 18:50:30.160 | WARNING  | fedcl.comm.memory_transport:receive:292 - 接收失败 yaml_fed_server->yaml_client_1, 数据大小: 0 字节, 超时: 0.01s
+2025-09-02 18:50:30.169 | WARNING  | fedcl.comm.memory_transport:receive:274 - 接收超时 client_1->yaml_fed_server
+2025-09-02 18:50:30.169 | WARNING  | fedcl.comm.memory_transport:receive:292 - 接收失败 client_1->yaml_fed_server, 数据大小: 0 字节, 超时: 0.01s
+2025-09-02 18:50:30.171 | WARNING  | fedcl.comm.memory_transport:receive:274 - 接收超时 fed_server->yaml_client_1
+2025-09-02 18:50:30.171 | WARNING  | fedcl.comm.memory_transport:receive:292 - 接收失败 fed_server->yaml_client_1, 数据大小: 0 字节, 超时: 0.01s
+2025-09-02 18:50:30.181 | WARNING  | fedcl.comm.memory_transport:receive:274 - 接收超时 yaml_client_1->yaml_fed_server
+2025-09-02 18:50:30.181 | WARNING  | fedcl.comm.memory_transport:receive:292 - 接收失败 yaml_client_1->yaml_fed_server, 数据大小: 0 字节, 超时: 0.01s
+2025-09-02 18:50:30.182 | WARNING  | fedcl.comm.memory_transport:receive:274 - 接收超时 server->yaml_client_1
+2025-09-02 18:50:30.182 | WARNING  | fedcl.comm.memory_transport:receive:292 - 接收失败 server->yaml_client_1, 数据大小: 0 字节, 超时: 0.01s
+2025-09-02 18:50:30.183 | DEBUG    | fedcl.comm.memory_transport:receive:270 - [DEBUG] 检查消息 yaml_fed_server->yaml_client_1, 可用源: []
+2025-09-02 18:50:30.191 | WARNING  | fedcl.comm.memory_transport:receive:274 - 接收超时 client_2->yaml_fed_server
+2025-09-02 18:50:30.191 | WARNING  | fedcl.comm.memory_transport:receive:292 - 接收失败 client_2->yaml_fed_server, 数据大小: 0 字节, 超时: 0.01s
+2025-09-02 18:50:30.193 | WARNING  | fedcl.comm.memory_transport:receive:274 - 接收超时 yaml_fed_server->yaml_client_1
+2025-09-02 18:50:30.193 | WARNING  | fedcl.comm.memory_transport:receive:292 - 接收失败 yaml_fed_server->yaml_client_1, 数据大小: 0 字节, 超时: 0.01s
+2025-09-02 18:50:30.202 | WARNING  | fedcl.comm.memory_transport:receive:274 - 接收超时 yaml_client_2->yaml_fed_server
+2025-09-02 18:50:30.202 | WARNING  | fedcl.comm.memory_transport:receive:292 - 接收失败 yaml_client_2->yaml_fed_server, 数据大小: 0 字节, 超时: 0.01s
+2025-09-02 18:50:30.204 | WARNING  | fedcl.comm.memory_transport:receive:274 - 接收超时 fed_server->yaml_client_1
+2025-09-02 18:50:30.205 | WARNING  | fedcl.comm.memory_transport:receive:292 - 接收失败 fed_server->yaml_client_1, 数据大小: 0 字节, 超时: 0.01s
+2025-09-02 18:50:30.213 | WARNING  | fedcl.comm.memory_transport:receive:274 - 接收超时 client_3->yaml_fed_server
+2025-09-02 18:50:30.213 | WARNING  | fedcl.comm.memory_transport:receive:292 - 接收失败 client_3->yaml_fed_server, 数据大小: 0 字节, 超时: 0.01s
+2025-09-02 18:50:30.216 | WARNING  | fedcl.comm.memory_transport:receive:274 - 接收超时 server->yaml_client_1
+2025-09-02 18:50:30.216 | WARNING  | fedcl.comm.memory_transport:receive:292 - 接收失败 server->yaml_client_1, 数据大小: 0 字节, 超时: 0.01s
+2025-09-02 18:50:30.224 | WARNING  | fedcl.comm.memory_transport:receive:274 - 接收超时 yaml_client_3->yaml_fed_server
+2025-09-02 18:50:30.225 | WARNING  | fedcl.comm.memory_transport:receive:292 - 接收失败 yaml_client_3->yaml_fed_server, 数据大小: 0 字节, 超时: 0.01s
+2025-09-02 18:50:30.228 | WARNING  | fedcl.comm.memory_transport:receive:274 - 接收超时 yaml_fed_server->yaml_client_1
+2025-09-02 18:50:30.228 | WARNING  | fedcl.comm.memory_transport:receive:292 - 接收失败 yaml_fed_server->yaml_client_1, 数据大小: 0 字节, 超时: 0.01s
+2025-09-02 18:50:30.236 | WARNING  | fedcl.comm.memory_transport:receive:274 - 接收超时 client_4->yaml_fed_server
+2025-09-02 18:50:30.236 | WARNING  | fedcl.comm.memory_transport:receive:292 - 接收失败 client_4->yaml_fed_server, 数据大小: 0 字节, 超时: 0.01s
+2025-09-02 18:50:30.239 | WARNING  | fedcl.comm.memory_transport:receive:274 - 接收超时 fed_server->yaml_client_1
+2025-09-02 18:50:30.239 | WARNING  | fedcl.comm.memory_transport:receive:292 - 接收失败 fed_server->yaml_client_1, 数据大小: 0 字节, 超时: 0.01s
+2025-09-02 18:50:30.247 | WARNING  | fedcl.comm.memory_transport:receive:274 - 接收超时 yaml_client_4->yaml_fed_server
+2025-09-02 18:50:30.247 | WARNING  | fedcl.comm.memory_transport:receive:292 - 接收失败 yaml_client_4->yaml_fed_server, 数据大小: 0 字节, 超时: 0.01s
+2025-09-02 18:50:30.250 | WARNING  | fedcl.comm.memory_transport:receive:274 - 接收超时 server->yaml_client_1
+2025-09-02 18:50:30.250 | WARNING  | fedcl.comm.memory_transport:receive:292 - 接收失败 server->yaml_client_1, 数据大小: 0 字节, 超时: 0.01s
+2025-09-02 18:50:30.258 | WARNING  | fedcl.comm.memory_transport:receive:274 - 接收超时 client_5->yaml_fed_server
+2025-09-02 18:50:30.258 | WARNING  | fedcl.comm.memory_transport:receive:292 - 接收失败 client_5->yaml_fed_server, 数据大小: 0 字节, 超时: 0.01s
+2025-09-02 18:50:30.263 | WARNING  | fedcl.comm.memory_transport:receive:274 - 接收超时 yaml_fed_server->yaml_client_1
+2025-09-02 18:50:30.263 | WARNING  | fedcl.comm.memory_transport:receive:292 - 接收失败 yaml_fed_server->yaml_client_1, 数据大小: 0 字节, 超时: 0.01s
+2025-09-02 18:50:30.269 | WARNING  | fedcl.comm.memory_transport:receive:274 - 接收超时 yaml_client_5->yaml_fed_server
+2025-09-02 18:50:30.269 | WARNING  | fedcl.comm.memory_transport:receive:292 - 接收失败 yaml_client_5->yaml_fed_server, 数据大小: 0 字节, 超时: 0.01s
+2025-09-02 18:50:30.274 | WARNING  | fedcl.comm.memory_transport:receive:274 - 接收超时 fed_server->yaml_client_1
+2025-09-02 18:50:30.274 | WARNING  | fedcl.comm.memory_transport:receive:292 - 接收失败 fed_server->yaml_client_1, 数据大小: 0 字节, 超时: 0.01s
+2025-09-02 18:50:30.281 | WARNING  | fedcl.comm.memory_transport:receive:274 - 接收超时 client_6->yaml_fed_server
+2025-09-02 18:50:30.281 | WARNING  | fedcl.comm.memory_transport:receive:292 - 接收失败 client_6->yaml_fed_server, 数据大小: 0 字节, 超时: 0.01s
+2025-09-02 18:50:30.285 | WARNING  | fedcl.comm.memory_transport:receive:274 - 接收超时 server->yaml_client_1
+2025-09-02 18:50:30.285 | WARNING  | fedcl.comm.memory_transport:receive:292 - 接收失败 server->yaml_client_1, 数据大小: 0 字节, 超时: 0.01s
+2025-09-02 18:50:30.292 | WARNING  | fedcl.comm.memory_transport:receive:274 - 接收超时 yaml_client_6->yaml_fed_server
+2025-09-02 18:50:30.292 | WARNING  | fedcl.comm.memory_transport:receive:292 - 接收失败 yaml_client_6->yaml_fed_server, 数据大小: 0 字节, 超时: 0.01s
+2025-09-02 18:50:30.297 | WARNING  | fedcl.comm.memory_transport:receive:274 - 接收超时 yaml_fed_server->yaml_client_1
+2025-09-02 18:50:30.297 | WARNING  | fedcl.comm.memory_transport:receive:292 - 接收失败 yaml_fed_server->yaml_client_1, 数据大小: 0 字节, 超时: 0.01s
+2025-09-02 18:50:30.303 | WARNING  | fedcl.comm.memory_transport:receive:274 - 接收超时 client_7->yaml_fed_server
+2025-09-02 18:50:30.303 | WARNING  | fedcl.comm.memory_transport:receive:292 - 接收失败 client_7->yaml_fed_server, 数据大小: 0 字节, 超时: 0.01s
+2025-09-02 18:50:30.309 | WARNING  | fedcl.comm.memory_transport:receive:274 - 接收超时 fed_server->yaml_client_1
+2025-09-02 18:50:30.309 | WARNING  | fedcl.comm.memory_transport:receive:292 - 接收失败 fed_server->yaml_client_1, 数据大小: 0 字节, 超时: 0.01s
+2025-09-02 18:50:30.314 | WARNING  | fedcl.comm.memory_transport:receive:274 - 接收超时 yaml_client_7->yaml_fed_server
+2025-09-02 18:50:30.314 | WARNING  | fedcl.comm.memory_transport:receive:292 - 接收失败 yaml_client_7->yaml_fed_server, 数据大小: 0 字节, 超时: 0.01s
+2025-09-02 18:50:30.320 | WARNING  | fedcl.comm.memory_transport:receive:274 - 接收超时 server->yaml_client_1
+2025-09-02 18:50:30.320 | WARNING  | fedcl.comm.memory_transport:receive:292 - 接收失败 server->yaml_client_1, 数据大小: 0 字节, 超时: 0.01s
+2025-09-02 18:50:30.320 | DEBUG    | fedcl.fl.client:_poll_for_rpc_messages:289 - RPC轮询检查 server: 无消息 (计数: 300)
+2025-09-02 18:50:30.324 | WARNING  | fedcl.comm.memory_transport:receive:274 - 接收超时 client_8->yaml_fed_server
+2025-09-02 18:50:30.324 | WARNING  | fedcl.comm.memory_transport:receive:292 - 接收失败 client_8->yaml_fed_server, 数据大小: 0 字节, 超时: 0.01s
+2025-09-02 18:50:30.329 | DEBUG    | fedcl.comm.memory_transport:receive:270 - [DEBUG] 检查消息 yaml_fed_server->yaml_client_1, 可用源: []
+2025-09-02 18:50:30.331 | WARNING  | fedcl.comm.memory_transport:receive:274 - 接收超时 yaml_fed_server->yaml_client_1
+2025-09-02 18:50:30.331 | WARNING  | fedcl.comm.memory_transport:receive:292 - 接收失败 yaml_fed_server->yaml_client_1, 数据大小: 0 字节, 超时: 0.01s
+2025-09-02 18:50:30.335 | WARNING  | fedcl.comm.memory_transport:receive:274 - 接收超时 yaml_client_8->yaml_fed_server
+2025-09-02 18:50:30.335 | WARNING  | fedcl.comm.memory_transport:receive:292 - 接收失败 yaml_client_8->yaml_fed_server, 数据大小: 0 字节, 超时: 0.01s
+2025-09-02 18:50:30.342 | WARNING  | fedcl.comm.memory_transport:receive:274 - 接收超时 fed_server->yaml_client_1
+2025-09-02 18:50:30.343 | WARNING  | fedcl.comm.memory_transport:receive:292 - 接收失败 fed_server->yaml_client_1, 数据大小: 0 字节, 超时: 0.01s
+2025-09-02 18:50:30.346 | WARNING  | fedcl.comm.memory_transport:receive:274 - 接收超时 client_9->yaml_fed_server
+2025-09-02 18:50:30.346 | WARNING  | fedcl.comm.memory_transport:receive:292 - 接收失败 client_9->yaml_fed_server, 数据大小: 0 字节, 超时: 0.01s
+2025-09-02 18:50:30.354 | WARNING  | fedcl.comm.memory_transport:receive:274 - 接收超时 server->yaml_client_1
+2025-09-02 18:50:30.354 | WARNING  | fedcl.comm.memory_transport:receive:292 - 接收失败 server->yaml_client_1, 数据大小: 0 字节, 超时: 0.01s
+2025-09-02 18:50:30.357 | WARNING  | fedcl.comm.memory_transport:receive:274 - 接收超时 yaml_client_9->yaml_fed_server
+2025-09-02 18:50:30.357 | WARNING  | fedcl.comm.memory_transport:receive:292 - 接收失败 yaml_client_9->yaml_fed_server, 数据大小: 0 字节, 超时: 0.01s
+2025-09-02 18:50:30.366 | WARNING  | fedcl.comm.memory_transport:receive:274 - 接收超时 yaml_fed_server->yaml_client_1
+2025-09-02 18:50:30.366 | WARNING  | fedcl.comm.memory_transport:receive:292 - 接收失败 yaml_fed_server->yaml_client_1, 数据大小: 0 字节, 超时: 0.01s
+2025-09-02 18:50:30.368 | WARNING  | fedcl.comm.memory_transport:receive:274 - 接收超时 client_10->yaml_fed_server
+2025-09-02 18:50:30.368 | WARNING  | fedcl.comm.memory_transport:receive:292 - 接收失败 client_10->yaml_fed_server, 数据大小: 0 字节, 超时: 0.01s
+2025-09-02 18:50:30.377 | WARNING  | fedcl.comm.memory_transport:receive:274 - 接收超时 fed_server->yaml_client_1
+2025-09-02 18:50:30.377 | WARNING  | fedcl.comm.memory_transport:receive:292 - 接收失败 fed_server->yaml_client_1, 数据大小: 0 字节, 超时: 0.01s
+2025-09-02 18:50:30.378 | WARNING  | fedcl.comm.memory_transport:receive:274 - 接收超时 yaml_client_10->yaml_fed_server
+2025-09-02 18:50:30.378 | WARNING  | fedcl.comm.memory_transport:receive:292 - 接收失败 yaml_client_10->yaml_fed_server, 数据大小: 0 字节, 超时: 0.01s
+2025-09-02 18:50:30.388 | WARNING  | fedcl.comm.memory_transport:receive:274 - 接收超时 server->yaml_client_1
+2025-09-02 18:50:30.388 | WARNING  | fedcl.comm.memory_transport:receive:292 - 接收失败 server->yaml_client_1, 数据大小: 0 字节, 超时: 0.01s
+2025-09-02 18:50:30.399 | WARNING  | fedcl.comm.memory_transport:receive:274 - 接收超时 yaml_fed_server->yaml_client_1
+2025-09-02 18:50:30.399 | WARNING  | fedcl.comm.memory_transport:receive:292 - 接收失败 yaml_fed_server->yaml_client_1, 数据大小: 0 字节, 超时: 0.01s
+2025-09-02 18:50:30.409 | WARNING  | fedcl.comm.memory_transport:receive:274 - 接收超时 fed_server->yaml_client_1
+2025-09-02 18:50:30.409 | WARNING  | fedcl.comm.memory_transport:receive:292 - 接收失败 fed_server->yaml_client_1, 数据大小: 0 字节, 超时: 0.01s
+2025-09-02 18:50:30.420 | WARNING  | fedcl.comm.memory_transport:receive:274 - 接收超时 server->yaml_client_1
+2025-09-02 18:50:30.420 | WARNING  | fedcl.comm.memory_transport:receive:292 - 接收失败 server->yaml_client_1, 数据大小: 0 字节, 超时: 0.01s
+2025-09-02 18:50:30.431 | WARNING  | fedcl.comm.memory_transport:receive:274 - 接收超时 yaml_fed_server->yaml_client_1
+2025-09-02 18:50:30.431 | WARNING  | fedcl.comm.memory_transport:receive:292 - 接收失败 yaml_fed_server->yaml_client_1, 数据大小: 0 字节, 超时: 0.01s
+2025-09-02 18:50:30.439 | WARNING  | fedcl.comm.memory_transport:receive:274 - 接收超时 yaml_client_1->yaml_fed_server
+2025-09-02 18:50:30.439 | WARNING  | fedcl.comm.memory_transport:receive:292 - 接收失败 yaml_client_1->yaml_fed_server, 数据大小: 0 字节, 超时: 0.01s
+2025-09-02 18:50:30.441 | WARNING  | fedcl.comm.memory_transport:receive:274 - 接收超时 fed_server->yaml_client_1
+2025-09-02 18:50:30.442 | WARNING  | fedcl.comm.memory_transport:receive:292 - 接收失败 fed_server->yaml_client_1, 数据大小: 0 字节, 超时: 0.01s
+2025-09-02 18:50:30.450 | WARNING  | fedcl.comm.memory_transport:receive:274 - 接收超时 client_1->yaml_fed_server
+2025-09-02 18:50:30.450 | WARNING  | fedcl.comm.memory_transport:receive:292 - 接收失败 client_1->yaml_fed_server, 数据大小: 0 字节, 超时: 0.01s
+2025-09-02 18:50:30.452 | WARNING  | fedcl.comm.memory_transport:receive:274 - 接收超时 server->yaml_client_1
+2025-09-02 18:50:30.452 | WARNING  | fedcl.comm.memory_transport:receive:292 - 接收失败 server->yaml_client_1, 数据大小: 0 字节, 超时: 0.01s
+2025-09-02 18:50:30.460 | WARNING  | fedcl.comm.memory_transport:receive:274 - 接收超时 yaml_client_1->yaml_fed_server
+2025-09-02 18:50:30.460 | WARNING  | fedcl.comm.memory_transport:receive:292 - 接收失败 yaml_client_1->yaml_fed_server, 数据大小: 0 字节, 超时: 0.01s
+2025-09-02 18:50:30.464 | WARNING  | fedcl.comm.memory_transport:receive:274 - 接收超时 yaml_fed_server->yaml_client_1
+2025-09-02 18:50:30.464 | WARNING  | fedcl.comm.memory_transport:receive:292 - 接收失败 yaml_fed_server->yaml_client_1, 数据大小: 0 字节, 超时: 0.01s
+2025-09-02 18:50:30.470 | WARNING  | fedcl.comm.memory_transport:receive:274 - 接收超时 client_2->yaml_fed_server
+2025-09-02 18:50:30.471 | WARNING  | fedcl.comm.memory_transport:receive:292 - 接收失败 client_2->yaml_fed_server, 数据大小: 0 字节, 超时: 0.01s
+2025-09-02 18:50:30.474 | WARNING  | fedcl.comm.memory_transport:receive:274 - 接收超时 fed_server->yaml_client_1
+2025-09-02 18:50:30.474 | WARNING  | fedcl.comm.memory_transport:receive:292 - 接收失败 fed_server->yaml_client_1, 数据大小: 0 字节, 超时: 0.01s
+2025-09-02 18:50:30.481 | WARNING  | fedcl.comm.memory_transport:receive:274 - 接收超时 yaml_client_2->yaml_fed_server
+2025-09-02 18:50:30.481 | WARNING  | fedcl.comm.memory_transport:receive:292 - 接收失败 yaml_client_2->yaml_fed_server, 数据大小: 0 字节, 超时: 0.01s
+2025-09-02 18:50:30.485 | WARNING  | fedcl.comm.memory_transport:receive:274 - 接收超时 server->yaml_client_1
+2025-09-02 18:50:30.485 | WARNING  | fedcl.comm.memory_transport:receive:292 - 接收失败 server->yaml_client_1, 数据大小: 0 字节, 超时: 0.01s
+2025-09-02 18:50:30.491 | WARNING  | fedcl.comm.memory_transport:receive:274 - 接收超时 client_3->yaml_fed_server
+2025-09-02 18:50:30.492 | WARNING  | fedcl.comm.memory_transport:receive:292 - 接收失败 client_3->yaml_fed_server, 数据大小: 0 字节, 超时: 0.01s
+2025-09-02 18:50:30.493 | DEBUG    | fedcl.comm.memory_transport:receive:270 - [DEBUG] 检查消息 yaml_fed_server->yaml_client_1, 可用源: []
+2025-09-02 18:50:30.496 | WARNING  | fedcl.comm.memory_transport:receive:274 - 接收超时 yaml_fed_server->yaml_client_1
+2025-09-02 18:50:30.496 | WARNING  | fedcl.comm.memory_transport:receive:292 - 接收失败 yaml_fed_server->yaml_client_1, 数据大小: 0 字节, 超时: 0.01s
+2025-09-02 18:50:30.502 | WARNING  | fedcl.comm.memory_transport:receive:274 - 接收超时 yaml_client_3->yaml_fed_server
+2025-09-02 18:50:30.502 | WARNING  | fedcl.comm.memory_transport:receive:292 - 接收失败 yaml_client_3->yaml_fed_server, 数据大小: 0 字节, 超时: 0.01s
+2025-09-02 18:50:30.507 | WARNING  | fedcl.comm.memory_transport:receive:274 - 接收超时 fed_server->yaml_client_1
+2025-09-02 18:50:30.507 | WARNING  | fedcl.comm.memory_transport:receive:292 - 接收失败 fed_server->yaml_client_1, 数据大小: 0 字节, 超时: 0.01s
+2025-09-02 18:50:30.513 | WARNING  | fedcl.comm.memory_transport:receive:274 - 接收超时 client_4->yaml_fed_server
+2025-09-02 18:50:30.513 | WARNING  | fedcl.comm.memory_transport:receive:292 - 接收失败 client_4->yaml_fed_server, 数据大小: 0 字节, 超时: 0.01s
+2025-09-02 18:50:30.519 | WARNING  | fedcl.comm.memory_transport:receive:274 - 接收超时 server->yaml_client_1
+2025-09-02 18:50:30.519 | WARNING  | fedcl.comm.memory_transport:receive:292 - 接收失败 server->yaml_client_1, 数据大小: 0 字节, 超时: 0.01s
+2025-09-02 18:50:30.523 | WARNING  | fedcl.comm.memory_transport:receive:274 - 接收超时 yaml_client_4->yaml_fed_server
+2025-09-02 18:50:30.523 | WARNING  | fedcl.comm.memory_transport:receive:292 - 接收失败 yaml_client_4->yaml_fed_server, 数据大小: 0 字节, 超时: 0.01s
+2025-09-02 18:50:30.530 | WARNING  | fedcl.comm.memory_transport:receive:274 - 接收超时 yaml_fed_server->yaml_client_1
+2025-09-02 18:50:30.530 | WARNING  | fedcl.comm.memory_transport:receive:292 - 接收失败 yaml_fed_server->yaml_client_1, 数据大小: 0 字节, 超时: 0.01s
+2025-09-02 18:50:30.533 | WARNING  | fedcl.comm.memory_transport:receive:274 - 接收超时 client_5->yaml_fed_server
+2025-09-02 18:50:30.534 | WARNING  | fedcl.comm.memory_transport:receive:292 - 接收失败 client_5->yaml_fed_server, 数据大小: 0 字节, 超时: 0.01s
+2025-09-02 18:50:30.540 | WARNING  | fedcl.comm.memory_transport:receive:274 - 接收超时 fed_server->yaml_client_1
+2025-09-02 18:50:30.540 | WARNING  | fedcl.comm.memory_transport:receive:292 - 接收失败 fed_server->yaml_client_1, 数据大小: 0 字节, 超时: 0.01s
+2025-09-02 18:50:30.544 | WARNING  | fedcl.comm.memory_transport:receive:274 - 接收超时 yaml_client_5->yaml_fed_server
+2025-09-02 18:50:30.544 | WARNING  | fedcl.comm.memory_transport:receive:292 - 接收失败 yaml_client_5->yaml_fed_server, 数据大小: 0 字节, 超时: 0.01s
+2025-09-02 18:50:30.551 | WARNING  | fedcl.comm.memory_transport:receive:274 - 接收超时 server->yaml_client_1
+2025-09-02 18:50:30.552 | WARNING  | fedcl.comm.memory_transport:receive:292 - 接收失败 server->yaml_client_1, 数据大小: 0 字节, 超时: 0.01s
+2025-09-02 18:50:30.555 | WARNING  | fedcl.comm.memory_transport:receive:274 - 接收超时 client_6->yaml_fed_server
+2025-09-02 18:50:30.555 | WARNING  | fedcl.comm.memory_transport:receive:292 - 接收失败 client_6->yaml_fed_server, 数据大小: 0 字节, 超时: 0.01s
+2025-09-02 18:50:30.564 | WARNING  | fedcl.comm.memory_transport:receive:274 - 接收超时 yaml_fed_server->yaml_client_1
+2025-09-02 18:50:30.564 | WARNING  | fedcl.comm.memory_transport:receive:292 - 接收失败 yaml_fed_server->yaml_client_1, 数据大小: 0 字节, 超时: 0.01s
+2025-09-02 18:50:30.566 | WARNING  | fedcl.comm.memory_transport:receive:274 - 接收超时 yaml_client_6->yaml_fed_server
+2025-09-02 18:50:30.566 | WARNING  | fedcl.comm.memory_transport:receive:292 - 接收失败 yaml_client_6->yaml_fed_server, 数据大小: 0 字节, 超时: 0.01s
+2025-09-02 18:50:30.574 | WARNING  | fedcl.comm.memory_transport:receive:274 - 接收超时 fed_server->yaml_client_1
+2025-09-02 18:50:30.574 | WARNING  | fedcl.comm.memory_transport:receive:292 - 接收失败 fed_server->yaml_client_1, 数据大小: 0 字节, 超时: 0.01s
+2025-09-02 18:50:30.576 | WARNING  | fedcl.comm.memory_transport:receive:274 - 接收超时 client_7->yaml_fed_server
+2025-09-02 18:50:30.577 | WARNING  | fedcl.comm.memory_transport:receive:292 - 接收失败 client_7->yaml_fed_server, 数据大小: 0 字节, 超时: 0.01s
+2025-09-02 18:50:30.584 | WARNING  | fedcl.comm.memory_transport:receive:274 - 接收超时 server->yaml_client_1
+2025-09-02 18:50:30.584 | WARNING  | fedcl.comm.memory_transport:receive:292 - 接收失败 server->yaml_client_1, 数据大小: 0 字节, 超时: 0.01s
+2025-09-02 18:50:30.587 | WARNING  | fedcl.comm.memory_transport:receive:274 - 接收超时 yaml_client_7->yaml_fed_server
+2025-09-02 18:50:30.587 | WARNING  | fedcl.comm.memory_transport:receive:292 - 接收失败 yaml_client_7->yaml_fed_server, 数据大小: 0 字节, 超时: 0.01s
+2025-09-02 18:50:30.597 | WARNING  | fedcl.comm.memory_transport:receive:274 - 接收超时 yaml_fed_server->yaml_client_1
+2025-09-02 18:50:30.597 | WARNING  | fedcl.comm.memory_transport:receive:292 - 接收失败 yaml_fed_server->yaml_client_1, 数据大小: 0 字节, 超时: 0.01s
+2025-09-02 18:50:30.597 | WARNING  | fedcl.comm.memory_transport:receive:274 - 接收超时 client_8->yaml_fed_server
+2025-09-02 18:50:30.597 | WARNING  | fedcl.comm.memory_transport:receive:292 - 接收失败 client_8->yaml_fed_server, 数据大小: 0 字节, 超时: 0.01s
+2025-09-02 18:50:30.608 | WARNING  | fedcl.comm.memory_transport:receive:274 - 接收超时 fed_server->yaml_client_1
+2025-09-02 18:50:30.608 | WARNING  | fedcl.comm.memory_transport:receive:292 - 接收失败 fed_server->yaml_client_1, 数据大小: 0 字节, 超时: 0.01s
+2025-09-02 18:50:30.608 | WARNING  | fedcl.comm.memory_transport:receive:274 - 接收超时 yaml_client_8->yaml_fed_server
+2025-09-02 18:50:30.608 | WARNING  | fedcl.comm.memory_transport:receive:292 - 接收失败 yaml_client_8->yaml_fed_server, 数据大小: 0 字节, 超时: 0.01s
+2025-09-02 18:50:30.619 | WARNING  | fedcl.comm.memory_transport:receive:274 - 接收超时 server->yaml_client_1
+2025-09-02 18:50:30.619 | WARNING  | fedcl.comm.memory_transport:receive:292 - 接收失败 server->yaml_client_1, 数据大小: 0 字节, 超时: 0.01s
+2025-09-02 18:50:30.619 | WARNING  | fedcl.comm.memory_transport:receive:274 - 接收超时 client_9->yaml_fed_server
+2025-09-02 18:50:30.619 | WARNING  | fedcl.comm.memory_transport:receive:292 - 接收失败 client_9->yaml_fed_server, 数据大小: 0 字节, 超时: 0.01s
+2025-09-02 18:50:30.630 | WARNING  | fedcl.comm.memory_transport:receive:274 - 接收超时 yaml_client_9->yaml_fed_server
+2025-09-02 18:50:30.631 | WARNING  | fedcl.comm.memory_transport:receive:292 - 接收失败 yaml_client_9->yaml_fed_server, 数据大小: 0 字节, 超时: 0.01s
+2025-09-02 18:50:30.632 | WARNING  | fedcl.comm.memory_transport:receive:274 - 接收超时 yaml_fed_server->yaml_client_1
+2025-09-02 18:50:30.632 | WARNING  | fedcl.comm.memory_transport:receive:292 - 接收失败 yaml_fed_server->yaml_client_1, 数据大小: 0 字节, 超时: 0.01s
+2025-09-02 18:50:30.642 | WARNING  | fedcl.comm.memory_transport:receive:274 - 接收超时 client_10->yaml_fed_server
+2025-09-02 18:50:30.642 | WARNING  | fedcl.comm.memory_transport:receive:292 - 接收失败 client_10->yaml_fed_server, 数据大小: 0 字节, 超时: 0.01s
+2025-09-02 18:50:30.643 | WARNING  | fedcl.comm.memory_transport:receive:274 - 接收超时 fed_server->yaml_client_1
+2025-09-02 18:50:30.643 | WARNING  | fedcl.comm.memory_transport:receive:292 - 接收失败 fed_server->yaml_client_1, 数据大小: 0 字节, 超时: 0.01s
+2025-09-02 18:50:30.653 | WARNING  | fedcl.comm.memory_transport:receive:274 - 接收超时 yaml_client_10->yaml_fed_server
+2025-09-02 18:50:30.653 | WARNING  | fedcl.comm.memory_transport:receive:292 - 接收失败 yaml_client_10->yaml_fed_server, 数据大小: 0 字节, 超时: 0.01s
+2025-09-02 18:50:30.654 | WARNING  | fedcl.comm.memory_transport:receive:274 - 接收超时 server->yaml_client_1
+2025-09-02 18:50:30.654 | WARNING  | fedcl.comm.memory_transport:receive:292 - 接收失败 server->yaml_client_1, 数据大小: 0 字节, 超时: 0.01s
+2025-09-02 18:50:30.659 | DEBUG    | fedcl.comm.memory_transport:receive:270 - [DEBUG] 检查消息 yaml_fed_server->yaml_client_1, 可用源: []
+2025-09-02 18:50:30.667 | WARNING  | fedcl.comm.memory_transport:receive:274 - 接收超时 yaml_fed_server->yaml_client_1
+2025-09-02 18:50:30.667 | WARNING  | fedcl.comm.memory_transport:receive:292 - 接收失败 yaml_fed_server->yaml_client_1, 数据大小: 0 字节, 超时: 0.01s
+2025-09-02 18:50:30.678 | WARNING  | fedcl.comm.memory_transport:receive:274 - 接收超时 fed_server->yaml_client_1
+2025-09-02 18:50:30.678 | WARNING  | fedcl.comm.memory_transport:receive:292 - 接收失败 fed_server->yaml_client_1, 数据大小: 0 字节, 超时: 0.01s
+2025-09-02 18:50:30.689 | WARNING  | fedcl.comm.memory_transport:receive:274 - 接收超时 server->yaml_client_1
+2025-09-02 18:50:30.689 | WARNING  | fedcl.comm.memory_transport:receive:292 - 接收失败 server->yaml_client_1, 数据大小: 0 字节, 超时: 0.01s
+2025-09-02 18:50:30.701 | WARNING  | fedcl.comm.memory_transport:receive:274 - 接收超时 yaml_fed_server->yaml_client_1
+2025-09-02 18:50:30.701 | WARNING  | fedcl.comm.memory_transport:receive:292 - 接收失败 yaml_fed_server->yaml_client_1, 数据大小: 0 字节, 超时: 0.01s
+2025-09-02 18:50:30.712 | WARNING  | fedcl.comm.memory_transport:receive:274 - 接收超时 fed_server->yaml_client_1
+2025-09-02 18:50:30.712 | WARNING  | fedcl.comm.memory_transport:receive:292 - 接收失败 fed_server->yaml_client_1, 数据大小: 0 字节, 超时: 0.01s
+2025-09-02 18:50:30.715 | WARNING  | fedcl.comm.memory_transport:receive:274 - 接收超时 yaml_client_1->yaml_fed_server
+2025-09-02 18:50:30.715 | WARNING  | fedcl.comm.memory_transport:receive:292 - 接收失败 yaml_client_1->yaml_fed_server, 数据大小: 0 字节, 超时: 0.01s
+2025-09-02 18:50:30.723 | WARNING  | fedcl.comm.memory_transport:receive:274 - 接收超时 server->yaml_client_1
+2025-09-02 18:50:30.723 | WARNING  | fedcl.comm.memory_transport:receive:292 - 接收失败 server->yaml_client_1, 数据大小: 0 字节, 超时: 0.01s
+2025-09-02 18:50:30.725 | WARNING  | fedcl.comm.memory_transport:receive:274 - 接收超时 client_1->yaml_fed_server
+2025-09-02 18:50:30.726 | WARNING  | fedcl.comm.memory_transport:receive:292 - 接收失败 client_1->yaml_fed_server, 数据大小: 0 字节, 超时: 0.01s
+2025-09-02 18:50:30.734 | WARNING  | fedcl.comm.memory_transport:receive:274 - 接收超时 yaml_fed_server->yaml_client_1
+2025-09-02 18:50:30.734 | WARNING  | fedcl.comm.memory_transport:receive:292 - 接收失败 yaml_fed_server->yaml_client_1, 数据大小: 0 字节, 超时: 0.01s
+2025-09-02 18:50:30.736 | WARNING  | fedcl.comm.memory_transport:receive:274 - 接收超时 yaml_client_1->yaml_fed_server
+2025-09-02 18:50:30.736 | WARNING  | fedcl.comm.memory_transport:receive:292 - 接收失败 yaml_client_1->yaml_fed_server, 数据大小: 0 字节, 超时: 0.01s
+2025-09-02 18:50:30.746 | WARNING  | fedcl.comm.memory_transport:receive:274 - 接收超时 fed_server->yaml_client_1
+2025-09-02 18:50:30.746 | WARNING  | fedcl.comm.memory_transport:receive:292 - 接收失败 fed_server->yaml_client_1, 数据大小: 0 字节, 超时: 0.01s
+2025-09-02 18:50:30.747 | WARNING  | fedcl.comm.memory_transport:receive:274 - 接收超时 client_2->yaml_fed_server
+2025-09-02 18:50:30.747 | WARNING  | fedcl.comm.memory_transport:receive:292 - 接收失败 client_2->yaml_fed_server, 数据大小: 0 字节, 超时: 0.01s
+2025-09-02 18:50:30.756 | WARNING  | fedcl.comm.memory_transport:receive:274 - 接收超时 server->yaml_client_1
+2025-09-02 18:50:30.756 | WARNING  | fedcl.comm.memory_transport:receive:292 - 接收失败 server->yaml_client_1, 数据大小: 0 字节, 超时: 0.01s
+2025-09-02 18:50:30.757 | WARNING  | fedcl.comm.memory_transport:receive:274 - 接收超时 yaml_client_2->yaml_fed_server
+2025-09-02 18:50:30.757 | WARNING  | fedcl.comm.memory_transport:receive:292 - 接收失败 yaml_client_2->yaml_fed_server, 数据大小: 0 字节, 超时: 0.01s
