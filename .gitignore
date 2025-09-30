@@ -8,3 +8,7 @@ wheels/
 PM/
 # Virtual environments
 .venv
+data/
+logs/
+syn_imgs/
+outputs
