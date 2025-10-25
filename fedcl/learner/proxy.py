@@ -4,19 +4,19 @@ moe_fedcl/learner/proxy.py
 """
 
 import asyncio
-import uuid
-from typing import Any, Dict, Optional, Callable, List
-from datetime import datetime, timedelta
-import inspect
 import functools
+import uuid
+from datetime import datetime
+from typing import Any, Dict, Optional, Callable, List
 
 from ..communication.base import CommunicationManagerBase
 from ..connection.manager import ConnectionManager
+from ..exceptions import CommunicationError, ClientNotFoundError
 from ..types import (
-    TrainingRequest, TrainingResponse, ModelData, TrainingResult, 
-    EvaluationResult, MetricsData, ConnectionStatus
+    TrainingRequest, ModelData, TrainingResult,
+    EvaluationResult, MetricsData, ConnectionStatus, TrainingResponse
 )
-from ..exceptions import CommunicationError, TimeoutError, ClientNotFoundError
+from ..utils.auto_logger import get_sys_logger
 
 
 class ProxyConfig:
@@ -162,6 +162,8 @@ class LearnerProxy:
         # 启动连接检查
         if self.config.connection_check_interval > 0:
             self._connection_check_task = asyncio.create_task(self._connection_check_loop())
+
+        self.logger = get_sys_logger()
     
     # ==================== 核心业务方法 ====================
     
@@ -348,6 +350,27 @@ class LearnerProxy:
             if "not found" in str(e).lower() or "does not exist" in str(e).lower():
                 raise AttributeError(f"Remote method '{method_name}' does not exist on {self.client_id}")
             raise
+
+    def _setup_request_handlers(self):
+        """设置请求处理器"""
+        self._request_handlers = {
+            "get_model": self.handle_get_model_request,
+            "set_model": self.handle_set_model_request,
+            "ping": self.handle_ping_request
+        }
+
+    async def handle_ping_request(self, request: TrainingRequest) -> TrainingResponse:
+        """处理ping请求"""
+        return TrainingResponse(
+            request_id=request.request_id,
+            client_id=request.client_id,
+            success=True,
+            result={
+                "status": "alive",
+                "timestamp": datetime.now().isoformat(),
+                "registration_status": self._registration_status.value
+            }
+        )
     
     # ==================== 标准远程方法调用 ====================
     
@@ -486,7 +509,8 @@ class LearnerProxy:
             )
         
         return subscription_id
-    
+
+
     async def _handle_subscription_event(self, event_type: str, source: str, data: Any):
         """处理订阅事件"""
         if source != self.client_id:

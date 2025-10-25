@@ -1,5 +1,3 @@
-import collections.abc
-
 # 工具函数：递归将所有datetime对象转为字符串
 def json_compatible(obj):
     if isinstance(obj, dict):
@@ -21,28 +19,33 @@ moe_fedcl/transport/network.py
 import asyncio
 import json
 import uuid
-from typing import Any, Dict, List, Callable, Optional
 from datetime import datetime
+from typing import Any, Dict, Callable, Optional
+
 import aiohttp
 from aiohttp import web, WSMsgType
-import weakref
 
 from .base import TransportBase
-from ..types import TransportConfig
 from ..exceptions import TransportError, TimeoutError
+from ..types import TransportConfig
+from ..utils.auto_logger import get_sys_logger
 
 
 class NetworkTransport(TransportBase):
     """网络传输实现 - 基于HTTP/WebSocket通信"""
-    
+
     def __init__(self, config: TransportConfig):
         super().__init__(config)
-        
+
         # 服务端配置
         self.host = config.specific_config.get("host", "0.0.0.0")
         self.port = config.specific_config.get("port", 8000)
+
         self.websocket_port = config.specific_config.get("websocket_port", 9501)  # 改为9501避免冲突
-        
+
+        # 节点角色（从配置中获取，如果未指定则为None）
+        self.node_role = config.specific_config.get("node_role", None)
+
         # HTTP客户端会话
         self._http_session: Optional[aiohttp.ClientSession] = None
         
@@ -61,13 +64,39 @@ class NetworkTransport(TransportBase):
         
         # Process模式兼容性：目标ID管理
         self.target_ids = set()  # 支持多个目标ID
-        
+
+        # 客户端地址缓存：保存客户端注册时提供的地址信息
+        # {client_id: {"host": "127.0.0.1", "port": 8001, "url": "http://127.0.0.1:8001"}}
+        self._client_addresses: Dict[str, Dict[str, Any]] = {}
+
         # 本地事件处理器（用于system事件）
         self._local_event_handlers = {}  # {event_type: [handlers]}
+
+        self.logger = get_sys_logger()
         
         # 模拟Memory模式的全局事件监听器（类变量，跨实例共享）
         if not hasattr(NetworkTransport, '_global_event_listeners'):
             NetworkTransport._global_event_listeners = {}
+
+    def _is_server_node(self) -> bool:
+        """判断当前节点是否为服务端
+
+        判断逻辑：
+        1. 如果显式设置了 node_role，使用 node_role 判断
+        2. 否则，向后兼容地从 node_id 推断（如果 node_id 包含 "server"）
+
+        Returns:
+            bool: True 表示服务端，False 表示客户端
+        """
+        if self.node_role is not None:
+            # 显式指定了角色，使用显式角色
+            return self.node_role.lower() == "server"
+        elif hasattr(self, 'node_id') and self.node_id:
+            # 向后兼容：从 node_id 推断
+            return "server" in self.node_id.lower()
+        else:
+            # 默认为客户端
+            return False
     
     async def send(self, source: str, target: str, data: Any) -> Any:
         """通过HTTP发送请求并等待响应"""
@@ -208,25 +237,25 @@ class NetworkTransport(TransportBase):
     
     async def start_event_listener(self, node_id: str) -> None:
         """启动事件监听器
-        
+
         架构设计：
         - 服务器：启动HTTP服务器（处理注册、RPC）+ WebSocket服务器（双向通信）
-        - 客户端：HTTP客户端（注册、RPC）+ WebSocket客户端（双向通信）
-        
+        - 客户端：HTTP服务器（接收服务端请求）+ WebSocket客户端（双向通信）
+
         这样设计的优势：
-        1. 客户端无需启动服务器，避免端口冲突和防火墙问题
+        1. 支持双向通信（服务端可以主动请求客户端）
         2. WebSocket提供高效的双向实时通信
         3. HTTP处理传统的请求-响应操作
         4. 架构清晰，易于维护
         """
         self.node_id = node_id
         print(f"🚀 [NetworkTransport] 开始启动事件监听器: {node_id}")
-        
-        if "server" in node_id.lower():
+
+        if self._is_server_node():
             # 服务器节点：启动HTTP和WebSocket服务器
             self.add_target_id("system")
             print(f"[NetworkTransport] 服务器节点自动添加system目标ID")
-            
+
             try:
                 print(f"🌐 [NetworkTransport] 正在启动HTTP服务器: {self.host}:{self.port}")
                 await self._start_http_server()
@@ -235,7 +264,7 @@ class NetworkTransport(TransportBase):
                 print(f"❌ [NetworkTransport] HTTP服务器启动失败: {e}")
                 import traceback
                 traceback.print_exc()
-            
+
             try:
                 print(f"🔌 [NetworkTransport] 正在启动WebSocket服务器: {self.host}:{self.websocket_port}")
                 await self._start_websocket_server()
@@ -244,18 +273,27 @@ class NetworkTransport(TransportBase):
                 print(f"❌ [NetworkTransport] WebSocket服务器启动失败: {e}")
                 import traceback
                 traceback.print_exc()
-            
+
             print(f"✅ [NetworkTransport] 服务器事件监听器已启动: {node_id} (HTTP:{self.port}, WS:{self.websocket_port})")
         else:
+            # 客户端节点：启动HTTP服务器
+            try:
+                print(f"🌐 [NetworkTransport] 正在启动HTTP服务器: {self.host}:{self.port}")
+                await self._start_http_server()
+                print(f"✅ [NetworkTransport] HTTP服务器启动成功")
+            except Exception as e:
+                print(f"❌ [NetworkTransport] HTTP服务器启动失败: {e}")
+                import traceback
+                traceback.print_exc()
             # 客户端节点：作为WebSocket客户端连接到服务器，支持双向通信
             print(f"📡 [NetworkTransport] 客户端将通过WebSocket连接到服务器进行双向通信")
             print(f"✅ [NetworkTransport] 客户端事件监听器已启动: {node_id} (客户端模式)")
-        
+
         print(f"✅ [NetworkTransport] 事件监听器已启动: {node_id}")
     
     async def _start_http_server(self):
         """启动HTTP服务器"""
-        self._app = web.Application()
+        self._app = web.Application(client_max_size = 0)
         
         # 注册路由
         self._app.router.add_post("/api/v1/rpc", self._handle_rpc_request)
@@ -269,6 +307,26 @@ class NetworkTransport(TransportBase):
         
         site = web.TCPSite(self._runner, self.host, self.port)
         await site.start()
+
+        # 获取实际分配的端口（如果使用了随机端口）
+        if self.port == 0 and self._runner and self._runner.sites:
+            for site in self._runner.sites:
+                try:
+                    # 安全地访问server对象
+                    server = getattr(site, '_server', None)
+                    if server is not None:
+                        # 使用更通用的方法获取socket信息
+                        socks = getattr(server, 'sockets', None)
+                        if socks and len(socks) > 0:
+                            # 获取第一个socket的地址信息
+                            addr = socks[0].getsockname()
+                            if addr and len(addr) >= 2:
+                                self.port = addr[1]  # 端口号是地址元组的第二个元素
+                                self.logger.info(f"系统分配的实际端口: {self.port}")
+                                break
+                except Exception as e:
+                    self.logger.warning(f"获取实际端口时出错: {e}")
+                    continue
         
         print(f"HTTP server started on {self.host}:{self.port}")
     
@@ -323,27 +381,71 @@ class NetworkTransport(TransportBase):
             }, status=500)
     
     async def _handle_register_request(self, request: web.Request):
-        """处理注册请求"""
+        """处理注册请求 - 转发给通信管理器处理"""
         try:
             data = await request.json()
-            # 这里可以添加注册逻辑
-            return web.json_response({
-                "success": True,
-                "message": "Registration successful",
-                "timestamp": datetime.now().isoformat()
-            })
+
+            # 调用注册的请求处理器（通信管理器）
+            if self._request_handler:
+                # 包装成标准格式，标记为注册请求
+                wrapped_data = {
+                    "message_type": "registration",
+                    "data": data
+                }
+
+                if asyncio.iscoroutinefunction(self._request_handler):
+                    result = await self._request_handler("system", wrapped_data)
+                else:
+                    result = self._request_handler("system", wrapped_data)
+
+                return web.json_response(result)
+            else:
+                # 如果没有注册处理器，返回默认成功响应
+                return web.json_response({
+                    "success": True,
+                    "message": "Registration successful",
+                    "timestamp": datetime.now().isoformat()
+                })
+
         except Exception as e:
+            self.logger.error(f"处理注册请求失败: {e}")
             return web.json_response({
                 "success": False,
                 "error": str(e)
             }, status=400)
     
     async def _handle_heartbeat_request(self, request: web.Request):
-        """处理心跳请求"""
-        return web.json_response({
-            "status": "alive",
-            "timestamp": datetime.now().isoformat()
-        })
+        """处理心跳请求 - 转发给通信管理器处理"""
+        try:
+            data = await request.json()
+
+            # 调用注册的请求处理器（通信管理器）
+            if self._request_handler:
+                # 包装成标准格式，标记为心跳请求
+                wrapped_data = {
+                    "message_type": "heartbeat",
+                    "data": data
+                }
+
+                if asyncio.iscoroutinefunction(self._request_handler):
+                    result = await self._request_handler("system", wrapped_data)
+                else:
+                    result = self._request_handler("system", wrapped_data)
+
+                return web.json_response(result)
+            else:
+                # 如果没有注册处理器，返回默认存活响应
+                return web.json_response({
+                    "status": "alive",
+                    "timestamp": datetime.now().isoformat()
+                })
+
+        except Exception as e:
+            self.logger.error(f"处理心跳请求失败: {e}")
+            return web.json_response({
+                "success": False,
+                "error": str(e)
+            }, status=500)
     
     async def _handle_event_request(self, request: web.Request):
         """处理事件请求"""
@@ -413,10 +515,25 @@ class NetworkTransport(TransportBase):
     def register_request_handler(self, node_id: str, handler: Callable):
         """注册请求处理器"""
         self._request_handler = handler
+        self.logger.debug(f"[NetworkTransport] 注册请求处理器: {node_id}")
         print(f"[NetworkTransport] 已注册请求处理器: {node_id}")
     
     def _parse_node_address(self, node_id: str) -> Optional[str]:
-        """解析节点地址，兼容network/process模式"""
+        """解析节点地址，兼容network/process模式
+
+        优先级：
+        1. 从客户端注册时提供的地址缓存中获取
+        2. 从节点ID中解析
+        """
+        # 首先检查是否有客户端注册时提供的地址
+        self.logger.debug(f"[NetworkTransport] 解析节点地址: {node_id}, 检查注册缓存 {self._client_addresses}")
+        if node_id in self._client_addresses:
+            client_addr = self._client_addresses[node_id]
+            url = client_addr.get("url")
+            if url:
+                self.logger.debug(f"使用客户端注册地址: {node_id} -> {url}")
+                return url
+
         # network_server_192.168.1.100_8000
         # network_client_192.168.1.101_8001_abc123
         # process_client_8001_xxx
@@ -430,9 +547,58 @@ class NetworkTransport(TransportBase):
                 except (ValueError, IndexError):
                     return None
         elif node_id.startswith("process_"):
-            # 进程模式，所有通信都在本地，host为127.0.0.1，端口用配置
-            return f"http://127.0.0.1:{self.port}"
+            # 进程模式，所有通信都在本地，host为127.0.0.1，端口从ID中提取
+            parts = node_id.split("_")
+            if len(parts) >= 4:
+                try:
+                    process_port = int(parts[2])  # 从process_client_8001_xxx中提取8001
+                    self.logger.debug(f"{node_id} Network transport port: {process_port}")
+                    return f"http://127.0.0.1:{process_port}"
+                except (ValueError, IndexError):
+                    # 如果提取失败，回退到配置的端口
+                    self.logger.debug(f"{node_id} 无法解析端口，使用默认端口: {self.port}")
+                    return f"http://127.0.0.1:{self.port}"
+            else:
+                # 格式不正确，使用默认端口
+                self.logger.debug(f"{node_id} 格式不正确，使用默认端口: {self.port}")
+                return f"http://127.0.0.1:{self.port}"
         return None
+
+    def register_client_address(self, client_id: str, address_info: Dict[str, Any]) -> None:
+        """注册客户端地址信息（从客户端注册请求中提取）
+
+        Args:
+            client_id: 客户端ID
+            address_info: 地址信息字典，包含 host, port, url
+        """
+        if address_info and address_info.get("url"):
+            self._client_addresses[client_id] = address_info
+            self.logger.info(f"注册客户端地址: {client_id} -> {self._client_addresses[client_id]}")
+        else:
+            self.logger.warning(f"客户端 {client_id} 未提供有效地址信息")
+
+    def get_client_address(self, client_id: str) -> Optional[str]:
+        """获取客户端的URL地址
+
+        Args:
+            client_id: 客户端ID
+
+        Returns:
+            客户端URL或None
+        """
+        addr = self._client_addresses.get(client_id)
+        return addr.get("url") if addr else None
+
+    def unregister_client_address(self, client_id: str) -> None:
+        """注销客户端地址信息
+
+        Args:
+            client_id: 客户端ID
+        """
+        if client_id in self._client_addresses:
+            del self._client_addresses[client_id]
+            self.logger.info(f"注销客户端地址: {client_id}")
+
     
     async def initialize(self) -> bool:
         """初始化Network传输"""
@@ -516,4 +682,4 @@ class NetworkTransport(TransportBase):
         if not node_id or not isinstance(node_id, str):
             return False
         # 允许 network_ 和 process_ 前缀
-        return (node_id.startswith("network_") or node_id.startswith("process_")) and len(node_id) > 8
+        return True

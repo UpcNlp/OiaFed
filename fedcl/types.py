@@ -189,8 +189,8 @@ class FederationConfig:
 
 
 # 数据类型别名
-ModelData = Dict[str, Any]
-TrainingResult = Dict[str, Any] 
-EvaluationResult = Dict[str, Any]
-MetricsData = Dict[str, Any]
-RoundResult = Dict[str, Any]
+ModelData = dict[str, Any]
+TrainingResult = dict[str, Any]
+EvaluationResult = dict[str, Any]
+MetricsData = dict[str, Any]
+RoundResult = dict[str, Any]

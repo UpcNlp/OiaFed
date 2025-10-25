@@ -5,11 +5,11 @@ moe_fedcl/learner/base_learner.py
 
 import asyncio
 from abc import ABC, abstractmethod
-from typing import Any, Dict, Optional, List
 from datetime import datetime
+from typing import Any, Dict, Optional, List
 
-from ..types import ModelData, TrainingResult, EvaluationResult, MetricsData
-from ..exceptions import TrainingError, ValidationError
+from ..exceptions import ValidationError
+from ..types import ModelData, TrainingResult, EvaluationResult
 
 
 class BaseLearner(ABC):

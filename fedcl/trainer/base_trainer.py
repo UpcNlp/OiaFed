@@ -5,13 +5,12 @@ moe_fedcl/trainer/base_trainer.py
 
 import asyncio
 from abc import ABC, abstractmethod
+from datetime import datetime
 from typing import Any, Dict, List, Optional, Callable
-from datetime import datetime, timedelta
-
-from ..learner.proxy import LearnerProxy
-from ..types import ModelData, TrainingResult, EvaluationResult, RoundResult
-from ..exceptions import TrainingError, ClientNotFoundError, FederationError
 from ..communication.layer_event import ProxyManagerEventHandler
+from ..exceptions import FederationError
+from ..learner.proxy import LearnerProxy
+from ..types import ModelData, EvaluationResult, RoundResult
 
 
 class TrainingConfig:
@@ -103,7 +102,7 @@ class ProxyManager:
     
     async def on_proxy_ready(self, client_id: str, proxy: LearnerProxy):
         """接收业务通信层创建的代理"""
-        self.logger.info(f"🎯 [代理管理器] 收到代理就绪通知: {client_id}")
+        self.logger.info(f" [代理管理器] 收到代理就绪通知: {client_id}")
         
         async with self._lock:
             self.proxies[client_id] = proxy

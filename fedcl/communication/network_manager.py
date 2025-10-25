@@ -4,26 +4,48 @@ moe_fedcl/communication/network_manager.py
 """
 
 import asyncio
-import aiohttp
 import json
-from typing import Any, Dict, List, Optional
 from datetime import datetime
+from typing import Any, Dict, Optional
+
+import aiohttp
 
 from .base import CommunicationManagerBase
+from ..exceptions import RegistrationError
 from ..transport.network import NetworkTransport
 from ..types import (
     ClientInfo, RegistrationRequest, RegistrationResponse,
     HeartbeatMessage, CommunicationConfig, RegistrationStatus
 )
-from ..exceptions import RegistrationError, CommunicationError
+from ..utils.auto_logger import get_sys_logger
 
 
 class NetworkCommunicationManager(CommunicationManagerBase):
     """统一通信管理器 - 支持Network模式和Process模式"""
-    
-    def __init__(self, node_id: str, transport: NetworkTransport, config: CommunicationConfig):
+
+    def __init__(self,
+                 node_id: str,
+                 transport: NetworkTransport,
+                 config: CommunicationConfig,
+                 node_role: str = None):
+        """
+        初始化网络通信管理器
+
+        Args:
+            node_id: 节点ID
+            transport: 网络传输层实例
+            config: 通信配置
+            node_role: 节点角色 ('server' 或 'client')。如果为 None，则从 node_id 推断
+        """
         super().__init__(node_id, transport, config)
-        
+
+        # 显式设置节点角色（更可靠的判断方式）
+        if node_role is not None:
+            self.node_role = node_role.lower()
+        else:
+            # 向后兼容：如果没有显式指定，从node_id推断
+            self.node_role = "server" if "server" in node_id.lower() else "client"
+
         # 检测模式
         self.is_process_mode = "process_" in node_id
         self.is_network_mode = "network_" in node_id
@@ -39,6 +61,8 @@ class NetworkCommunicationManager(CommunicationManagerBase):
         # Process模式特定初始化
         if self.is_process_mode:
             self._init_process_mode()
+
+        self.logger = get_sys_logger()
     
     def _init_process_mode(self):
         """初始化Process模式特定功能"""
@@ -61,14 +85,20 @@ class NetworkCommunicationManager(CommunicationManagerBase):
         return "http://127.0.0.1:8000" if self.is_process_mode else "http://localhost:8000"
     
     def _is_client_node(self) -> bool:
-        """统一的客户端节点判断"""
-        return self.node_id.startswith(("network_client", "process_client"))
+        """统一的客户端节点判断
+
+        使用显式的 node_role 字段进行判断，不依赖 node_id 的命名规则。
+
+        Returns:
+            bool: True 表示客户端，False 表示服务端
+        """
+        return self.node_role == "client"
     
     async def register_client(self, registration: RegistrationRequest) -> RegistrationResponse:
         """注册客户端 - 通过HTTP API"""
         try:
             client_id = registration.client_id
-            
+
             # 检查本地是否已注册
             if client_id in self.clients:
                 return RegistrationResponse(
@@ -76,7 +106,7 @@ class NetworkCommunicationManager(CommunicationManagerBase):
                     client_id=client_id,
                     error_message=f"Client {client_id} already registered locally"
                 )
-            
+
             # 向服务端发送注册请求
             if self._is_client_node():
                 # 客户端向服务端注册
@@ -87,7 +117,20 @@ class NetworkCommunicationManager(CommunicationManagerBase):
                         client_id=client_id,
                         error_message="Failed to register with server"
                     )
-            
+
+                # 客户端注册成功后，直接返回（不在客户端本地保存）
+                # 客户端地址应该在服务端的transport中注册
+                return RegistrationResponse(
+                    success=True,
+                    client_id=client_id,
+                    server_info={
+                        "server_id": self.node_id,
+                        "registration_mode": "client_to_server"
+                    }
+                )
+
+            # 以下代码只在服务端执行（处理客户端的注册请求）
+
             # 创建本地客户端信息
             client_info = ClientInfo(
                 client_id=client_id,
@@ -98,12 +141,21 @@ class NetworkCommunicationManager(CommunicationManagerBase):
                 last_seen=datetime.now(),
                 status=RegistrationStatus.REGISTERED
             )
-            
+
             # 添加到本地注册表
             async with self._lock:
                 self.clients[client_id] = client_info
                 self.heartbeat_status[client_id] = datetime.now()
-            
+
+            # 从metadata中提取客户端地址信息并注册到transport（服务端的transport）
+            if hasattr(self.transport, 'register_client_address'):
+                client_address = registration.metadata.get("client_address")
+                if client_address:
+                    self.transport.register_client_address(client_id, client_address)
+                    self.logger.info(f"已注册客户端地址到服务端transport: {client_id} -> {client_address.get('url')}")
+                else:
+                    self.logger.warning(f"客户端 {client_id} 注册时未提供地址信息")
+
             # 触发客户端注册事件
             await self.transport.push_event(
                 self.node_id,
@@ -111,7 +163,7 @@ class NetworkCommunicationManager(CommunicationManagerBase):
                 "CLIENT_REGISTERED",
                 {"client_id": client_id, "client_info": client_info.__dict__}
             )
-            
+
             return RegistrationResponse(
                 success=True,
                 client_id=client_id,
@@ -123,7 +175,7 @@ class NetworkCommunicationManager(CommunicationManagerBase):
                     "network_mode": True
                 }
             )
-            
+
         except Exception as e:
             raise RegistrationError(f"Client registration failed: {str(e)}")
     
@@ -176,12 +228,16 @@ class NetworkCommunicationManager(CommunicationManagerBase):
             # 如果是客户端节点，向服务端发送注销请求
             if self._is_client_node():
                 await self._unregister_from_server(client_id)
-            
+
+            # 从transport中注销客户端地址
+            if hasattr(self.transport, 'unregister_client_address'):
+                self.transport.unregister_client_address(client_id)
+
             # 触发客户端注销事件
             await self.transport.push_event(
                 self.node_id,
                 "system",
-                "CLIENT_UNREGISTERED", 
+                "CLIENT_UNREGISTERED",
                 {"client_id": client_id, "reason": "manual"}
             )
             
@@ -220,7 +276,7 @@ class NetworkCommunicationManager(CommunicationManagerBase):
                 "metrics": await self._get_node_metrics(),
                 "timestamp": datetime.now().isoformat()
             }
-            
+
             if target:
                 # 发送到特定目标
                 target_url = self._parse_target_url(target)
@@ -228,13 +284,13 @@ class NetworkCommunicationManager(CommunicationManagerBase):
                     url = f"{target_url}/api/v1/heartbeat"
                     return await self._send_http_request(url, heartbeat_data)
             else:
-                # 发送到服务端
-                if self.node_id.startswith("network_client"):
+                # 客户端发送到服务端
+                if self._is_client_node():
                     url = f"{self.server_url}/api/v1/heartbeat"
                     return await self._send_http_request(url, heartbeat_data)
-            
+
             return True
-            
+
         except Exception as e:
             print(f"Send heartbeat failed: {e}")
             return False
@@ -324,6 +380,7 @@ class NetworkCommunicationManager(CommunicationManagerBase):
         # 注册HTTP处理器到传输层
         if hasattr(self.transport, 'register_request_handler'):
             self.transport.register_request_handler(self.node_id, self.handle_http_request)
+            self.logger.debug(f"registering request handler, transport:{self.transport}")
     
     async def handle_http_request(self, source: str, data: Any) -> Any:
         """统一HTTP请求处理"""
@@ -342,8 +399,8 @@ class NetworkCommunicationManager(CommunicationManagerBase):
                         return await handler(source, request_data)
                     else:
                         return handler(source, request_data)
-            
-            return {"error": "Invalid request format"}
+
+            return {"error": f"Invalid request format, data:{message_type}, message:{self.message_handlers}, self_node: {self.node_id}"}
             
         except Exception as e:
             return {"error": str(e), "timestamp": datetime.now().isoformat()}
@@ -351,25 +408,26 @@ class NetworkCommunicationManager(CommunicationManagerBase):
     async def connect_websocket(self):
         """连接WebSocket"""
         try:
-            if self.node_id.startswith("network_client"):
+            # 只有客户端才连接到服务端的WebSocket
+            if self._is_client_node():
                 ws_url = f"ws://{self.server_url.replace('http://', '')}/ws/events"
-                
+
                 if not self._client_session:
                     self._client_session = aiohttp.ClientSession()
-                
+
                 self._ws_connection = await self._client_session.ws_connect(ws_url)
-                
+
                 # 注册WebSocket连接
                 await self._ws_connection.send_str(json.dumps({
                     "type": "register",
                     "client_id": self.node_id
                 }))
-                
+
                 # 启动WebSocket监听器
                 self._ws_listener_task = asyncio.create_task(self._ws_listener())
-                
+
                 return True
-                
+
         except Exception as e:
             print(f"WebSocket connection failed: {e}")
             return False

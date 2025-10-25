@@ -3,10 +3,14 @@ MOE-FedCL 配置管理模块
 fedcl/config/__init__.py
 """
 
-from .manager import ConfigManager
-from .validator import ConfigValidator
+from .config import ServerConfig , ClientConfig, TransportLayerConfig, load_server_config , load_client_config , create_default_server_config , create_default_client_config
 
 __all__ = [
-    'ConfigManager',
-    'ConfigValidator'
+    "ServerConfig",
+    "ClientConfig",
+    "TransportLayerConfig",
+    "load_server_config",
+    "load_client_config",
+    "create_default_server_config",
+    "create_default_client_config"
 ]

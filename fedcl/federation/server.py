@@ -3,27 +3,27 @@
 fedcl/federation/server.py
 """
 
-import asyncio
 from typing import Dict, Any, Type, Optional
-from ..trainer.base_trainer import BaseTrainer
+
+from ..communication.base import CommunicationManagerBase
 from ..communication.business_layer import BusinessCommunicationLayer
 from ..connection.manager import ConnectionManager
-from ..communication.base import CommunicationManagerBase
-from ..transport.base import TransportBase
-from ..factory.factory import ComponentFactory
-from ..types import CommunicationMode, ModelData
 from ..exceptions import FederationError
+from ..factory.factory import ComponentFactory
+from ..trainer.base_trainer import BaseTrainer
+from ..transport.base import TransportBase
+from ..types import CommunicationMode, ModelData
 from ..utils.auto_logger import get_sys_logger
 
 
 class FederationServer:
     """联邦服务端管理器 - 专门负责服务端组件的初始化、装配和管理"""
     
-    def __init__(self, config: Dict[str, Any]):
+    def __init__(self, config: Dict[str, Any], server_id: str = None):
         self.config = config
         self.logger = get_sys_logger()
         self.mode = CommunicationMode(config.get("mode", "memory"))
-        self.server_id = self._generate_server_id()
+        self.server_id = server_id or self._generate_server_id()
         
         # 组件引用
         self.transport: Optional[TransportBase] = None
@@ -83,16 +83,16 @@ class FederationServer:
         factory = ComponentFactory(self.config)
         
         # 第5层：创建传输层（最底层，无依赖）
-        transport_config = factory._create_transport_config(self.config, self.mode)
+        transport_config = factory._create_transport_config(self.config, self.mode, node_role="server")
         self.transport = factory.create_transport(transport_config, self.mode)
         self.logger.info(f"Layer 5: Transport layer created - {type(self.transport).__name__}")
         
         # 第4层：创建通用通信层（依赖传输层）
         communication_config = factory._create_communication_config(self.config)
         self.communication_manager = factory.create_communication_manager(
-            self.server_id, self.transport, communication_config, self.mode
+            self.server_id, self.transport, communication_config, self.mode, node_role="server"
         )
-        self.logger.info(f"Layer 4: Communication manager created - {type(self.communication_manager).__name__}")
+        self.logger.info(f"Layer 4: Communication manager created - {type(self.communication_manager).__name__}, Locate in:{self.communication_manager}")
         
         # 第3层：创建连接管理层（依赖通信层）
         self.connection_manager = factory.create_connection_manager(
@@ -198,9 +198,9 @@ class FederationServer:
         
         try:
             # 启动各层组件
-            print(f"🚀 [Server] 启动传输层...")
-            if hasattr(self.transport, 'start'):
-                await self.transport.start()
+            # print(f"🚀 [Server] 启动传输层...")
+            # if hasattr(self.transport, 'start'):
+            #     await self.transport.start()
             
             print(f"🌐 [Server] 启动通信管理器...")
             if hasattr(self.communication_manager, 'start'):

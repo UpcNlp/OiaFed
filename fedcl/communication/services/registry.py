@@ -43,66 +43,6 @@ class ClientRegistryService:
         # 锁保护并发操作
         self._lock = asyncio.Lock()
     
-    async def register_client(self, registration: RegistrationRequest) -> RegistrationResponse:
-        """注册客户端
-        
-        Args:
-            registration: 注册请求
-            
-        Returns:
-            RegistrationResponse: 注册响应
-            
-        Raises:
-            RegistrationError: 注册失败
-        """
-        async with self._lock:
-            try:
-                # 验证注册请求
-                await self._validate_registration(registration)
-                
-                # 创建客户端信息
-                client_info = ClientInfo(
-                    client_id=registration.client_id,
-                    client_type=registration.client_type,
-                    capabilities=registration.capabilities,
-                    metadata=registration.metadata,
-                    registration_time=datetime.now(),
-                    last_seen=datetime.now(),
-                    status=RegistrationStatus.REGISTERED
-                )
-                
-                # 添加到注册表
-                self.clients[registration.client_id] = client_info
-                
-                # 清理待注册状态
-                self.pending_registrations.pop(registration.client_id, None)
-                
-                # 记录日志
-                self.logger.info(f"Client {registration.client_id} registered successfully")
-                
-                # 触发注册事件
-                await self._emit_event("CLIENT_REGISTERED", registration.client_id, client_info)
-                
-                # 返回成功响应
-                return RegistrationResponse(
-                    success=True,
-                    client_id=registration.client_id,
-                    server_info={
-                        "server_time": datetime.now().isoformat(),
-                        "registered_clients": len(self.clients),
-                        "max_clients": self.max_clients
-                    }
-                )
-                
-            except Exception as e:
-                self.logger.error(f"Failed to register client {registration.client_id}: {e}")
-                
-                return RegistrationResponse(
-                    success=False,
-                    client_id=registration.client_id,
-                    error_message=str(e)
-                )
-    
     async def unregister_client(self, client_id: str) -> bool:
         """注销客户端
         

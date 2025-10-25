@@ -337,6 +337,7 @@ class CommunicationManagerBase(ABC):
         """注册消息处理器"""
         handler_id = f"{message_type}_{len(self.message_handlers)}"
         self.message_handlers[message_type] = handler
+
         return handler_id
     
     # ==================== 状态管理方法 ====================

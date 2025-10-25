@@ -3,34 +3,30 @@ MOE-FedCL 统一组件工厂
 moe_fedcl/factory/factory.py
 """
 
-from typing import Any, Dict, List, Optional, Type
 from dataclasses import dataclass
-
-# 传输层
-from ..transport.base import TransportBase
-from ..transport.memory import MemoryTransport
-from ..transport.network import NetworkTransport
+from typing import Any, Dict, List, Optional
 
 # 通信层
 from ..communication.base import CommunicationManagerBase
 from ..communication.memory_manager import MemoryCommunicationManager
 from ..communication.network_manager import NetworkCommunicationManager
-
 # 连接管理层
 from ..connection.manager import ConnectionManager
-
+from ..exceptions import ConfigurationError
 # 业务层
 from ..learner.base_learner import BaseLearner
 from ..learner.proxy import LearnerProxy, ProxyConfig
 from ..learner.stub import LearnerStub, StubConfig
 from ..trainer.base_trainer import BaseTrainer
-
+# 传输层
+from ..transport.base import TransportBase
+from ..transport.memory import MemoryTransport
+from ..transport.network import NetworkTransport
 # 配置和类型
 from ..types import (
-    CommunicationMode, TransportConfig, CommunicationConfig, 
+    CommunicationMode, TransportConfig, CommunicationConfig,
     FederationConfig
 )
-from ..exceptions import ConfigurationError, MOEFedCLError
 
 
 @dataclass
@@ -112,19 +108,19 @@ class ComponentFactory:
         try:
             # 解析配置
             mode = CommunicationMode(config.get("mode", "memory"))
-            transport_config = self._create_transport_config(config, mode)
+            transport_config = self._create_transport_config(config, mode, node_role="server")
             communication_config = self._create_communication_config(config)
             federation_config = self._create_federation_config(config)
-            
+
             # 生成服务端节点ID
             server_id = self._generate_server_id(mode, config)
-            
+
             # 创建传输层
             transport = self.create_transport(transport_config, mode)
-            
-            # 创建通信管理器
+
+            # 创建通信管理器（指定为服务端角色）
             communication_manager = self.create_communication_manager(
-                server_id, transport, communication_config, mode
+                server_id, transport, communication_config, mode, node_role="server"
             )
             
             # 创建连接管理器
@@ -168,7 +164,7 @@ class ComponentFactory:
         try:
             # 解析配置
             mode = CommunicationMode(config.get("mode", "memory"))
-            transport_config = self._create_transport_config(config, mode)
+            transport_config = self._create_transport_config(config, mode, node_role="client")
             communication_config = self._create_communication_config(config)
             
             # 生成客户端节点ID
@@ -182,10 +178,10 @@ class ComponentFactory:
             
             # 创建传输层
             transport = self.create_transport(transport_config, mode)
-            
-            # 创建通信管理器
+
+            # 创建通信管理器（指定为客户端角色）
             communication_manager = self.create_communication_manager(
-                client_id, transport, communication_config, mode
+                client_id, transport, communication_config, mode, node_role="client"
             )
             
             # 创建连接管理器
@@ -281,31 +277,37 @@ class ComponentFactory:
         
         return transport_class(config)
     
-    def create_communication_manager(self, 
-                                   node_id: str, 
-                                   transport: TransportBase, 
+    def create_communication_manager(self,
+                                   node_id: str,
+                                   transport: TransportBase,
                                    config: CommunicationConfig,
-                                   mode: CommunicationMode = None) -> CommunicationManagerBase:
+                                   mode: CommunicationMode = None,
+                                   node_role: str = None) -> CommunicationManagerBase:
         """创建通信管理器实例
-        
+
         Args:
             node_id: 节点ID
             transport: 传输层实例
             config: 通信配置
             mode: 通信模式，如果为None则从transport推断
-            
+            node_role: 节点角色 ('server' 或 'client')，用于 NetworkCommunicationManager
+
         Returns:
             CommunicationManagerBase: 通信管理器实例
         """
         if mode is None:
             # 从transport配置推断模式
             mode = CommunicationMode(transport.config.type)
-        
+
         manager_class = self._communication_classes.get(mode)
         if manager_class is None:
             raise ConfigurationError(f"Unsupported communication mode: {mode}")
-        
-        return manager_class(node_id, transport, config)
+
+        # 如果是 NetworkCommunicationManager，传递 node_role 参数
+        if manager_class == NetworkCommunicationManager and isinstance(transport, NetworkTransport) and node_role is not None:
+            return manager_class(node_id, transport, config, node_role=node_role)
+        else:
+            return manager_class(node_id, transport, config)
     
     def create_connection_manager(self, 
                                 communication_manager: CommunicationManagerBase,
@@ -447,47 +449,51 @@ class ComponentFactory:
     
     # ==================== 私有辅助方法 ====================
     
-    def _create_transport_config(self, config: Dict[str, Any], mode: CommunicationMode) -> TransportConfig:
-        """创建传输配置"""
+    def _create_transport_config(
+        self,
+        config: Dict[str, Any],
+        mode: CommunicationMode,
+        node_role: str = None
+    ) -> TransportConfig:
+        """创建传输配置
+
+        Args:
+            config: 完整配置字典
+            mode: 通信模式
+            node_role: 节点角色 ('server' 或 'client')，用于 NetworkTransport
+
+        Returns:
+            TransportConfig: 传输配置
+        """
         transport_config = config.get("transport", {})
-        
-        # 处理Process模式：如果transport配置为空，使用federation配置
-        if mode == CommunicationMode.PROCESS and not transport_config:
-            print(f"[Factory] Process模式：transport配置为空，使用federation配置")
-            # 从federation配置中提取服务器配置
-            federation_config = config.get("federation", {})
-            server_config = federation_config.get("server", {})
-            
+
+        if not transport_config:
             transport_config = {
-                "specific_config": {
-                    "host": server_config.get("host", "127.0.0.1"),
-                    "port": server_config.get("port", 8000),
-                    "websocket_port": server_config.get("websocket_port", 9501)
-                }
+                "specific_config": {}
             }
-            print(f"[Factory] 从federation配置提取的transport配置: {transport_config}")
-        
+
         # 获取特定配置
         specific_config = transport_config.get("specific_config", {}).copy()
-        
-        print(f"[Factory] Transport配置: {transport_config}")
-        print(f"[Factory] specific_config: {specific_config}")
-        
-        # Process模式强制使用本地绑定
-        if mode == CommunicationMode.PROCESS:
-            specific_config["host"] = "127.0.0.1"
-            specific_config["local_only"] = True
-            # 如果没有指定端口，使用随机端口
-            if "port" not in specific_config:
-                print(f"[Factory] 端口未指定，使用随机端口")
-                specific_config["port"] = 0  # 让系统分配随机端口
+
+        # 添加节点角色到配置中（用于 NetworkTransport）
+        if node_role is not None:
+            specific_config["node_role"] = node_role
+
+        # Process模式和Network模式下，添加主机和端口到配置中
+        if mode == CommunicationMode.PROCESS or mode == CommunicationMode.NETWORK:
+            # 如果没有指定主机，使用本地主机
+            if "host" not in specific_config or specific_config["host"] == "" or specific_config["host"] is None:
+                specific_config["host"] = "0.0.0.0"
+            # 如果没有指定端口，服务器端口为8000，客户端端口为0（随机端口）
+            if "port" not in specific_config or specific_config["port"] == "" or specific_config["port"] is None or specific_config["port"] <= 0:
+                specific_config["port"] = 8000 if (node_role.lower() == "server") else 0
             else:
                 print(f"[Factory] 使用配置端口: {specific_config['port']}")
-        
-        print(f"[Factory] 最终specific_config: {specific_config}")
-        
+
+        print(f"[Factory] transport最终specific_config : {specific_config}")
+
         return TransportConfig(
-            type=mode.value,
+            type=str(mode.value),
             timeout=transport_config.get("timeout", 30.0),
             retry_attempts=transport_config.get("retry_attempts", 3),
             specific_config=specific_config

@@ -9,12 +9,14 @@ from datetime import datetime
 
 from .base_learner import BaseLearner
 from ..communication.base import CommunicationManagerBase
+from ..communication.network_manager import NetworkCommunicationManager
 from ..connection.manager import ConnectionManager
 from ..types import (
     RegistrationRequest, RegistrationResponse, RegistrationStatus,
     TrainingRequest, TrainingResponse, EvaluationResult, ModelData
 )
 from ..exceptions import RegistrationError, ValidationError, TrainingError
+from ..utils.auto_logger import get_sys_logger
 
 
 class StubConfig:
@@ -51,6 +53,7 @@ class LearnerStub:
             config: 存根配置
         """
         self.learner = learner
+        self.logger = get_sys_logger()
         self.communication_manager = communication_manager
         self.connection_manager = connection_manager
         self.config = config or StubConfig()
@@ -71,6 +74,7 @@ class LearnerStub:
         
         # 注册请求处理器
         self._setup_request_handlers()
+
     
     def _setup_request_handlers(self):
         """设置请求处理器"""
@@ -82,6 +86,7 @@ class LearnerStub:
             "get_info": self.handle_get_info_request,
             "ping": self.handle_ping_request
         }
+
         
         # 注意：动态调用在process_business_request中特殊处理
         # 不在这里注册，避免与标准方法冲突
@@ -107,6 +112,9 @@ class LearnerStub:
             
             self._registration_status = RegistrationStatus.REGISTERING
         
+        # 获取客户端地址信息（从transport获取）
+        client_address = self._get_client_address()
+
         # 创建注册请求
         registration_request = RegistrationRequest(
             client_id=self.learner.client_id,
@@ -116,7 +124,9 @@ class LearnerStub:
                 "data_statistics": self.learner.get_data_statistics(),
                 "model_config": self.learner.model_config,
                 "training_config": self.learner.training_config,
-                "registration_time": datetime.now().isoformat()
+                "registration_time": datetime.now().isoformat(),
+                # 添加客户端地址信息，供服务端向客户端发送请求使用
+                "client_address": client_address
             }
         )
         
@@ -712,6 +722,9 @@ class LearnerStub:
     
     async def start_listening(self) -> None:
         """启动监听服务端请求"""
+        # 设置通信管理器的消息处理器
+        await self._setup_communication_handlers()
+
         if self._listening:
             print(f"Client {self.learner.client_id} is already listening")
             return
@@ -726,12 +739,10 @@ class LearnerStub:
             # 如果配置了自动注册，则注册到服务端
             if self.config.auto_register:
                 await self.register_to_server()
-            
-            # 设置通信管理器的消息处理器
-            await self._setup_communication_handlers()
+
             
             # 启动监听任务
-            self._listener_task = asyncio.create_task(self._request_listener())
+            # self._listener_task = asyncio.create_task(self._request_listener())
             
             print(f"Client {self.learner.client_id} started listening for requests")
             
@@ -787,7 +798,9 @@ class LearnerStub:
             self.communication_manager.register_message_handler(
                 "business_request", self.process_business_request
             )
-        
+            self.logger.info("Registered business request handler")
+
+        self.logger.debug(f"message_handlers:{self.communication_manager}, stub:{self}")
         # 设置传输层处理器
         if hasattr(self.communication_manager.transport, 'register_request_handler'):
             self.communication_manager.transport.register_request_handler(
@@ -802,11 +815,57 @@ class LearnerStub:
                 # Memory模式: 直接处理函数调用
                 # Process模式: 从队列接收消息
                 # Network模式: HTTP服务器自动处理
-                
+
                 await asyncio.sleep(0.1)  # 防止过度占用CPU
-                
+
             except asyncio.CancelledError:
                 break
             except Exception as e:
                 print(f"Request listener error: {e}")
                 await asyncio.sleep(1)
+
+    def _get_client_address(self) -> Dict[str, Any]:
+        """获取客户端地址信息（供服务端回调使用）
+
+        Returns:
+            Dict包含:
+            - host: 客户端监听的主机地址
+            - port: 客户端监听的端口
+            - url: 完整的URL地址（http://host:port）
+        """
+        try:
+            transport = self.communication_manager.transport
+
+            # 从transport获取实际监听的地址和端口
+            host = getattr(transport, 'host', '127.0.0.1')
+            port = getattr(transport, 'port', None)
+
+            # Process模式和Network模式都使用NetworkTransport
+            # 需要获取HTTP服务器的实际端口
+            if port is None or port == 0:
+                # 尝试从transport的配置中获取
+                if hasattr(transport, 'config') and hasattr(transport.config, 'specific_config'):
+                    port = transport.config.specific_config.get('port', 0)
+
+            # 如果仍然是0，说明是自动分配的端口，从_server_port获取
+            if port == 0 and hasattr(transport, '_server_port'):
+                port = transport._server_port
+
+            # 构造完整URL
+            if port and port != 0:
+                url = f"http://{host}:{port}"
+            else:
+                url = None
+
+            return {
+                "host": host,
+                "port": port,
+                "url": url
+            }
+        except Exception as e:
+            self.logger.warning(f"Failed to get client address: {e}")
+            return {
+                "host": "unknown",
+                "port": 0,
+                "url": None
+            }

@@ -3,16 +3,19 @@
 fedcl/federation/client.py
 """
 
-import asyncio
 from typing import Dict, Any, Type, Optional
+
+from ..communication.base import CommunicationManagerBase
+from ..connection.manager import ConnectionManager
+from ..exceptions import FederationError
+from ..factory.factory import ComponentFactory
 from ..learner.base_learner import BaseLearner
 from ..learner.stub import LearnerStub, StubConfig
-from ..connection.manager import ConnectionManager
-from ..communication.base import CommunicationManagerBase
 from ..transport.base import TransportBase
-from ..factory.factory import ComponentFactory
 from ..types import CommunicationMode
-from ..exceptions import FederationError
+from ..utils.auto_logger import get_sys_logger
+
+from ..types import RegistrationStatus
 
 
 class FederationClient:
@@ -35,7 +38,7 @@ class FederationClient:
         self.is_running = False
         self.is_registered = False
         
-        print(f"FederationClient created with mode: {self.mode}, client_id: {self.client_id}")
+        self.system_logger = get_sys_logger()
     
     async def initialize_with_learner(self, 
                                     learner_class: Type[BaseLearner],
@@ -59,7 +62,7 @@ class FederationClient:
                 config=learner_config or {},
                 logger=None  # TODO: 添加日志配置
             )
-            
+
             # 2. 初始化通信组件栈（严格按层次顺序）
             await self._initialize_communication_stack()
             
@@ -69,11 +72,11 @@ class FederationClient:
             # 4. 标记初始化完成
             self.is_initialized = True
             
-            print("FederationClient initialized successfully")
+            self.system_logger.info("FederationClient initialized successfully")
             return self.learner
             
         except Exception as e:
-            print(f"FederationClient initialization failed: {e}")
+            self.system_logger.info(f"FederationClient initialization failed: {e}")
             raise FederationError(f"Client initialization failed: {str(e)}")
     
     async def _initialize_communication_stack(self):
@@ -81,22 +84,23 @@ class FederationClient:
         factory = ComponentFactory(self.config)
         
         # 第5层：创建传输层（最底层，无依赖）
-        transport_config = factory._create_transport_config(self.config, self.mode)
+        transport_config = factory._create_transport_config(self.config, self.mode, node_role = "client")
+        self.system_logger.info(f"Layer 5: Transport config created with port - {transport_config.specific_config.get("port")}")
         self.transport = factory.create_transport(transport_config, self.mode)
-        print(f"Layer 5: Transport layer created - {type(self.transport).__name__}")
+        self.system_logger.info(f"Layer 5: Transport layer created - {type(self.transport).__name__}")
         
         # 第4层：创建通用通信层（依赖传输层）
         communication_config = factory._create_communication_config(self.config)
         self.communication_manager = factory.create_communication_manager(
-            self.client_id, self.transport, communication_config, self.mode
+            self.client_id, self.transport, communication_config, self.mode, node_role = "client"
         )
-        print(f"Layer 4: Communication manager created - {type(self.communication_manager).__name__}")
+        self.system_logger.info(f"Client Layer 4: Communication manager created - {type(self.communication_manager).__name__}, client in:{self.communication_manager}")
         
         # 第3层：创建连接管理层（依赖通信层）
         self.connection_manager = factory.create_connection_manager(
             self.communication_manager, communication_config
         )
-        print(f"Layer 3: Connection manager created - {type(self.connection_manager).__name__}")
+        self.system_logger.info(f"Layer 3: Connection manager created - {type(self.connection_manager).__name__}")
     
     async def _initialize_learner_stub(self):
         """初始化LearnerStub"""
@@ -117,7 +121,7 @@ class FederationClient:
             config=stub_config
         )
         
-        print("LearnerStub created")
+        self.system_logger.info("LearnerStub created")
     
     async def start_client(self) -> bool:
         """启动客户端"""
@@ -128,9 +132,9 @@ class FederationClient:
             return True
         
         try:
-            # 启动各层组件
-            if hasattr(self.transport, 'start'):
-                await self.transport.start()
+            # # 启动各层组件
+            # if hasattr(self.transport, 'start'):
+            #     await self.transport.start()
             
             if hasattr(self.communication_manager, 'start'):
                 await self.communication_manager.start()
@@ -138,39 +142,25 @@ class FederationClient:
             if hasattr(self.connection_manager, 'start'):
                 await self.connection_manager.start()
             
-            # 启动LearnerStub并向服务端注册
+            # 启动LearnerStub（会自动注册到服务端，因为auto_register=True）
             await self.learner_stub.start_listening()
-            
-            # 执行客户端注册
-            await self._register_to_server()
-            
+
+            # 更新注册状态（从LearnerStub同步）
+            self.is_registered = (self.learner_stub.get_registration_status() == RegistrationStatus.REGISTERED)
+
+            if self.is_registered:
+                self.system_logger.info(f"Client {self.client_id} registered successfully via LearnerStub")
+            else:
+                self.system_logger.warning(f"Client {self.client_id} registration may have failed")
+
             self.is_running = True
-            print("FederationClient started successfully")
+            self.system_logger.info("FederationClient started successfully")
             return True
             
         except Exception as e:
-            print(f"Failed to start client: {e}")
+            self.system_logger.info(f"Failed to start client: {e}")
             return False
-    
-    async def _register_to_server(self) -> bool:
-        """向服务端注册"""
-        try:
-            # 通过LearnerStub向服务端注册
-            registration_result = await self.learner_stub.register_to_server()
-            
-            if registration_result.success:
-                self.is_registered = True
-                print(f"Client {self.client_id} registered to server successfully")
-                return True
-            else:
-                error_msg = getattr(registration_result, 'error_message', 'Unknown error')
-                print(f"Client {self.client_id} registration failed: {error_msg}")
-                return False
-                
-        except Exception as e:
-            print(f"Client registration error: {e}")
-            return False
-    
+
     async def stop_client(self) -> bool:
         """停止客户端"""
         if not self.is_running:
@@ -197,11 +187,11 @@ class FederationClient:
                 await self.transport.stop()
             
             self.is_running = False
-            print("FederationClient stopped successfully")
+            self.system_logger.info("FederationClient stopped successfully")
             return True
             
         except Exception as e:
-            print(f"Failed to stop client: {e}")
+            self.system_logger.info(f"Failed to stop client: {e}")
             return False
     
     def get_learner(self) -> Optional[BaseLearner]:
@@ -228,10 +218,8 @@ class FederationClient:
         if self.mode == CommunicationMode.MEMORY:
             return f"memory_client_{unique_id}"
         elif self.mode == CommunicationMode.PROCESS:
-            import os
-            pid = os.getpid()
-            port = self.config.get("port", 8001)
-            return f"process_client_{pid}_{port}_{unique_id}"
+            port = self.config.get("port", 0)
+            return f"process_client_{port}_{unique_id}"
         elif self.mode == CommunicationMode.NETWORK:
             host = self.config.get("host", "localhost")
             port = self.config.get("port", 8001)
