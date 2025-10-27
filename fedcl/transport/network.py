@@ -46,6 +46,10 @@ class NetworkTransport(TransportBase):
         # 节点角色（从配置中获取，如果未指定则为None）
         self.node_role = config.specific_config.get("node_role", None)
 
+        # 服务器地址（客户端使用）
+        self.server_host = config.specific_config.get("server_host", None)
+        self.server_port = config.specific_config.get("server_port", None)
+
         # HTTP客户端会话
         self._http_session: Optional[aiohttp.ClientSession] = None
         

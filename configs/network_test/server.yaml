@@ -1,0 +1,26 @@
+# Network 模式服务端配置
+# 运行在：笔记本 (192.168.31.68)
+
+mode: network
+server_id: network_server_main
+
+transport:
+  host: "0.0.0.0"  # 监听所有网络接口，允许外部连接
+  port: 8000
+  websocket_port: 9501
+  timeout: 60.0
+  retry_attempts: 5
+  ssl_enabled: false
+
+communication:
+  heartbeat_interval: 30.0
+  heartbeat_timeout: 90.0
+  registration_timeout: 120.0
+  max_clients: 10
+  rpc_timeout: 180.0
+
+federation:
+  coordinator_id: fed_coordinator
+  max_rounds: 100
+  min_clients: 2
+  client_selection: "all"

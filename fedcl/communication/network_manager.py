@@ -46,18 +46,19 @@ class NetworkCommunicationManager(CommunicationManagerBase):
             # 向后兼容：如果没有显式指定，从node_id推断
             self.node_role = "server" if "server" in node_id.lower() else "client"
 
-        # 检测模式
+        # 检测模式（向后兼容）
         self.is_process_mode = "process_" in node_id
         self.is_network_mode = "network_" in node_id
-        
+
         # 网络特定配置
-        self.server_url = self._get_server_url()
+        # 从 transport 的配置中读取服务器地址
+        self.server_url = self._get_server_url_from_config()
         self._client_session: Optional[aiohttp.ClientSession] = None
-        
+
         # WebSocket连接状态
         self._ws_connection: Optional[aiohttp.ClientWebSocketResponse] = None
         self._ws_listener_task: Optional[asyncio.Task] = None
-        
+
         # Process模式特定初始化
         if self.is_process_mode:
             self._init_process_mode()
@@ -70,19 +71,38 @@ class NetworkCommunicationManager(CommunicationManagerBase):
         if "server" in self.node_id.lower() and hasattr(self.transport, 'add_target_id'):
             self.transport.add_target_id("system")
             print(f"[NetworkCommunicationManager] 服务器节点添加system目标ID (Process模式)")
-    
-    def _get_server_url(self) -> str:
-        """统一的服务器URL解析"""
-        # 从节点ID解析服务器地址
-        if self.node_id.startswith(("network_server", "process_server")):
-            parts = self.node_id.split("_")
-            if len(parts) >= 4:
-                host = parts[2] if not self.is_process_mode else "127.0.0.1"  # Process模式强制本地
-                port = parts[3]
-                return f"http://{host}:{port}"
-        
-        # 默认地址
-        return "http://127.0.0.1:8000" if self.is_process_mode else "http://localhost:8000"
+
+    def _get_server_url_from_config(self) -> str:
+        """从配置中获取服务器URL
+
+        Returns:
+            str: 服务器URL，格式为 http://host:port
+        """
+        # 如果是服务端，不需要服务器URL
+        if self.node_role == "server":
+            # 返回本地地址供调试使用
+            host = getattr(self.transport, 'host', '127.0.0.1')
+            port = getattr(self.transport, 'port', 8000)
+            return f"http://{host}:{port}"
+
+        # 客户端：从 transport 配置中读取服务器地址
+        server_host = getattr(self.transport, 'server_host', None)
+        server_port = getattr(self.transport, 'server_port', None)
+
+        if server_host and server_port:
+            return f"http://{server_host}:{server_port}"
+
+        # 如果配置中没有指定，使用默认值
+        if self.is_process_mode:
+            return "http://127.0.0.1:8000"
+        else:
+            # Network模式默认值（向后兼容）
+            self.logger.warning(
+                "客户端配置中未指定 server_host 和 server_port，使用默认值 localhost:8000。"
+                "建议在配置文件的 transport 部分添加 server_host 和 server_port。"
+            )
+            return "http://localhost:8000"
+
     
     def _is_client_node(self) -> bool:
         """统一的客户端节点判断
@@ -310,17 +330,36 @@ class NetworkCommunicationManager(CommunicationManagerBase):
             return False
     
     def _parse_target_url(self, target: str) -> Optional[str]:
-        """解析目标URL"""
-        # network_server_192.168.1.100_8000
+        """解析目标URL
+
+        Args:
+            target: 目标ID（通常是客户端ID）
+
+        Returns:
+            Optional[str]: 目标的URL地址，如果找不到则返回 None
+        """
+        # 优先从 transport 层获取客户端地址（服务端已在注册时保存）
+        if hasattr(self.transport, 'get_client_address'):
+            client_url = self.transport.get_client_address(target)
+            if client_url:
+                return client_url
+
+        # 向后兼容：从 node_id 格式解析（不推荐）
+        # network_client_192.168.1.100_8001
         if target.startswith("network_"):
             parts = target.split("_")
             if len(parts) >= 4:
                 try:
                     host = parts[2]
                     port = int(parts[3])
+                    self.logger.warning(
+                        f"从 node_id 解析客户端地址（不推荐）: {target} -> http://{host}:{port}"
+                    )
                     return f"http://{host}:{port}"
                 except (ValueError, IndexError):
                     pass
+
+        self.logger.error(f"无法解析目标地址: {target}")
         return None
     
     async def handle_registration_request(self, request_data: Dict[str, Any]) -> Dict[str, Any]:

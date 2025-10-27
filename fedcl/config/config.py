@@ -26,6 +26,10 @@ class TransportLayerConfig:
     ssl_enabled: bool = False
     connection_timeout: float = 30.0
 
+    # 服务器地址（仅客户端使用）
+    server_host: Optional[str] = None  # 服务器主机地址，如 "192.168.31.68"
+    server_port: Optional[int] = None  # 服务器端口，如 8000
+
     def to_dict(self) -> Dict[str, Any]:
         """转换为字典格式"""
         return {
@@ -36,7 +40,9 @@ class TransportLayerConfig:
                 "port": self.port,
                 "websocket_port": self.websocket_port,
                 "ssl_enabled": self.ssl_enabled,
-                "connection_timeout": self.connection_timeout
+                "connection_timeout": self.connection_timeout,
+                "server_host": self.server_host,
+                "server_port": self.server_port
             }
         }
 
@@ -234,7 +240,9 @@ class ClientConfig:
                 port=specific_config.get("port", 0),
                 websocket_port=specific_config.get("websocket_port", 9501),
                 ssl_enabled=specific_config.get("ssl_enabled", False),
-                connection_timeout=specific_config.get("connection_timeout", 30.0)
+                connection_timeout=specific_config.get("connection_timeout", 30.0),
+                server_host=specific_config.get("server_host"),
+                server_port=specific_config.get("server_port")
             ),
             communication=CommunicationLayerConfig(
                 **config_dict.get("communication", {})
