@@ -5,7 +5,7 @@ mode: network
 client_id: client_server1
 
 transport:
-  host: "0.0.0.0"  # 监听所有接口，允许服务端回调
+  host: "192.168.31.75"  # 监听所有接口，允许服务端回调
   port: 8001
   websocket_port: 9502
   timeout: 60.0

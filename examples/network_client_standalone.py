@@ -14,6 +14,7 @@ from typing import Dict, Any
 # 添加项目路径
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
 
+from fedcl.utils.auto_logger import setup_auto_logging
 from fedcl.types import TrainingResult, EvaluationResult, ModelData
 from fedcl.config import load_client_config
 from fedcl.federation.client import FederationClient
@@ -91,6 +92,7 @@ class SimpleLearner(BaseLearner):
 
 async def main():
     """主函数"""
+    setup_auto_logging()
     parser = argparse.ArgumentParser(description="Network 模式测试 - 客户端（跨机器版本）")
     parser.add_argument(
         "--config",

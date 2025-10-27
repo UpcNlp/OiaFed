@@ -169,7 +169,7 @@ async def main():
 
         # 等待客户端连接（这里等待一段时间让客户端连接）
         print("等待客户端连接（30秒）...")
-        await asyncio.sleep(1000)
+        await asyncio.sleep(30)
 
         # 检查已连接的客户端
         available_clients = server.trainer.get_available_clients()
