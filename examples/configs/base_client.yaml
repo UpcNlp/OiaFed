@@ -1,0 +1,28 @@
+# ============================================
+# 基础配置（多个客户端共享）
+# ============================================
+
+communication:
+  mode: "network"
+  role: "client"
+
+  transport:
+    type: "websocket"
+    server:
+      host: "192.168.1.100"
+      port: 8000
+
+training:
+  components:
+    - "my_project.learners"
+
+  learner:
+    name: "StandardLearner"
+    params:
+      local_epochs: 5
+      batch_size: 32
+      learning_rate: 0.01
+
+  dataset:
+    name: "CIFAR10"
+    data_path: "./data/cifar10"

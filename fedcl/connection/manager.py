@@ -382,7 +382,7 @@ class ConnectionManager(LayerEventHandler):
                     else:
                         handler(connection_data)
                 except Exception as e:
-                    print(f"Connection event handler error: {e}")
+                    self.logger.error(f"Connection event handler error: {e}")
     
     def register_connection_event_handler(self, event_type: str, handler: Callable) -> str:
         """注册连接事件处理器"""
@@ -471,15 +471,15 @@ class ConnectionManager(LayerEventHandler):
     
     def handle_layer_event(self, event_type: str, event_data: Dict[str, Any]):
         """处理来自下层的事件"""
-        self.logger.info(f"[第3层-连接管理层] 收到事件: {event_type}, 数据: {event_data}")
+        self.logger.debug(f"[第3层-连接管理层] 收到事件: {event_type}, 数据: {event_data}")
         
         if event_type == "CLIENT_REGISTERED":
             # 客户端注册成功，创建连接建立事件
-            self.logger.info(f"[第3层-连接管理层] 处理客户端注册事件")
+            self.logger.debug(f"[第3层-连接管理层] 处理客户端注册事件")
             self._handle_client_registration(event_data)
         elif event_type == "CLIENT_DISCONNECTED":
             # 客户端断开连接
-            self.logger.info(f"[第3层-连接管理层] 处理客户端断开事件")
+            self.logger.indebugfo(f"[第3层-连接管理层] 处理客户端断开事件")
             self._handle_client_disconnection(event_data)
         else:
             self.logger.warning(f"[第3层-连接管理层] 未知事件类型: {event_type}")
@@ -488,7 +488,7 @@ class ConnectionManager(LayerEventHandler):
         """处理客户端注册事件"""
         client_id = event_data.get("client_id")
         if client_id:
-            self.logger.info(f"[第3层-连接管理层] 客户端[{client_id}]注册成功，建立连接...")
+            self.logger.debug(f"[第3层-连接管理层] 客户端[{client_id}]注册成功，建立连接...")
             
             # 向上传递连接建立事件到业务通信层
             connection_event = {
@@ -496,14 +496,14 @@ class ConnectionManager(LayerEventHandler):
                 "connection_info": event_data.get("connection_info", {}),
                 "timestamp": event_data.get("timestamp")
             }
-            self.logger.info(f"[第3层-连接管理层] 向上传递CONNECTION_ESTABLISHED事件: {client_id}")
+            self.logger.debug(f"[第3层-连接管理层] 向上传递CONNECTION_ESTABLISHED事件: {client_id}")
             self.propagate_to_upper("CONNECTION_ESTABLISHED", connection_event)
     
     def _handle_client_disconnection(self, event_data: Dict[str, Any]):
         """处理客户端断开事件"""
         client_id = event_data.get("client_id")
         if client_id:
-            self.logger.info(f"[第3层-连接管理层] 客户端[{client_id}]断开连接...")
+            self.logger.debug(f"[第3层-连接管理层] 客户端[{client_id}]断开连接...")
             
             # 向上传递连接断开事件到业务通信层
             disconnection_event = {
@@ -511,5 +511,5 @@ class ConnectionManager(LayerEventHandler):
                 "reason": event_data.get("reason", "unknown"),
                 "timestamp": event_data.get("timestamp")
             }
-            self.logger.info(f"[第3层-连接管理层] 向上传递CONNECTION_LOST事件: {client_id}")
+            self.logger.debug(f"[第3层-连接管理层] 向上传递CONNECTION_LOST事件: {client_id}")
             self.propagate_to_upper("CONNECTION_LOST", disconnection_event)

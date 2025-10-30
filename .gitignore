@@ -12,3 +12,6 @@ data/
 logs/
 syn_imgs/
 outputs
+results
+.claude.sh
+.env*

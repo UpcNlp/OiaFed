@@ -11,7 +11,7 @@ from datetime import datetime
 from .base import TransportBase
 from ..types import TransportConfig
 from ..exceptions import TransportError, TimeoutError
-
+from ..utils.auto_logger import get_comm_logger
 
 class MemoryTransport(TransportBase):
     """内存传输实现 - 同进程内直接函数调用通信"""
@@ -24,44 +24,45 @@ class MemoryTransport(TransportBase):
     def __init__(self, config: TransportConfig):
         super().__init__(config)
         self._message_queue_lock = asyncio.Lock()
+        self.logger = get_comm_logger(config.node_id)
         
     async def send(self, source: str, target: str, data: Any) -> Any:
         """发送消息并等待响应"""
         if not self.validate_node_id(source) or not self.validate_node_id(target):
             raise TransportError(f"Invalid node ID: {source} -> {target}")
         
-        print(f"[MemoryTransport] 发送消息: {source} -> {target}")
-        print(f"[MemoryTransport] 当前注册的处理器: {list(self._global_request_handlers.keys())}")
-        print(f"[MemoryTransport] 检查目标节点 {target} 是否在处理器中...")
-        print(f"[MemoryTransport] target in _global_request_handlers: {target in self._global_request_handlers}")
-        
+        self.logger.debug(f"[MemoryTransport] 发送消息: {source} -> {target}")
+        self.logger.debug(f"[MemoryTransport] 当前注册的处理器: {list(self._global_request_handlers.keys())}")
+        self.logger.debug(f"[MemoryTransport] 检查目标节点 {target} 是否在处理器中...")
+        self.logger.debug(f"[MemoryTransport] target in _global_request_handlers: {target in self._global_request_handlers}")
+
         # 检查目标节点是否存在处理器
         if target not in self._global_request_handlers:
-            print(f"[MemoryTransport] ❌ 目标节点 {target} 没有注册处理器")
+            self.logger.error(f"[MemoryTransport]  目标节点 {target} 没有注册处理器, {self._global_request_handlers}")
             raise TransportError(f"Target node {target} not available")
-        
-        print(f"[MemoryTransport] ✅ 找到目标节点 {target} 的处理器")
-        
+
+        self.logger.debug(f"[MemoryTransport] 找到目标节点 {target} 的处理器")
+
         try:
             # 直接调用目标节点的处理器
             handler = self._global_request_handlers[target]
-            print(f"[MemoryTransport] 开始调用处理器: {handler}")
-            
+            self.logger.debug(f"[MemoryTransport] 开始调用处理器: {handler}")
+
             # 如果是异步处理器
             if asyncio.iscoroutinefunction(handler):
-                print(f"[MemoryTransport] 异步调用处理器")
+                self.logger.debug(f"[MemoryTransport] 异步调用处理器")
                 result = await handler(source, data)
             else:
-                print(f"[MemoryTransport] 同步调用处理器")
+                self.logger.debug(f"[MemoryTransport] 同步调用处理器")
                 result = handler(source, data)
-            
-            print(f"[MemoryTransport] 处理器调用成功，结果: {type(result)}")
+
+            self.logger.debug(f"[MemoryTransport] 处理器调用成功，结果: {type(result)}")
             return result
             
         except Exception as e:
-            print(f"[MemoryTransport] ❌ 处理器调用失败: {str(e)}")
+            self.logger.error(f"[MemoryTransport] ❌ 处理器调用失败: {str(e)}")
             import traceback
-            print(f"[MemoryTransport] 错误堆栈: {traceback.format_exc()}")
+            self.logger.error(f"[MemoryTransport] 错误堆栈: {traceback.format_exc()}")
             raise TransportError(f"Send failed from {source} to {target}: {str(e)}")
     
     async def receive(self, target: str, source: str = None, timeout: float = None) -> Any:
@@ -89,35 +90,35 @@ class MemoryTransport(TransportBase):
     async def push_event(self, source: str, target: str, event_type: str, data: Any) -> bool:
         """推送事件到目标节点"""
         try:
-            print(f"[MemoryTransport] 推送事件: {source} -> {target}, 类型: {event_type}")
-            print(f"[MemoryTransport] 当前事件监听器: {dict(self._global_event_listeners)}")
-            
+            self.logger.info(f"[MemoryTransport] 推送事件: {source} -> {target}, 类型: {event_type}")
+            self.logger.info(f"[MemoryTransport] 当前事件监听器: {dict(self._global_event_listeners)}")
+
             # 检查目标节点是否有事件监听器
             if target in self._global_event_listeners:
                 if event_type in self._global_event_listeners[target]:
                     handlers = self._global_event_listeners[target][event_type]
-                    print(f"[MemoryTransport] 找到 {len(handlers)} 个处理器用于 {target}.{event_type}")
+                    self.logger.info(f"[MemoryTransport] 找到 {len(handlers)} 个处理器用于 {target}.{event_type}")
                     
                     # 直接调用所有匹配的事件处理器
                     for i, handler in enumerate(handlers):
                         try:
-                            print(f"[MemoryTransport] 调用处理器 #{i+1}: {handler}")
+                            self.logger.info(f"[MemoryTransport] 调用处理器 #{i+1}: {handler}")
                             if asyncio.iscoroutinefunction(handler):
                                 await handler(data)  # 修正参数传递
                             else:
                                 handler(data)  # 修正参数传递
-                            print(f"[MemoryTransport] 处理器 #{i+1} 执行成功")
+                            self.logger.info(f"[MemoryTransport] 处理器 #{i+1} 执行成功")
                         except Exception as e:
-                            print(f"[MemoryTransport] 处理器 #{i+1} 执行失败: {e}")
+                            self.logger.error(f"[MemoryTransport] 处理器 #{i+1} 执行失败: {e}")
                 else:
-                    print(f"[MemoryTransport] 目标 {target} 没有 {event_type} 事件监听器")
+                    self.logger.warning(f"[MemoryTransport] 目标 {target} 没有 {event_type} 事件监听器")
             else:
-                print(f"[MemoryTransport] 目标 {target} 没有注册任何事件监听器")
-            
+                self.logger.warning(f"[MemoryTransport] 目标 {target} 没有注册任何事件监听器")
+
             return True
             
         except Exception as e:
-            print(f"Push event failed: {e}")
+            self.logger.error(f"[MemoryTransport] Push event failed: {e}")
             return False
     
     async def start_event_listener(self, node_id: str) -> None:
@@ -157,6 +158,16 @@ class MemoryTransport(TransportBase):
         self._global_message_queues.clear()
         self._global_request_handlers.clear()
         self._global_event_listeners.clear()
+
+    @classmethod
+    def clear_global_state(cls):
+        """清理全局共享状态 - 类方法，用于演示或测试开始前的清理
+
+        注意：这会清除所有Memory模式的全局状态，在演示开始前调用
+        """
+        cls._global_message_queues.clear()
+        cls._global_request_handlers.clear()
+        cls._global_event_listeners.clear()
     
     async def initialize(self) -> bool:
         """初始化Memory传输"""
@@ -185,5 +196,5 @@ class MemoryTransport(TransportBase):
     def validate_node_id(self, node_id: str) -> bool:
         """验证Memory模式节点ID格式"""
         # 更宽松的验证：接受memory_server或任何包含client的ID
-        return (node_id.startswith("memory_server") or 
-                "client" in node_id) and len(node_id) > 3
+        # 放弃验证
+        return True

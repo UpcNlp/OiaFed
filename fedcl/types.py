@@ -163,6 +163,7 @@ class Connection:
 class TransportConfig:
     """传输配置"""
     type: str  # memory/process/network
+    node_id: str = ""
     timeout: float = 30.0
     retry_attempts: int = 3
     specific_config: Dict[str, Any] = field(default_factory=dict)
@@ -186,7 +187,7 @@ class FederationConfig:
     min_clients: int = 2
     client_selection: str = "all"  # all/random/custom
     training_config: Dict[str, Any] = field(default_factory=dict)
-
+    
 
 # 数据类型别名
 ModelData = dict[str, Any]

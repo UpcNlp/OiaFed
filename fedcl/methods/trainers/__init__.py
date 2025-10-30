@@ -5,12 +5,12 @@
 所有训练器都继承自AbstractFederationTrainer，负责协调整个联邦学习流程。
 """
 
-from .personalized_federation_trainer import PersonalizedFederationTrainer
-from .standard_federation_trainer import StandardFederationTrainer
-from .test import SimpleTrainer  # 导入测试训练器，触发@trainer装饰器
+# from .personalized_federation_trainer import PersonalizedFederationTrainer  # File deleted
+from .default import StandardFederationTrainer
+# from .test import SimpleTrainer  # Temporarily commented out due to broken import
 
 __all__ = [
-    "PersonalizedFederationTrainer",
+    # "PersonalizedFederationTrainer",
     "StandardFederationTrainer",
-    "SimpleTrainer"
+    # "SimpleTrainer"
 ]

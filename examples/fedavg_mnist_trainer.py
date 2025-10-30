@@ -9,7 +9,7 @@ from typing import Dict, List, Any, Optional
 from datetime import datetime
 import copy
 
-from fedcl.trainer.base_trainer import BaseTrainer, TrainingConfig
+from fedcl.trainer.trainer import BaseTrainer, TrainingConfig
 from fedcl.learner.proxy import LearnerProxy
 from fedcl.types import ModelData, RoundResult
 from fedcl.exceptions import TrainingError

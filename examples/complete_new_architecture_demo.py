@@ -16,7 +16,7 @@ sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 from fedcl.federation.server import FederationServer
 from fedcl.federation.client import FederationClient
 from fedcl.learner.base_learner import BaseLearner
-from fedcl.trainer.base_trainer import BaseTrainer
+from fedcl.trainer.trainer import BaseTrainer
 from fedcl.types import CommunicationMode, ModelData, TrainingRequest, TrainingResponse
 from fedcl.utils.auto_logger import setup_auto_logging
 
@@ -174,7 +174,7 @@ class FedAvgTrainer(BaseTrainer):
     
     def __init__(self, global_model: Dict[str, Any] = None, training_config = None, logger=None):
         # 注意：不再需要传入learner_proxies，会自动管理
-        from fedcl.trainer.base_trainer import TrainingConfig
+        from fedcl.trainer.trainer import TrainingConfig
         
         # 处理配置参数
         if isinstance(training_config, dict):
@@ -563,7 +563,7 @@ async def create_server(config: Dict[str, Any]) -> FederationServer:
     print(f"✅ 从注册表获取训练器: {trainer_cls.__name__}")
     
     # 创建TrainingConfig对象
-    from fedcl.trainer.base_trainer import TrainingConfig
+    from fedcl.trainer.trainer import TrainingConfig
     training_config = TrainingConfig(
         max_rounds=config.get("trainer", {}).get("max_rounds", 3),
         min_clients=config.get("trainer", {}).get("min_clients", 2)

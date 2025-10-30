@@ -16,7 +16,7 @@ from fedcl.api import learner, trainer, aggregator, evaluator
 from fedcl.api.discovery import auto_discover_components, list_registered_components
 from fedcl.registry import registry
 from fedcl.learner.base_learner import BaseLearner
-from fedcl.trainer.base_trainer import BaseTrainer
+from fedcl.trainer.trainer import BaseTrainer
 
 
 # ==================== 示例1：使用装饰器注册学习器 ====================

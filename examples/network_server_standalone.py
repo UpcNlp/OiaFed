@@ -17,7 +17,7 @@ from fedcl.utils.auto_logger import setup_auto_logging
 from fedcl.types import EvaluationResult, ModelData, RoundResult
 from fedcl.config import load_server_config
 from fedcl.federation.server import FederationServer
-from fedcl.trainer.base_trainer import BaseTrainer
+from fedcl.trainer.trainer import BaseTrainer
 
 
 class SimpleTrainer(BaseTrainer):

@@ -13,7 +13,7 @@ from fedcl.config import (
 )
 from fedcl.federation.server import FederationServer
 from fedcl.federation.client import FederationClient
-from fedcl.trainer.base_trainer import BaseTrainer
+from fedcl.trainer.trainer import BaseTrainer
 from fedcl.learner.base_learner import BaseLearner
 
 

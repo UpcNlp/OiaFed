@@ -94,7 +94,7 @@ class FedAvgAggregator:
         self.round_count += 1
         self.total_aggregations += 1
         
-        logger.debug(f"🔄 FedAvg聚合轮次 {self.round_count} - {len(client_updates)} 个客户端")
+        logger.debug(f"FedAvg聚合轮次 {self.round_count} - {len(client_updates)} 个客户端")
         
         # 1. 计算聚合权重
         weights = self._compute_aggregation_weights(client_updates)

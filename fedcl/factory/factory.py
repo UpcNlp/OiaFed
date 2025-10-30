@@ -17,7 +17,7 @@ from ..exceptions import ConfigurationError
 from ..learner.base_learner import BaseLearner
 from ..learner.proxy import LearnerProxy, ProxyConfig
 from ..learner.stub import LearnerStub, StubConfig
-from ..trainer.base_trainer import BaseTrainer
+from ..trainer.trainer import BaseTrainer
 # 传输层
 from ..transport.base import TransportBase
 from ..transport.memory import MemoryTransport
@@ -108,12 +108,14 @@ class ComponentFactory:
         try:
             # 解析配置
             mode = CommunicationMode(config.get("mode", "memory"))
-            transport_config = self._create_transport_config(config, mode, node_role="server")
+
+            # 先生成服务端节点ID
+            server_id = self._generate_server_id(mode, config)
+
+            # 创建配置（传入 node_id）
+            transport_config = self._create_transport_config(config, mode, node_role="server", node_id=server_id)
             communication_config = self._create_communication_config(config)
             federation_config = self._create_federation_config(config)
-
-            # 生成服务端节点ID
-            server_id = self._generate_server_id(mode, config)
 
             # 创建传输层
             transport = self.create_transport(transport_config, mode)
@@ -164,18 +166,20 @@ class ComponentFactory:
         try:
             # 解析配置
             mode = CommunicationMode(config.get("mode", "memory"))
-            transport_config = self._create_transport_config(config, mode, node_role="client")
-            communication_config = self._create_communication_config(config)
-            
-            # 生成客户端节点ID
+
+            # 先生成客户端节点ID
             if not client_id:
                 client_id = self._generate_client_id(mode, config)
             else:
                 client_id = self._ensure_client_id_format(client_id, mode, config)
-            
+
             # 更新学习器的client_id
             learner.client_id = client_id
-            
+
+            # 创建配置（传入 node_id）
+            transport_config = self._create_transport_config(config, mode, node_role="client", node_id=client_id)
+            communication_config = self._create_communication_config(config)
+
             # 创建传输层
             transport = self.create_transport(transport_config, mode)
 
@@ -290,7 +294,7 @@ class ComponentFactory:
             transport: 传输层实例
             config: 通信配置
             mode: 通信模式，如果为None则从transport推断
-            node_role: 节点角色 ('server' 或 'client')，用于 NetworkCommunicationManager
+            node_role: 节点角色 ('server' 或 'client')
 
         Returns:
             CommunicationManagerBase: 通信管理器实例
@@ -303,10 +307,11 @@ class ComponentFactory:
         if manager_class is None:
             raise ConfigurationError(f"Unsupported communication mode: {mode}")
 
-        # 如果是 NetworkCommunicationManager，传递 node_role 参数
-        if manager_class == NetworkCommunicationManager and isinstance(transport, NetworkTransport) and node_role is not None:
+        # 所有 CommunicationManager 都支持 node_role 参数
+        if node_role is not None:
             return manager_class(node_id, transport, config, node_role=node_role)
         else:
+            # 向后兼容：如果没有提供 node_role，使用旧的调用方式
             return manager_class(node_id, transport, config)
     
     def create_connection_manager(self, 
@@ -453,14 +458,16 @@ class ComponentFactory:
         self,
         config: Dict[str, Any],
         mode: CommunicationMode,
-        node_role: str = None
+        node_role: str = None,
+        node_id: str = ""
     ) -> TransportConfig:
         """创建传输配置
 
         Args:
             config: 完整配置字典
             mode: 通信模式
-            node_role: 节点角色 ('server' 或 'client')，用于 NetworkTransport
+            node_role: 节点角色 ('server' 或 'client')
+            node_id: 节点ID
 
         Returns:
             TransportConfig: 传输配置
@@ -494,6 +501,7 @@ class ComponentFactory:
 
         return TransportConfig(
             type=str(mode.value),
+            node_id=node_id,
             timeout=transport_config.get("timeout", 30.0),
             retry_attempts=transport_config.get("retry_attempts", 3),
             specific_config=specific_config

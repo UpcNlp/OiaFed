@@ -23,14 +23,14 @@ from ..exceptions import RegistrationError
 
 class ProcessCommunicationManager(CommunicationManagerBase):
     """Process模式通信管理器 - 基于Unix Domain Socket的进程间通信"""
-    
-    def __init__(self, node_id: str, transport: ProcessTransport, config: CommunicationConfig):
-        super().__init__(node_id, transport, config)
-        
-        print(f"[ProcessCommunicationManager] 检查节点类型: {node_id}")
-        
+
+    def __init__(self, node_id: str, transport: ProcessTransport, config: CommunicationConfig, node_role: str = None):
+        super().__init__(node_id, transport, config, node_role)
+
+        print(f"[ProcessCommunicationManager] 节点: {node_id}, 角色: {self.node_role}")
+
         # 如果是服务器节点，添加"system"目标ID到transport
-        if "server" in node_id.lower():
+        if self.node_role == "server":
             print(f"[ProcessCommunicationManager] 服务器节点，添加system目标ID到transport")
             transport.add_target_id("system")
             print(f"[ProcessCommunicationManager] 服务器节点添加system目标ID")

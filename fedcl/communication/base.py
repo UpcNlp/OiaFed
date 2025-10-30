@@ -22,14 +22,28 @@ from .services import (
 
 class CommunicationManagerBase(ABC):
     """通用通信管理器抽象基类"""
-    
-    def __init__(self, node_id: str, transport: TransportBase, config: CommunicationConfig):
+
+    def __init__(self, node_id: str, transport: TransportBase, config: CommunicationConfig, node_role: str = None):
         self.node_id = node_id
         self.transport = transport
         self.config = config
-        
-        # 初始化服务组件
-        self.registry_service = ClientRegistryService(max_clients=config.max_clients)
+
+        # 确定节点角色
+        if node_role is not None:
+            self.node_role = node_role.lower()
+        else:
+            # 向后兼容：从 node_id 推断角色
+            self.node_role = self._infer_node_role_from_id()
+
+        # 初始化服务组件 - 根据角色决定
+        if self.node_role == "server":
+            # 只有 Server 端需要 registry_service（管理所有客户端）
+            self.registry_service = ClientRegistryService(max_clients=config.max_clients)
+        else:
+            # Client 端不需要 registry_service
+            self.registry_service = None
+
+        # 所有节点都需要的服务
         self.heartbeat_service = HeartbeatService(
             interval=config.heartbeat_interval,
             timeout=config.heartbeat_timeout
@@ -39,9 +53,9 @@ class CommunicationManagerBase(ABC):
             secret_key=f"moe_fedcl_{node_id}",  # 简单的密钥生成
             policy=None  # 使用默认安全策略
         )
-        
-        # 客户端注册表（委托给registry_service）
-        self.clients: Dict[str, ClientInfo] = {}
+
+        # 客户端注册表（只有 Server 需要）
+        self.clients: Dict[str, ClientInfo] = {} if self.node_role == "server" else {}
         
         # 心跳状态（委托给heartbeat_service）
         self.heartbeat_status: Dict[str, datetime] = {}
@@ -57,57 +71,85 @@ class CommunicationManagerBase(ABC):
         
         # 注册服务事件回调
         self._setup_service_callbacks()
-    
+
+    def _infer_node_role_from_id(self) -> str:
+        """从 node_id 推断节点角色（向后兼容）
+
+        Returns:
+            str: "server" 或 "client"
+        """
+        node_id_lower = self.node_id.lower()
+        if "server" in node_id_lower:
+            return "server"
+        elif "client" in node_id_lower:
+            return "client"
+        else:
+            # 默认为 client
+            return "client"
+
     # ==================== 客户端管理方法 ====================
     
     async def register_client(self, registration: RegistrationRequest) -> RegistrationResponse:
-        """注册客户端
-        
+        """注册客户端（基类默认实现 - 服务端行为）
+
+        子类应该重写此方法来实现客户端/服务端的不同行为
+
         Args:
             registration: 注册请求
-            
+
         Returns:
             RegistrationResponse: 注册响应
-            
+
         Raises:
             RegistrationError: 注册失败
         """
-        # 委托给注册服务
+        # 如果没有 registry_service（Client 端），抛出错误
+        if self.registry_service is None:
+            raise RegistrationError(
+                "Client nodes should not call base register_client(). "
+                "Subclass must override this method to send registration request to server."
+            )
+
+        # Server 端：委托给注册服务
         response = await self.registry_service.register_client(registration)
-        
+
         if response.success:
             # 同步到本地状态
             client_info = await self.registry_service.get_client_info(registration.client_id)
             if client_info:
                 async with self._lock:
                     self.clients[registration.client_id] = client_info
-                
+
                 # 注册到心跳服务
                 await self.heartbeat_service.register_client(registration.client_id)
-        
+
         return response
     
     async def unregister_client(self, client_id: str) -> bool:
         """注销客户端
-        
+
         Args:
             client_id: 客户端ID
-            
+
         Returns:
             bool: 是否成功注销
         """
-        # 委托给注册服务
+        # Client 端不需要注销操作（或由子类实现）
+        if self.registry_service is None:
+            return False
+
+        # Server 端：委托给注册服务
         success = await self.registry_service.unregister_client(client_id)
-        
+
         if success:
             # 同步到本地状态
             async with self._lock:
                 self.clients.pop(client_id, None)
                 self.heartbeat_status.pop(client_id, None)
-            
+
             # 从心跳服务注销
             await self.heartbeat_service.unregister_client(client_id)
-        
+
         return success
     
     async def update_client_info(self, client_id: str, updates: Dict[str, Any]) -> bool:
@@ -135,24 +177,28 @@ class CommunicationManagerBase(ABC):
     
     async def get_client_info(self, client_id: str) -> Optional[ClientInfo]:
         """获取客户端信息
-        
+
         Args:
             client_id: 客户端ID
-            
+
         Returns:
             Optional[ClientInfo]: 客户端信息，不存在则返回None
         """
+        if self.registry_service is None:
+            return None
         return await self.registry_service.get_client_info(client_id)
-    
+
     async def list_clients(self, filters: Dict[str, Any] = None) -> List[ClientInfo]:
         """列出客户端
-        
+
         Args:
             filters: 过滤条件
-            
+
         Returns:
             List[ClientInfo]: 客户端列表
         """
+        if self.registry_service is None:
+            return []
         return await self.registry_service.list_clients()
     
     def get_active_clients(self) -> List[str]:
@@ -390,12 +436,12 @@ class CommunicationManagerBase(ABC):
     async def start(self) -> None:
         """启动通信管理器"""
         self._running = True
-        print(f"🔥 [CommunicationManager] 开始启动: {self.node_id}")
+        print(f"[CommunicationManager] 开始启动: {self.node_id}")
         
         # 启动传输层
-        print(f"🚀 [CommunicationManager] 启动传输层...")
+        print(f"[CommunicationManager] 启动传输层...")
         await self.transport.start()
-        print(f"🌐 [CommunicationManager] 调用start_event_listener: {self.node_id}")
+        print(f"[CommunicationManager] 调用start_event_listener: {self.node_id}")
         await self.transport.start_event_listener(self.node_id)
         
         # 启动服务组件
@@ -428,8 +474,9 @@ class CommunicationManagerBase(ABC):
     
     def _setup_service_callbacks(self) -> None:
         """设置服务组件回调"""
-        # 注册事件回调
-        self.registry_service.register_event_callback(self._handle_registry_event)
+        # 注册事件回调（只有 Server 端有 registry_service）
+        if self.registry_service is not None:
+            self.registry_service.register_event_callback(self._handle_registry_event)
         self.heartbeat_service.register_event_callback(self._handle_heartbeat_event)
         self.status_service.register_event_callback(self._handle_status_event)
         self.security_service.register_event_callback(self._handle_security_event)

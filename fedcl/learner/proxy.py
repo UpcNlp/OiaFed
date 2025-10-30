@@ -16,7 +16,7 @@ from ..types import (
     TrainingRequest, ModelData, TrainingResult,
     EvaluationResult, MetricsData, ConnectionStatus, TrainingResponse
 )
-from ..utils.auto_logger import get_sys_logger
+from ..utils.auto_logger import get_sys_logger, get_comm_logger
 
 
 class ProxyConfig:
@@ -143,7 +143,7 @@ class LearnerProxy:
         self.communication_manager = communication_manager
         self.connection_manager = connection_manager
         self.config = config or ProxyConfig()
-        
+
         # 统计信息
         self.statistics = ProxyStatistics()
         
@@ -164,6 +164,7 @@ class LearnerProxy:
             self._connection_check_task = asyncio.create_task(self._connection_check_loop())
 
         self.logger = get_sys_logger()
+        self.comm_logger = get_comm_logger(self.client_id)
     
     # ==================== 核心业务方法 ====================
     
@@ -388,8 +389,8 @@ class LearnerProxy:
     
     async def _call_remote_method(self, method_name: str, parameters: Dict[str, Any]) -> Any:
         """内部远程方法调用实现"""
-        print(f"[PROXY] 开始调用远程方法: {method_name}, 客户端: {self.client_id}")
-        print(f"[PROXY] 调用参数: {parameters}")
+        self.comm_logger.debug(f"[PROXY] 开始调用远程方法: {method_name}, 客户端: {self.client_id}")
+        self.comm_logger.debug(f"[PROXY] 调用参数key: {parameters.keys()}")
         
         start_time = datetime.now()
         
@@ -404,7 +405,7 @@ class LearnerProxy:
                     timeout=self.config.default_timeout
                 )
                 
-                print(f"[PROXY] 创建请求: {request.__dict__}")
+                self.comm_logger.info(f"[PROXY] 创建请求: {request.request_id}")
                 
                 # 发送请求并等待响应
                 response_data = await self.connection_manager.route_message(
@@ -414,7 +415,7 @@ class LearnerProxy:
                     data=request.__dict__
                 )
                 
-                print(f"[PROXY] 收到响应数据: {response_data}")
+                self.comm_logger.debug(f"[PROXY] 收到响应数据: {response_data.request_id}")
                 
                 # 检查路由结果
                 if response_data.get("status") == "filtered":
@@ -426,17 +427,59 @@ class LearnerProxy:
                     client_result = delivery_results[self.client_id]
                     if client_result.get("success"):
                         response_result = client_result.get("result")
-                        
-                        print(f"[PROXY] 客户端响应结果: {response_result}")
-                        
+
+                        self.comm_logger.info(f"[PROXY] 客户端响应结果: {response_result}")
+
                         # 记录成功统计
                         response_time = (datetime.now() - start_time).total_seconds()
                         self.statistics.record_request(method_name, True, response_time)
                         
                         # 解析响应
                         if isinstance(response_result, dict):
+                            # 对于train/evaluate方法，反序列化为TrainingResponse对象
+                            # 其他方法（ping, get_model等）保持dict格式
+                            if method_name in ["train", "evaluate"]:
+                                # 检查是否是TrainingResponse的序列化格式
+                                if ("success" in response_result and
+                                    "client_id" in response_result and
+                                    "execution_time" in response_result):
+                                    # 反序列化为TrainingResponse对象
+                                    from ..types import TrainingResponse
+
+                                    # 处理timestamp字段
+                                    timestamp_str = response_result.get("timestamp")
+                                    if isinstance(timestamp_str, str):
+                                        try:
+                                            timestamp = datetime.fromisoformat(timestamp_str)
+                                        except:
+                                            timestamp = datetime.now()
+                                    else:
+                                        timestamp = timestamp_str if timestamp_str else datetime.now()
+
+                                    response_obj = TrainingResponse(
+                                        request_id=response_result.get("request_id", ""),
+                                        client_id=response_result.get("client_id", self.client_id),
+                                        success=response_result.get("success", False),
+                                        result=response_result.get("result"),
+                                        error_message=response_result.get("error_message"),
+                                        execution_time=response_result.get("execution_time", 0.0),
+                                        timestamp=timestamp
+                                    )
+
+                                    if not response_obj.success:
+                                        raise CommunicationError(
+                                            f"Remote method failed: {response_obj.error_message or 'Unknown error'}"
+                                        )
+
+                                    return response_obj
+
+                            # 对于非train/evaluate方法，或格式不匹配时
                             if response_result.get("success", True):
-                                return response_result.get("result")
+                                # 如果有result字段则返回它，否则返回整个dict
+                                if "result" in response_result:
+                                    return response_result.get("result")
+                                else:
+                                    return response_result
                             else:
                                 raise CommunicationError(
                                     f"Remote method failed: {response_result.get('error_message', 'Unknown error')}"

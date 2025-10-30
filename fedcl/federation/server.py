@@ -1,261 +1,305 @@
 """
-联邦服务端管理器 - 负责服务端组件的初始化和管理
+联邦服务端管理器 - 负责服务端组件的初始化和管理（重构版）
 fedcl/federation/server.py
 """
 
-from typing import Dict, Any, Type, Optional
+from typing import Dict, Any, Optional
 
-from ..communication.base import CommunicationManagerBase
-from ..communication.business_layer import BusinessCommunicationLayer
-from ..connection.manager import ConnectionManager
+from ..config import CommunicationConfig, TrainingConfig
 from ..exceptions import FederationError
-from ..factory.factory import ComponentFactory
-from ..trainer.base_trainer import BaseTrainer
-from ..transport.base import TransportBase
-from ..types import CommunicationMode, ModelData
+from ..trainer.trainer import BaseTrainer
+from ..types import CommunicationMode
 from ..utils.auto_logger import get_sys_logger
+from .business_initializer import BusinessInitializer
+from .communication_initializer import CommunicationInitializer
+from .components import CommunicationComponents, ServerBusinessComponents
 
 
 class FederationServer:
-    """联邦服务端管理器 - 专门负责服务端组件的初始化、装配和管理"""
-    
-    def __init__(self, config: Dict[str, Any], server_id: str = None):
-        self.config = config
-        self.logger = get_sys_logger()
-        self.mode = CommunicationMode(config.get("mode", "memory"))
-        self.server_id = server_id or self._generate_server_id()
-        
+    """
+    联邦服务端管理器（薄协调层）
+
+    职责：
+        - 接收配置对象（CommunicationConfig + TrainingConfig）
+        - 委托初始化器完成通信层和业务层的初始化
+        - 建立层间关系
+        - 启动/停止服务
+
+    使用方式：
+        >>> comm_config = CommunicationConfig(mode="network", role="server")
+        >>> train_config = TrainingConfig(trainer={"name": "FedAvgTrainer"})
+        >>> server = FederationServer(comm_config, train_config)
+        >>> await server.initialize()
+        >>> await server.start_server()
+    """
+
+    def __init__(
+        self,
+        communication_config: CommunicationConfig,
+        training_config: TrainingConfig,
+        server_id: Optional[str] = None
+    ):
+        """
+        初始化服务端管理器
+
+        Args:
+            communication_config: 通信配置对象
+            training_config: 训练配置对象
+            server_id: 服务端ID（如果为 None，从配置中读取或自动生成）
+        """
+        self.comm_config = communication_config
+        self.train_config = training_config
+
+        # 确定 server_id
+        self.server_id = server_id or communication_config.node_id or self._generate_server_id()
+        self.mode = CommunicationMode(communication_config.mode)
+
         # 组件引用
-        self.transport: Optional[TransportBase] = None
-        self.communication_manager: Optional[CommunicationManagerBase] = None
-        self.connection_manager: Optional[ConnectionManager] = None
-        self.business_layer: Optional[BusinessCommunicationLayer] = None
-        self.trainer: Optional[BaseTrainer] = None
-        
+        self.comm_components: Optional[CommunicationComponents] = None
+        self.business_components: Optional[ServerBusinessComponents] = None
+
         # 状态管理
         self.is_initialized = False
         self.is_running = False
-        
-        self.logger.info(f"使用模式：{self.mode}创建联邦服务器, server_id: {self.server_id}")
-    
-    async def initialize_with_trainer(self, 
-                                    trainer_class: Type[BaseTrainer],
-                                    global_model: ModelData,
-                                    trainer_config: Dict[str, Any] = None) -> BaseTrainer:
-        """初始化服务端并创建trainer
-        
-        Args:
-            trainer_class: 用户的训练器类
-            global_model: 全局模型
-            trainer_config: 训练器配置
-            
+
+        self.logger = get_sys_logger()
+        self.logger.info(
+            f"FederationServer created: server_id={self.server_id}, mode={self.mode}"
+        )
+
+    async def initialize(self) -> bool:
+        """
+        统一初始化方法（通信层 + 业务层）
+
+        流程：
+            1. 初始化通信层（委托给 CommunicationInitializer）
+            2. 初始化业务层（委托给 BusinessInitializer）
+            3. 建立层间关系
+
         Returns:
-            BaseTrainer: 初始化好的训练器实例
+            bool: 初始化是否成功
+
+        Raises:
+            FederationError: 如果初始化失败
         """
         if self.is_initialized:
-            raise FederationError("Server already initialized")
-        
+            self.logger.warning("Server already initialized")
+            return False
+
+        self.logger.info("Starting FederationServer initialization...")
+
         try:
-            # 1. 创建trainer实例
-            self.trainer = trainer_class(
-                global_model=global_model,
-                training_config=trainer_config,
+            # Phase 1: 初始化通信层（委托给 CommunicationInitializer）
+            self.logger.info("1.Initializing communication layer...")
+            comm_initializer = CommunicationInitializer(
+                self.comm_config,
+                self.server_id,
+                node_role="server"
             )
-            
-            # 2. 初始化通信组件栈（严格按层次顺序）
-            await self._initialize_communication_stack()
-            
-            # 3. 建立层间关系链
+            self.comm_components = await comm_initializer.initialize()
+            self.logger.info("✓ Communication layer ready")
+
+            # Phase 2: 初始化业务层（委托给 BusinessInitializer）
+            self.logger.info("2.Initializing business layer...")
+            business_initializer = BusinessInitializer(
+                self.train_config,
+                node_role="server"
+            )
+            self.business_components = await business_initializer.initialize_server_components(
+                self.server_id
+            )
+            self.logger.info("✓Business layer ready")
+
+            # Phase 3: 建立层间关系
+            self.logger.info("3.Establishing layer relationships...")
             self._establish_layer_relationships()
-            
-            # 4. 标记初始化完成
+            self.logger.info("✓Layer relationships established")
+
             self.is_initialized = True
-            
-            self.logger.info("联邦服务器初始化成功")
-            return self.trainer
-            
+            self.logger.info("FederationServer initialized successfully")
+
+            return True
+
         except Exception as e:
             self.logger.error(f"FederationServer initialization failed: {e}")
             raise FederationError(f"Server initialization failed: {str(e)}")
-    
-    async def _initialize_communication_stack(self):
-        """初始化通信组件栈 - 严格按照层次顺序"""
-        factory = ComponentFactory(self.config)
-        
-        # 第5层：创建传输层（最底层，无依赖）
-        transport_config = factory._create_transport_config(self.config, self.mode, node_role="server")
-        self.transport = factory.create_transport(transport_config, self.mode)
-        self.logger.info(f"Layer 5: Transport layer created - {type(self.transport).__name__}")
-        
-        # 第4层：创建通用通信层（依赖传输层）
-        communication_config = factory._create_communication_config(self.config)
-        self.communication_manager = factory.create_communication_manager(
-            self.server_id, self.transport, communication_config, self.mode, node_role="server"
-        )
-        self.logger.info(f"Layer 4: Communication manager created - {type(self.communication_manager).__name__}, Locate in:{self.communication_manager}")
-        
-        # 第3层：创建连接管理层（依赖通信层）
-        self.connection_manager = factory.create_connection_manager(
-            self.communication_manager, communication_config
-        )
-        self.logger.info(f"Layer 3: Connection manager created - {type(self.connection_manager).__name__}")
-        
-        # 第2层：创建业务通信层（依赖连接层）
-        self.business_layer = BusinessCommunicationLayer()
-        self.business_layer.set_dependencies(
-            self.communication_manager, 
-            self.connection_manager
-        )
-        self.logger.info("Layer 2: Business communication layer created")
-    
+
     def _establish_layer_relationships(self):
-        """建立层间关系链 - 确保事件能够正确向上传递"""
-        # 建立向上传递链：
-        # ConnectionManager → BusinessCommunicationLayer → ProxyManager
-        
-        # 连接管理层的上层是业务通信层
-        self.connection_manager.set_upper_layer(self.business_layer)
-        
-        # 业务通信层的上层是trainer的代理事件处理器
-        self.business_layer.set_upper_layer(self.trainer._proxy_event_handler)
-        
+        """
+        建立层间关系（事件传递链）
+
+        连接链：
+            ConnectionManager → BusinessCommunicationLayer → Trainer.ProxyEventHandler
+        """
+        if not self.comm_components or not self.business_components:
+            raise FederationError("Components not initialized")
+
+        if not self.comm_components.business_layer:
+            self.logger.warning("No business layer to establish relationships")
+            return
+
+        # 连接层间事件传递
+        self.comm_components.connection_manager.set_upper_layer(
+            self.comm_components.business_layer
+        )
+        self.comm_components.business_layer.set_upper_layer(
+            self.business_components.trainer._proxy_event_handler
+        )
+
         # 🎯 关键修复：监听传输层的CLIENT_REGISTERED事件（内存模式）
         def handle_transport_client_registered(data):
             """处理传输层的客户端注册事件"""
-            print(f"[传输层事件桥接] *** 收到事件调用 *** 数据: {data}")
             client_id = data.get("client_id")
             if client_id:
                 self.logger.info(f"[传输层事件桥接] 收到CLIENT_REGISTERED事件: {client_id}")
-                
+
                 # 直接调用ConnectionManager处理层间事件
-                self.connection_manager.handle_layer_event("CLIENT_REGISTERED", {
+                self.comm_components.connection_manager.handle_layer_event("CLIENT_REGISTERED", {
                     "client_id": client_id,
                     "event_data": data,
                     "timestamp": data.get("timestamp")
                 })
-            else:
-                print(f"[传输层事件桥接] *** 事件数据中没有client_id: {data} ***")
-        
-        # 注册传输层事件监听器 - 监听"system"目标的事件
-        self.transport.register_event_listener("system", "CLIENT_REGISTERED", handle_transport_client_registered)
-        self.logger.info("[传输层事件桥接] 已注册CLIENT_REGISTERED事件监听器（目标：system）")
-        
-        # 🎯 关键修复：监听CommunicationManager的注册事件，并转换为层间事件
+
+        # 注册传输层事件监听器
+        self.comm_components.transport.register_event_listener(
+            "system", "CLIENT_REGISTERED", handle_transport_client_registered
+        )
+        self.logger.info("[传输层事件桥接] 已注册CLIENT_REGISTERED事件监听器")
+
+        # 🎯 关键修复：监听CommunicationManager的注册事件
         def handle_client_registration_event(event):
             """处理客户端注册事件并转换为层间事件"""
-            self.logger.info(f"[事件桥接] 收到注册服务事件: {event.event_type}, 源: {event.source_id}")
-            
             if event.event_type == "CLIENT_REGISTERED":
                 client_id = event.source_id
                 self.logger.info(f"[事件桥接] 转换CLIENT_REGISTERED为层间事件: {client_id}")
-                
-                # 通过第3层（ConnectionManager）处理第4层事件
-                self.logger.info(f"[事件桥接] 向第3层传递CLIENT_REGISTERED事件: {client_id}")
-                self.connection_manager.handle_layer_event("CLIENT_REGISTERED", {
+                self.logger.info(f"{event.data}")
+
+                # event.data 是 ClientInfo 对象，不是 dict
+                timestamp = None
+                if hasattr(event, 'data') and hasattr(event.data, 'registration_time'):
+                    timestamp = event.data.registration_time.isoformat()
+
+                self.comm_components.connection_manager.handle_layer_event("CLIENT_REGISTERED", {
                     "client_id": client_id,
                     "event_data": event.data,
-                    "timestamp": event.data.get("timestamp") if hasattr(event, 'data') else None
+                    "timestamp": timestamp
                 })
-        
+
         # 注册事件回调到CommunicationManager的RegistryService
-        self.logger.debug(f"[事件桥接] 正在注册事件回调到RegistryService...")
-        self.logger.debug(f"[事件桥接] RegistryService实例: {id(self.communication_manager.registry_service)}")
-        try:
-            self.communication_manager.registry_service.register_event_callback(handle_client_registration_event)
-            self.logger.debug(f"[事件桥接] 事件回调注册成功")
-        except Exception as e:
-            self.logger.error(f"[事件桥接] 事件回调注册失败: {e}")
-            import traceback
-            self.logger.error(f"[事件桥接] 错误详情: {traceback.format_exc()}")
-        
-        callback_count = len(self.communication_manager.registry_service.event_callbacks)
-        self.logger.debug(f"[事件桥接] 当前注册的回调数量: {callback_count}")
-        
-        # 列出所有回调的详细信息
-        for i, cb in enumerate(self.communication_manager.registry_service.event_callbacks):
-            cb_name = cb.__name__ if hasattr(cb, '__name__') else str(cb)
-            self.logger.debug(f"[事件桥接] 回调 #{i+1}: {cb_name}")
-        
-        if callback_count >= 2:
-            self.logger.info("[事件桥接] 桥接回调注册成功")
-        else:
-            self.logger.warning("[事件桥接] 桥接回调可能注册失败，回调数量不正确")
-        
-        self.logger.info("🔗 层级关系建立完成，事件桥接已激活")
-        
-        self.logger.info("层级关系建立完成，事件桥接已激活")
-    
+        self.comm_components.communication_manager.registry_service.register_event_callback(
+            handle_client_registration_event
+        )
+
+        self.logger.info("🔗 Layer relationships established, event bridges activated")
+
     async def start_server(self) -> bool:
-        """启动服务端"""
-        print(f"🟢 [Server] 开始启动服务器: {self.server_id}")
-        
+        """
+        启动服务端
+
+        前提：
+            必须已调用 initialize() 完成初始化
+
+        Returns:
+            bool: 启动是否成功
+
+        Raises:
+            FederationError: 如果服务端未初始化
+        """
         if not self.is_initialized:
-            raise FederationError("Server not initialized")
-        
+            raise FederationError("Server not initialized. Call initialize() first.")
+
         if self.is_running:
-            print(f"🟡 [Server] 服务器已经在运行")
+            self.logger.warning("Server already running")
             return True
-        
+
+        self.logger.info("Starting FederationServer...")
+
         try:
-            # 启动各层组件
-            # print(f"🚀 [Server] 启动传输层...")
-            # if hasattr(self.transport, 'start'):
-            #     await self.transport.start()
-            
-            print(f"🌐 [Server] 启动通信管理器...")
-            if hasattr(self.communication_manager, 'start'):
-                await self.communication_manager.start()
-            
-            print(f"🔗 [Server] 启动连接管理器...")
-            if hasattr(self.connection_manager, 'start'):
-                await self.connection_manager.start()
-            
-            # 初始化trainer
-            trainer_ready = await self.trainer.initialize()
+            # 启动通信层
+            self.logger.info("Starting communication layers...")
+
+            if hasattr(self.comm_components.communication_manager, 'start'):
+                await self.comm_components.communication_manager.start()
+                self.logger.info("✓ Communication manager started")
+
+            if hasattr(self.comm_components.connection_manager, 'start'):
+                await self.comm_components.connection_manager.start()
+                self.logger.info("✓ Connection manager started")
+
+            # 初始化 trainer
+            self.logger.info("Initializing trainer...")
+            trainer_ready = await self.business_components.trainer.initialize()
             if not trainer_ready:
                 raise FederationError("Trainer initialization failed")
-            
+            self.logger.info("✓ Trainer initialized")
+
             self.is_running = True
-            print("FederationServer started successfully")
+            self.logger.info("✅ FederationServer started successfully")
+
             return True
-            
+
         except Exception as e:
-            print(f"Failed to start server: {e}")
+            self.logger.error(f"Failed to start server: {e}")
             return False
-    
+
     async def stop_server(self) -> bool:
-        """停止服务端"""
+        """
+        停止服务端
+
+        Returns:
+            bool: 停止是否成功
+        """
         if not self.is_running:
+            self.logger.info("Server not running, nothing to stop")
             return True
-        
+
+        self.logger.info("Stopping FederationServer...")
+
         try:
             # 按相反顺序停止组件
-            if self.trainer:
-                await self.trainer.cleanup()
-            
-            if hasattr(self.connection_manager, 'stop'):
-                await self.connection_manager.stop()
-            
-            if hasattr(self.communication_manager, 'stop'):
-                await self.communication_manager.stop()
-            
-            if hasattr(self.transport, 'stop'):
-                await self.transport.stop()
-            
+
+            # 停止 trainer
+            if self.business_components and self.business_components.trainer:
+                await self.business_components.trainer.cleanup()
+                self.logger.info("✓ Trainer stopped")
+
+            # 停止通信层
+            if self.comm_components:
+                if hasattr(self.comm_components.connection_manager, 'stop'):
+                    await self.comm_components.connection_manager.stop()
+                    self.logger.info("✓ Connection manager stopped")
+
+                if hasattr(self.comm_components.communication_manager, 'stop'):
+                    await self.comm_components.communication_manager.stop()
+                    self.logger.info("✓ Communication manager stopped")
+
+                if hasattr(self.comm_components.transport, 'stop'):
+                    await self.comm_components.transport.stop()
+                    self.logger.info("✓ Transport stopped")
+
             self.is_running = False
-            print("FederationServer stopped successfully")
+            self.logger.info("✅ FederationServer stopped successfully")
+
             return True
-            
+
         except Exception as e:
-            print(f"Failed to stop server: {e}")
+            self.logger.error(f"Failed to stop server: {e}")
             return False
-    
-    def get_trainer(self) -> Optional[BaseTrainer]:
+
+    # ========== 便捷访问属性 ==========
+
+    @property
+    def trainer(self) -> Optional[BaseTrainer]:
         """获取训练器实例"""
-        return self.trainer
-    
+        return self.business_components.trainer if self.business_components else None
+
     def get_server_status(self) -> Dict[str, Any]:
-        """获取服务端状态"""
+        """
+        获取服务端状态
+
+        Returns:
+            服务端状态字典
+        """
         return {
             "server_id": self.server_id,
             "mode": self.mode.value,
@@ -264,22 +308,37 @@ class FederationServer:
             "available_clients": len(self.trainer.get_available_clients()) if self.trainer else 0,
             "trainer_status": self.trainer.get_training_status() if self.trainer else None
         }
-    
+
     def _generate_server_id(self) -> str:
         """生成服务端ID"""
         if self.mode == CommunicationMode.MEMORY:
             return "memory_server"
         elif self.mode == CommunicationMode.PROCESS:
-            port = self.config.get("port", 8000)
+            port = self.comm_config.transport.get("port", 8000) if self.comm_config.transport else 8000
             return f"process_server_{port}"
         elif self.mode == CommunicationMode.NETWORK:
-            host = self.config.get("host", "localhost")
-            port = self.config.get("port", 8000)
+            host = self.comm_config.transport.get("host", "localhost") if self.comm_config.transport else "localhost"
+            port = self.comm_config.transport.get("port", 8000) if self.comm_config.transport else 8000
             return f"network_server_{host}_{port}"
         else:
             return "unknown_server"
-    
+
+    # ========== 工厂方法 ==========
+
     @classmethod
-    def create_server(cls, config: Dict[str, Any]) -> 'FederationServer':
-        """工厂方法：创建服务端实例"""
-        return cls(config)
+    def create_server(
+        cls,
+        communication_config: CommunicationConfig,
+        training_config: TrainingConfig
+    ) -> 'FederationServer':
+        """
+        工厂方法：创建服务端实例
+
+        Args:
+            communication_config: 通信配置对象
+            training_config: 训练配置对象
+
+        Returns:
+            FederationServer 实例
+        """
+        return cls(communication_config, training_config)

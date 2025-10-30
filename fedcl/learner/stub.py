@@ -229,19 +229,19 @@ class LearnerStub:
     
     async def handle_train_request(self, request: TrainingRequest) -> TrainingResponse:
         """处理训练请求
-        
+
         Args:
             request: 训练请求
-            
+
         Returns:
             TrainingResponse: 训练响应
         """
         start_time = datetime.now()
-        
+
         try:
             print(f"[STUB] 收到训练请求: {request.client_id}, 方法: {request.method_name}")
             print(f"[STUB] 训练参数: {request.parameters}")
-            
+
             # 参数验证
             if not self.validate_request_parameters(request):
                 return TrainingResponse(
@@ -250,36 +250,43 @@ class LearnerStub:
                     success=False,
                     error_message="Invalid training parameters"
                 )
-            
+
             # 确保学习器已初始化
             if not self.learner._is_initialized:
                 await self.learner.initialize()
-            
+
             # 执行训练
             result = await self.learner.train(request.parameters)
             print(f"[STUB] 训练结果: {result}")
-            
+
             # 记录训练历史
             await self.learner._record_training(request.parameters, result)
-            
-            execution_time = (datetime.now() - start_time).total_seconds()
-            
-            response = TrainingResponse(
-                request_id=request.request_id,
-                client_id=request.client_id,
-                success=True,
-                result=result,
-                execution_time=execution_time
-            )
-            
-            print(f"[STUB] 返回响应: success={response.success}, result={response.result}")
-            return response
-            
+
+            # learner.train()已经返回TrainingResponse对象，直接使用它
+            # 只需要填充request_id字段（如果learner没有填充的话）
+            if isinstance(result, TrainingResponse):
+                if not result.request_id:
+                    result.request_id = request.request_id
+                print(f"[STUB] 返回响应: success={result.success}, result={result.result}")
+                return result
+            else:
+                # 如果learner返回的不是TrainingResponse（兼容旧接口），则包装它
+                execution_time = (datetime.now() - start_time).total_seconds()
+                response = TrainingResponse(
+                    request_id=request.request_id,
+                    client_id=request.client_id,
+                    success=True,
+                    result=result,
+                    execution_time=execution_time
+                )
+                print(f"[STUB] 返回响应: success={response.success}, result={response.result}")
+                return response
+
         except Exception as e:
             execution_time = (datetime.now() - start_time).total_seconds()
             error_msg = f"Training failed: {str(e)}"
             print(f"[STUB] 训练失败: {error_msg}")
-            
+
             return TrainingResponse(
                 request_id=request.request_id,
                 client_id=request.client_id,

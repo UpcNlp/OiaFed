@@ -1,0 +1,52 @@
+# ============================================
+# 客户端完整配置示例（合并格式）
+# ============================================
+
+# ========== 通信配置 ==========
+communication:
+  mode: "network"           # 通信模式
+  role: "client"            # 角色：client
+  node_id: null             # 客户端ID（null = 自动生成）
+
+  # 传输层配置
+  transport:
+    type: "websocket"
+    timeout: 30.0
+    # 服务端地址
+    server:
+      host: "192.168.1.100"
+      port: 8000
+    # 连接重试
+    connection_retry:
+      enabled: true
+      max_attempts: 10
+
+  # 通信管理配置
+  communication:
+    registration:
+      auto_register: true
+    serialization:
+      format: "pickle"
+      compression: "gzip"
+
+# ========== 训练配置 ==========
+training:
+  # 组件导入
+  components:
+    - "my_project.learners"
+
+  # 学习器配置
+  learner:
+    name: "StandardLearner"
+    params:
+      local_epochs: 5
+      batch_size: 32
+      learning_rate: 0.01
+
+  # 数据集配置
+  dataset:
+    name: "CIFAR10"
+    data_path: "./data/cifar10"
+    split:
+      train: 0.8
+      val: 0.2

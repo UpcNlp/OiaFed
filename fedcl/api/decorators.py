@@ -10,7 +10,7 @@ import inspect
 from typing import Any, Callable, Optional, Type, Dict
 from loguru import logger
 
-from ..registry import registry
+from .registry import registry
 
 
 def learner(name: Optional[str] = None, 
@@ -90,7 +90,7 @@ def trainer(name: Optional[str] = None,
         trainer_name = name or cls.__name__
         
         # 验证类是否继承了正确的基类
-        from ..trainer.base_trainer import BaseTrainer
+        from ..trainer.trainer import BaseTrainer
         if not issubclass(cls, BaseTrainer):
             logger.warning(f"训练器 {trainer_name} 未继承 BaseTrainer，可能导致兼容性问题")
         
@@ -252,8 +252,131 @@ def component(component_type: str,
     )
 
 
+def dataset(name: Optional[str] = None,
+           description: Optional[str] = None,
+           version: str = "1.0",
+           author: Optional[str] = None,
+           dataset_type: Optional[str] = None,
+           num_classes: Optional[int] = None,
+           **metadata):
+    """
+    数据集注册装饰器
+
+    使用方式:
+    @dataset('mnist_federated', description='MNIST联邦数据集', num_classes=10)
+    class MNISTFederated(FederatedDataset):
+        pass
+
+    Args:
+        name: 数据集名称，如果为None则使用类名
+        description: 数据集描述
+        version: 版本号
+        author: 作者
+        dataset_type: 数据集类型 ('image_classification', 'text', 'tabular')
+        num_classes: 类别数量
+        **metadata: 其他元数据
+    """
+    def decorator(cls: Type) -> Type:
+        # 获取数据集名称
+        dataset_name = name or cls.__name__
+
+        # 验证类是否继承了正确的基类
+        try:
+            from ..methods.datasets.base import FederatedDataset
+            if not issubclass(cls, FederatedDataset):
+                logger.warning(f"数据集 {dataset_name} 未继承 FederatedDataset，可能导致兼容性问题")
+        except ImportError:
+            logger.warning("无法导入 FederatedDataset 进行类型检查")
+
+        # 添加元数据到类
+        cls._component_metadata = {
+            'type': 'dataset',
+            'name': dataset_name,
+            'description': description or f"{dataset_name} 数据集",
+            'version': version,
+            'author': author,
+            'dataset_type': dataset_type,
+            'num_classes': num_classes,
+            'registered_at': str(id(cls)),
+            **metadata
+        }
+
+        # 注册到全局注册表
+        registry.register_dataset(dataset_name, cls)
+
+        logger.info(f"已注册数据集: {dataset_name} (版本: {version}, 类型: {dataset_type})")
+
+        return cls
+
+    return decorator
+
+
+def model(name: Optional[str] = None,
+         description: Optional[str] = None,
+         version: str = "1.0",
+         author: Optional[str] = None,
+         task: Optional[str] = None,
+         input_shape: Optional[tuple] = None,
+         output_shape: Optional[tuple] = None,
+         **metadata):
+    """
+    模型注册装饰器
+
+    使用方式:
+    @model('simple_cnn', description='简单CNN模型', task='classification')
+    class SimpleCNN(nn.Module):
+        pass
+
+    Args:
+        name: 模型名称，如果为None则使用类名
+        description: 模型描述
+        version: 版本号
+        author: 作者
+        task: 任务类型 ('classification', 'regression', 'generation')
+        input_shape: 输入形状
+        output_shape: 输出形状
+        **metadata: 其他元数据
+    """
+    def decorator(cls: Type) -> Type:
+        # 获取模型名称
+        model_name = name or cls.__name__
+
+        # 验证类是否继承了 nn.Module
+        try:
+            import torch.nn as nn
+            if not issubclass(cls, nn.Module):
+                logger.warning(f"模型 {model_name} 未继承 torch.nn.Module，可能导致兼容性问题")
+        except ImportError:
+            logger.warning("无法导入 torch.nn.Module 进行类型检查")
+
+        # 添加元数据到类
+        cls._component_metadata = {
+            'type': 'model',
+            'name': model_name,
+            'description': description or f"{model_name} 模型",
+            'version': version,
+            'author': author,
+            'task': task,
+            'input_shape': input_shape,
+            'output_shape': output_shape,
+            'registered_at': str(id(cls)),
+            **metadata
+        }
+
+        # 注册到全局注册表
+        registry.register_model(model_name, cls)
+
+        logger.info(f"已注册模型: {model_name} (版本: {version}, 任务: {task})")
+
+        return cls
+
+    return decorator
+
+
 # 别名装饰器，提供更简洁的语法
 register_learner = learner
 register_trainer = trainer
 register_aggregator = aggregator
 register_evaluator = evaluator
+register_dataset = dataset
+register_model = model

@@ -151,34 +151,6 @@ async def example1_context_manager():
     # 初始全局模型
     initial_model: ModelData = {"weights": [0.1, 0.2, 0.3]}
 
-    # client_config = ClientConfig(
-    #     mode="process",
-    #     transport=TransportLayerConfig(port=0)  # 自动分配端口
-    # )
-
-    # client_configs = [
-    #     ClientConfig(
-    #         mode="process",
-    #         client_id="alice",  # ✅ 在配置中指定 ID
-    #         transport=TransportLayerConfig(port=8001)
-    #     ),
-    #     ClientConfig(
-    #         mode="process",
-    #         client_id="bob",
-    #         transport=TransportLayerConfig(port=8002)
-    #     ),
-    #     ClientConfig(
-    #         mode="process",
-    #         client_id="charlie",
-    #         transport=TransportLayerConfig(port=8003)
-    #     )
-    # ]
-    #
-    # server_config = ServerConfig(
-    #     mode="process",
-    #     transport=TransportLayerConfig(port=8000)
-    # )
-
     # 使用上下文管理器自动管理生命周期
     async with FederatedLearning(
         trainer_class=SimpleTrainer,

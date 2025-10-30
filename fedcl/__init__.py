@@ -13,7 +13,7 @@ __description__ = "A unified federated learning communication system supporting 
 # ==================== 核心抽象类 ====================
 # 用户需要继承的基类
 from .learner.base_learner import BaseLearner
-from .trainer.base_trainer import BaseTrainer
+from .trainer.trainer import BaseTrainer
 
 # ==================== 配置系统 ====================
 from .config.config import (
@@ -29,7 +29,7 @@ from .config.config import (
 
 
 # ==================== 统一入口 ====================
-from .federated_learning import FederatedLearning, run_federated_learning
+from .federated_learning import FederatedLearning
 
 # ==================== 配置类型 ====================
 from .types import (
@@ -57,7 +57,7 @@ from .learner.proxy import LearnerProxy, ProxyConfig
 from .learner.stub import LearnerStub, StubConfig
 
 # 训练器配置
-from .trainer.base_trainer import TrainingConfig
+from .trainer.trainer import TrainingConfig
 
 # ==================== 组件工厂 ====================
 from .factory.factory import (

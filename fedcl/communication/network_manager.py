@@ -38,7 +38,7 @@ class NetworkCommunicationManager(CommunicationManagerBase):
             node_role: 节点角色 ('server' 或 'client')。如果为 None，则从 node_id 推断
         """
         super().__init__(node_id, transport, config)
-
+        self.logger = get_sys_logger()
         # 显式设置节点角色（更可靠的判断方式）
         if node_role is not None:
             self.node_role = node_role.lower()
