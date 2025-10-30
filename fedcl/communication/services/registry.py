@@ -4,15 +4,14 @@ moe_fedcl/communication/services/registry.py
 """
 
 import asyncio
-from typing import Dict, List, Optional, Set, Callable
 from datetime import datetime
-import logging
+from typing import Dict, List, Optional, Callable
 
+from ...exceptions import RegistrationError
 from ...types import (
-    ClientInfo, RegistrationRequest, RegistrationResponse, 
+    ClientInfo, RegistrationRequest, RegistrationResponse,
     RegistrationStatus, EventMessage
 )
-from ...exceptions import RegistrationError
 from ...utils.auto_logger import get_comm_logger
 
 
@@ -33,9 +32,7 @@ class ClientRegistryService:
         
         # 客户端注册表
         self.clients: Dict[str, ClientInfo] = {}
-        
-        # 注册状态跟踪
-        self.pending_registrations: Dict[str, datetime] = {}
+
         
         # 事件回调
         self.event_callbacks: List[Callable[[EventMessage], None]] = []
@@ -129,9 +126,7 @@ class ClientRegistryService:
                 
                 # 从注册表移除
                 del self.clients[client_id]
-                
-                # 清理相关状态
-                self.pending_registrations.pop(client_id, None)
+
                 
                 # 记录日志
                 self.logger.info(f"Client {client_id} unregistered successfully")

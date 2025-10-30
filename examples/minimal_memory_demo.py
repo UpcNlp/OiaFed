@@ -163,7 +163,7 @@ async def main():
 
     # 初始化日志系统
     setup_auto_logging()
-    config = {"mode": "process", "timeout": 30.0}
+    config = {"mode": "memory", "timeout": 30.0}
 
     # 构造初始全局模型（ModelData 类型）
     initial_global_model: ModelData = {"weights": [0.1, 0.2, 0.3]}  # 与 SimpleLearner 一致
@@ -190,7 +190,7 @@ async def main():
         }
     }
     # 启动两个客户端
-    client1 = FederationClient.create_client(client1_config, client_id="process_client_1")
+    client1 = FederationClient.create_client(config, client_id="memory_client_1")
     await client1.initialize_with_learner(SimpleLearner)
     await client1.start_client()
     print("✅ 客户端 1 启动")
@@ -205,7 +205,7 @@ async def main():
             }
         }
     }
-    client2 = FederationClient.create_client(client2_config, client_id="process_client_2")
+    client2 = FederationClient.create_client(config, client_id="memory_client_2")
     await client2.initialize_with_learner(SimpleLearner)
     await client2.start_client()
     print("✅ 客户端 2 启动")

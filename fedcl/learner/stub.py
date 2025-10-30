@@ -4,18 +4,17 @@ moe_fedcl/learner/stub.py
 """
 
 import asyncio
-from typing import Any, Dict, Optional, Callable
 from datetime import datetime
+from typing import Any, Dict, Optional, Callable
 
 from .base_learner import BaseLearner
 from ..communication.base import CommunicationManagerBase
-from ..communication.network_manager import NetworkCommunicationManager
 from ..connection.manager import ConnectionManager
+from ..exceptions import RegistrationError, ValidationError
 from ..types import (
     RegistrationRequest, RegistrationResponse, RegistrationStatus,
-    TrainingRequest, TrainingResponse, EvaluationResult, ModelData
+    TrainingRequest, TrainingResponse
 )
-from ..exceptions import RegistrationError, ValidationError, TrainingError
 from ..utils.auto_logger import get_sys_logger
 
 
