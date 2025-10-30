@@ -4,15 +4,14 @@ moe_fedcl/communication/services/registry.py
 """
 
 import asyncio
-from typing import Dict, List, Optional, Set, Callable
 from datetime import datetime
-import logging
+from typing import Dict, List, Optional, Callable
 
+from ...exceptions import RegistrationError
 from ...types import (
-    ClientInfo, RegistrationRequest, RegistrationResponse, 
+    ClientInfo, RegistrationRequest, RegistrationResponse,
     RegistrationStatus, EventMessage
 )
-from ...exceptions import RegistrationError
 from ...utils.auto_logger import get_comm_logger
 
 
@@ -33,15 +32,79 @@ class ClientRegistryService:
         
         # 客户端注册表
         self.clients: Dict[str, ClientInfo] = {}
-        
-        # 注册状态跟踪
-        self.pending_registrations: Dict[str, datetime] = {}
+
         
         # 事件回调
         self.event_callbacks: List[Callable[[EventMessage], None]] = []
         
         # 锁保护并发操作
         self._lock = asyncio.Lock()
+
+    async def register_client(self, registration: RegistrationRequest) -> RegistrationResponse:
+        """注册客户端
+
+        Args:
+            registration: 注册请求
+
+        Returns:
+            RegistrationResponse: 注册响应
+
+        Raises:
+            RegistrationError: 注册失败
+        """
+        async with self._lock:
+            try:
+                # 验证注册请求
+                await self._validate_registration(registration)
+
+                # 创建客户端信息
+                client_info = ClientInfo(
+                    client_id=registration.client_id,
+                    client_type=registration.client_type,
+                    capabilities=registration.capabilities,
+                    metadata=registration.metadata,
+                    registration_time=datetime.now(),
+                    last_seen=datetime.now(),
+                    status=RegistrationStatus.REGISTERED
+                )
+
+                # 添加到注册表
+                self.clients[registration.client_id] = client_info
+                
+                # 记录日志
+                self.logger.info(
+                    f"Client {registration.client_id} registered successfully "
+                    f"(type: {registration.client_type}, "
+                    f"capabilities: {registration.capabilities})"
+                )
+
+                # 触发注册事件
+                await self._emit_event("CLIENT_REGISTERED", registration.client_id, client_info)
+
+                # 返回成功响应
+                return RegistrationResponse(
+                    success=True,
+                    client_id=registration.client_id,
+                    server_info={
+                        "registration_time": client_info.registration_time.isoformat(),
+                        "status": client_info.status.value
+                    }
+                )
+
+            except RegistrationError as e:
+                self.logger.error(f"Registration failed for {registration.client_id}: {e}")
+                return RegistrationResponse(
+                    success=False,
+                    client_id=registration.client_id,
+                    error_message=str(e)
+                )
+            except Exception as e:
+                self.logger.error(f"Unexpected error during registration of {registration.client_id}: {e}")
+                return RegistrationResponse(
+                    success=False,
+                    client_id=registration.client_id,
+                    error_message=f"Internal error: {str(e)}"
+                )
     
     async def unregister_client(self, client_id: str) -> bool:
         """注销客户端
@@ -63,9 +126,7 @@ class ClientRegistryService:
                 
                 # 从注册表移除
                 del self.clients[client_id]
-                
-                # 清理相关状态
-                self.pending_registrations.pop(client_id, None)
+
                 
                 # 记录日志
                 self.logger.info(f"Client {client_id} unregistered successfully")

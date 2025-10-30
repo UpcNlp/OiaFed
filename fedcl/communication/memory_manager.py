@@ -4,16 +4,16 @@ moe_fedcl/communication/memory_manager.py
 """
 
 import asyncio
-from typing import Any, Dict, List, Optional
 from datetime import datetime
+from typing import Any, Dict
 
 from .base import CommunicationManagerBase
+from ..exceptions import RegistrationError
 from ..transport.memory import MemoryTransport
 from ..types import (
     ClientInfo, RegistrationRequest, RegistrationResponse,
     HeartbeatMessage, CommunicationConfig, RegistrationStatus
 )
-from ..exceptions import RegistrationError
 
 
 class MemoryCommunicationManager(CommunicationManagerBase):

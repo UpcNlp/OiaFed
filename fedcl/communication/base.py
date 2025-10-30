@@ -4,19 +4,19 @@ moe_fedcl/communication/base.py
 """
 
 import asyncio
-from abc import ABC, abstractmethod
-from typing import Any, Dict, List, Callable, Optional
+from abc import ABC
 from datetime import datetime, timedelta
+from typing import Any, Dict, List, Callable, Optional
 
+from .services import (
+    ClientRegistryService, HeartbeatService,
+    StatusManagementService, SecurityService
+)
+from ..exceptions import CommunicationError
 from ..transport.base import TransportBase
 from ..types import (
     ClientInfo, RegistrationRequest, RegistrationResponse,
     HeartbeatMessage, CommunicationConfig, HealthStatus
-)
-from ..exceptions import CommunicationError, RegistrationError, TimeoutError
-from .services import (
-    ClientRegistryService, HeartbeatService, 
-    StatusManagementService, SecurityService
 )
 
 
