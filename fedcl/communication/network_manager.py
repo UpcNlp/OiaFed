@@ -38,7 +38,10 @@ class NetworkCommunicationManager(CommunicationManagerBase):
             node_role: 节点角色 ('server' 或 'client')。如果为 None，则从 node_id 推断
         """
         super().__init__(node_id, transport, config)
+
+        # 首先初始化 logger，因为后续方法会用到
         self.logger = get_sys_logger()
+
         # 显式设置节点角色（更可靠的判断方式）
         if node_role is not None:
             self.node_role = node_role.lower()
@@ -62,8 +65,6 @@ class NetworkCommunicationManager(CommunicationManagerBase):
         # Process模式特定初始化
         if self.is_process_mode:
             self._init_process_mode()
-
-        self.logger = get_sys_logger()
     
     def _init_process_mode(self):
         """初始化Process模式特定功能"""

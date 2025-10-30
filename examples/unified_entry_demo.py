@@ -2,290 +2,346 @@
 使用 FederatedLearning 统一入口类运行联邦学习示例
 examples/unified_entry_demo.py
 
-演示如何使用 FederatedLearning 类快速启动完整的联邦学习系统
+演示如何使用新版 FederatedLearning 类快速启动完整的联邦学习系统
+
+新版特性：
+- 基于配置文件的架构
+- 每个配置文件必须指定 role（"server" 或 "client"）
+- 支持从文件夹加载多个配置
+- 自动创建和管理 Server/Client 实例
 """
 
 import asyncio
-from typing import Dict, Any
-from fedcl import (
-    FederatedLearning, run_federated_learning,
-    BaseLearner, BaseTrainer,
-    FederationConfig
-)
-from fedcl.types import (
-    TrainingResult, EvaluationResult, ModelData, RoundResult, List
-)
-from fedcl.config import (
-    ClientConfig, ServerConfig, TransportLayerConfig
-)
+import sys
+import os
 
+# 添加项目路径
+sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
 
-# ───────────────────────────────────────
-# 1. 客户端 Learner
-# ───────────────────────────────────────
-class SimpleLearner(BaseLearner):
-    def __init__(self, client_id: str, config: Dict[str, Any], logger=None):
-        super().__init__(client_id, config, logger)
-        self.local_samples = 1000
-        self._local_model: ModelData = {"weights": [0.1, 0.2, 0.3]}
-
-    async def train(self, training_params: Dict[str, Any]) -> TrainingResult:
-        print(f"[Client {self.client_id}] 开始训练...")
-        await asyncio.sleep(0.1)
-        return TrainingResult(
-            client_id=self.client_id,
-            success=True,
-            loss=0.5,
-            accuracy=0.85,
-            samples_count=self.local_samples,
-            training_time=0.1,
-            model_update=self._local_model
-        )
-
-    async def evaluate(self, evaluation_params: Dict[str, Any]) -> EvaluationResult:
-        return EvaluationResult(
-            client_id=self.client_id,
-            success=True,
-            loss=0.45,
-            accuracy=0.87,
-            samples_count=self.local_samples,
-            evaluation_time=0.05
-        )
-
-    async def get_local_model(self) -> ModelData:
-        return self._local_model
-
-    async def set_local_model(self, model_data: ModelData) -> bool:
-        self._local_model = model_data
-        print(f"[Client {self.client_id}] 接收到全局模型: {model_data}")
-        return True
-
-
-# ───────────────────────────────────────
-# 2. 服务端 Trainer
-# ───────────────────────────────────────
-class SimpleTrainer(BaseTrainer):
-    def __init__(self, global_model=None, training_config=None, logger=None):
-        super().__init__(global_model, training_config, logger)
-        self.round = 0
-
-    async def train_round(self, round_num: int, client_ids: List[str]) -> RoundResult:
-        print(f"\n第 {round_num} 轮：客户端 {client_ids}")
-
-        client_results = {}
-        successful_clients = []
-        failed_clients = []
-
-        # 并发训练
-        tasks = []
-        for cid in client_ids:
-            if cid in self.learner_proxies and self.is_client_ready(cid):
-                proxy = self.learner_proxies[cid]
-                task = proxy.train({
-                    "global_model": self.global_model,
-                    "epochs": 1,
-                    "learning_rate": 0.01
-                })
-                tasks.append((cid, task))
-            else:
-                failed_clients.append(cid)
-
-        # 收集结果
-        for cid, task in tasks:
-            try:
-                result = await task
-                client_results[cid] = result
-                successful_clients.append(cid)
-            except Exception as e:
-                print(f"客户端 {cid} 训练失败: {e}")
-                failed_clients.append(cid)
-
-        # 聚合模型
-        aggregated_model = await self.aggregate_models(client_results)
-        self.global_model = aggregated_model
-
-        # 构造轮次指标
-        avg_loss = sum(r.get("loss", 0.5) for r in client_results.values()) / max(len(client_results), 1)
-        avg_accuracy = sum(r.get("accuracy", 0.8) for r in client_results.values()) / max(len(client_results), 1)
-
-        return RoundResult(
-            participants=client_ids,
-            successful_clients=successful_clients,
-            failed_clients=failed_clients,
-            aggregated_model=aggregated_model,
-            round_metrics={
-                "avg_loss": avg_loss,
-                "avg_accuracy": avg_accuracy
-            },
-            training_time=0.5
-        )
-
-    async def aggregate_models(self, client_results: Dict[str, Any]) -> ModelData:
-        print("正在聚合模型...")
-        await asyncio.sleep(0.1)
-        return {"weights": [0.15, 0.25, 0.35]}
-
-    async def evaluate_global_model(self) -> EvaluationResult:
-        return EvaluationResult(
-            client_id="server",
-            success=True,
-            loss=0.4,
-            accuracy=0.90,
-            samples_count=10000,
-            evaluation_time=0.1
-        )
-
-    def should_stop_training(self, round_num: int, round_result: RoundResult) -> bool:
-        return round_num >= 3  # 运行 3 轮
+from fedcl import FederatedLearning
 
 
 # ============================================
-# 示例1: 使用 FederatedLearning 类 + 上下文管理器
+# 示例1: 从配置文件夹加载（推荐方式）
 # ============================================
-async def example1_context_manager():
-    """最推荐的使用方式"""
+async def example1_from_folder():
+    """
+    从配置文件夹加载所有节点配置
+
+    要求：
+    - 文件夹中至少有1个 server 配置和1个 client 配置
+    - 每个配置文件必须指定 role 字段
+    """
     print("\n" + "="*60)
-    print("示例1: 使用 FederatedLearning + 上下文管理器")
+    print("示例1: 从配置文件夹加载")
     print("="*60)
 
-    # 初始全局模型
-    initial_model: ModelData = {"weights": [0.1, 0.2, 0.3]}
+    # 假设你有一个配置文件夹，包含：
+    # - server.yaml (role: server)
+    # - client1.yaml (role: client)
+    # - client2.yaml (role: client)
+    config_folder = "configs"  # 修改为你的配置文件夹路径
 
-    # 使用上下文管理器自动管理生命周期
-    async with FederatedLearning(
-        trainer_class=SimpleTrainer,
-        learner_class=SimpleLearner,
-        global_model=initial_model,
-        server_config_path="../configs/server_demo.yaml",
-        client_config_path="../configs/clients",
-        # server_config=server_config,
-        # client_configs=client_configs,
-        num_clients=3,
-        federation_config=FederationConfig(
-            max_rounds=3,
-            min_clients=2
-        )
-    ) as fl:
-        # 运行训练
-        result = await fl.run(max_rounds=3)
+    if not os.path.exists(config_folder):
+        print(f"⚠️  配置文件夹不存在: {config_folder}")
+        print("跳过此示例")
+        return
 
-        print("\n" + "="*60)
-        print("训练结果:")
-        print(f"  完成轮数: {result.completed_rounds}")
-        print(f"  最终准确率: {result.final_accuracy:.4f}")
-        print(f"  最终损失: {result.final_loss:.4f}")
-        print(f"  总时间: {result.total_time:.2f}秒")
-        print("="*60)
+    try:
+        # 创建 FederatedLearning 实例
+        fl = FederatedLearning(config_folder)
 
-    # 自动清理资源
+        # 初始化所有节点
+        await fl.initialize()
+
+        # 运行联邦学习训练
+        result = await fl.run(max_rounds=5)
+
+        if result:
+            print("\n" + "="*60)
+            print("训练结果:")
+            print(f"  完成轮数: {result.completed_rounds}")
+            print(f"  最终准确率: {result.final_accuracy:.4f}")
+            print(f"  最终损失: {result.final_loss:.4f}")
+            print(f"  总时间: {result.total_time:.2f}秒")
+            print("="*60)
+
+        # 清理资源
+        await fl.cleanup()
+
+    except Exception as e:
+        print(f"❌ 错误: {e}")
+        import traceback
+        traceback.print_exc()
+
     print("✅ 示例1完成\n")
 
 
 # ============================================
-# 示例2: 使用 FederatedLearning 类手动管理
+# 示例2: 从多个配置文件加载
 # ============================================
-async def example2_manual():
-    """手动管理生命周期"""
+async def example2_from_file_list():
+    """
+    指定多个配置文件路径
+    """
     print("\n" + "="*60)
-    print("示例2: 手动管理 FederatedLearning")
+    print("示例2: 从多个配置文件加载")
     print("="*60)
 
-    initial_model: ModelData = {"weights": [0.1, 0.2, 0.3]}
+    config_files = [
+        "configs/server.yaml",
+        "configs/client1.yaml",
+        "configs/client2.yaml",
+    ]
 
-    # 创建实例
-    fl = FederatedLearning(
-        trainer_class=SimpleTrainer,
-        learner_class=SimpleLearner,
-        global_model=initial_model,
-        server_config_path="../configs/server_demo.yaml",
-        client_config_path="../configs/client_demo_1.yaml",
-        num_clients=2
-    )
+    # 检查文件是否存在
+    missing_files = [f for f in config_files if not os.path.exists(f)]
+    if missing_files:
+        print(f"⚠️  以下配置文件不存在:")
+        for f in missing_files:
+            print(f"    - {f}")
+        print("跳过此示例")
+        return
 
     try:
-        # 初始化
+        # 创建 FederatedLearning 实例
+        fl = FederatedLearning(config_files)
+
+        # 初始化所有节点
         await fl.initialize()
 
-        # 运行训练
+        # 运行联邦学习训练
         result = await fl.run(max_rounds=3)
 
-        print(f"\n✅ 训练完成，准确率: {result.final_accuracy:.4f}")
+        if result:
+            print(f"\n✅ 训练完成，最终准确率: {result.final_accuracy:.4f}")
 
-    finally:
-        # 清理
+        # 清理资源
         await fl.cleanup()
+
+    except Exception as e:
+        print(f"❌ 错误: {e}")
+        import traceback
+        traceback.print_exc()
 
     print("✅ 示例2完成\n")
 
 
 # ============================================
-# 示例3: 使用便捷函数（一行代码）
+# 示例3: 使用上下文管理器（自动清理资源）
 # ============================================
-async def example3_convenience_function():
-    """最简单的使用方式"""
+async def example3_context_manager():
+    """
+    使用 async with 自动管理资源生命周期
+    """
     print("\n" + "="*60)
-    print("示例3: 使用便捷函数 run_federated_learning")
+    print("示例3: 使用上下文管理器")
     print("="*60)
 
-    initial_model: ModelData = {"weights": [0.1, 0.2, 0.3]}
+    config_folder = "configs"
 
-    # 一行代码运行完整系统
-    result = await run_federated_learning(
-        trainer_class=SimpleTrainer,
-        learner_class=SimpleLearner,
-        global_model=initial_model,
-        server_config_path="../configs/server_demo.yaml",
-        client_config_path="../configs/client_demo_1.yaml",
-        num_clients=3,
-        max_rounds=3,
-        federation_config=FederationConfig(min_clients=2)
-    )
+    if not os.path.exists(config_folder):
+        print(f"⚠️  配置文件夹不存在: {config_folder}")
+        print("跳过此示例")
+        return
 
-    print(f"\n✅ 训练完成，准确率: {result.final_accuracy:.4f}")
+    try:
+        # 使用 async with 自动管理资源
+        async with FederatedLearning(config_folder) as fl:
+            # 运行训练
+            result = await fl.run(max_rounds=3)
+
+            if result:
+                print(f"\n✅ 训练完成，最终准确率: {result.final_accuracy:.4f}")
+
+        # 资源会自动清理
+
+    except Exception as e:
+        print(f"❌ 错误: {e}")
+        import traceback
+        traceback.print_exc()
+
     print("✅ 示例3完成\n")
 
 
 # ============================================
-# 示例4: 不使用配置文件（使用默认配置）
+# 示例4: 从单个配置文件加载（单节点）
 # ============================================
-async def example4_default_config():
-    """使用默认配置，无需配置文件"""
+async def example4_single_node():
+    """
+    加载单个节点配置（仅启动一个 Server 或 Client）
+
+    适用场景：
+    - 分布式部署时，每台机器只运行一个节点
+    - 独立启动 Server 或 Client
+    """
     print("\n" + "="*60)
-    print("示例4: 使用默认配置（无配置文件）")
+    print("示例4: 单节点模式")
     print("="*60)
 
-    initial_model: ModelData = {"weights": [0.1, 0.2, 0.3]}
+    config_file = "configs/server.yaml"
 
-    async with FederatedLearning(
-        trainer_class=SimpleTrainer,
-        learner_class=SimpleLearner,
-        global_model=initial_model,
-        # 不提供配置文件，使用默认配置
-        num_clients=2
-    ) as fl:
-        result = await fl.run(max_rounds=3)
-        print(f"\n✅ 训练完成，准确率: {result.final_accuracy:.4f}")
+    if not os.path.exists(config_file):
+        print(f"⚠️  配置文件不存在: {config_file}")
+        print("跳过此示例")
+        return
+
+    try:
+        async with FederatedLearning(config_file) as fl:
+            print(f"节点已启动:")
+            print(f"  - Servers: {len(fl.servers)}")
+            print(f"  - Clients: {len(fl.clients)}")
+
+            # 单节点模式不会自动运行训练
+            # 通常用于分布式部署，等待其他节点连接
+            print("\n保持运行中（按 Ctrl+C 停止）...")
+
+            # 运行30秒后退出（实际使用时可以持续运行）
+            await asyncio.sleep(30)
+            print("示例结束")
+
+    except KeyboardInterrupt:
+        print("\n用户中断")
+    except Exception as e:
+        print(f"❌ 错误: {e}")
+        import traceback
+        traceback.print_exc()
 
     print("✅ 示例4完成\n")
+
+
+# ============================================
+# 示例5: 查看系统状态
+# ============================================
+async def example5_system_status():
+    """
+    查看系统运行状态
+    """
+    print("\n" + "="*60)
+    print("示例5: 查看系统状态")
+    print("="*60)
+
+    config_folder = "configs"
+
+    if not os.path.exists(config_folder):
+        print(f"⚠️  配置文件夹不存在: {config_folder}")
+        print("跳过此示例")
+        return
+
+    try:
+        fl = FederatedLearning(config_folder)
+        await fl.initialize()
+
+        # 获取系统状态
+        status = fl.get_status()
+        print(f"\n系统状态:")
+        print(f"  节点总数: {status['num_servers'] + status['num_clients']}")
+        print(f"    - Servers: {status['num_servers']}")
+        print(f"    - Clients: {status['num_clients']}")
+        print(f"  已初始化: {status['is_initialized']}")
+        print(f"  运行中: {status['is_running']}")
+
+        # 访问第一个 Server（如果有）
+        if fl.server:
+            server_status = fl.server.get_server_status()
+            print(f"\nServer 状态:")
+            print(f"  Server ID: {server_status['server_id']}")
+            print(f"  模式: {server_status['mode']}")
+            print(f"  可用客户端: {server_status['available_clients']}")
+
+        await fl.cleanup()
+
+    except Exception as e:
+        print(f"❌ 错误: {e}")
+        import traceback
+        traceback.print_exc()
+
+    print("✅ 示例5完成\n")
+
+
+# ============================================
+# 配置文件示例说明
+# ============================================
+def print_config_example():
+    """打印配置文件示例"""
+    print("\n" + "="*60)
+    print("配置文件示例")
+    print("="*60)
+
+    print("\n📄 server.yaml:")
+    print("""
+# 服务端配置
+role: server          # 必须指定！
+mode: memory          # memory/process/network
+node_id: demo_server
+
+# Trainer 类
+trainer:
+  class_path: "examples.demo_trainer.DemoTrainer"
+
+# 全局模型
+global_model:
+  weights: [0.1, 0.2, 0.3]
+
+# 训练配置
+training:
+  max_rounds: 10
+  min_clients: 2
+
+# 通信配置（可选）
+communication:
+  heartbeat_interval: 30.0
+""")
+
+    print("\n📄 client.yaml:")
+    print("""
+# 客户端配置
+role: client          # 必须指定！
+mode: memory
+node_id: demo_client_1
+
+# Learner 类
+learner:
+  class_path: "examples.demo_learner.DemoLearner"
+
+# 客户端配置（可选）
+training:
+  local_epochs: 5
+  batch_size: 32
+""")
+    print("="*60)
 
 
 # ============================================
 # 主函数
 # ============================================
 async def main():
-    """运行所有示例"""
+    """运行示例"""
     print("="*60)
-    print("MOE-FedCL 统一入口使用示例")
+    print("MOE-FedCL 统一入口使用示例（新版）")
     print("="*60)
 
-    # 运行示例（选择一个运行）
-    await example1_context_manager()
-    # await example2_manual()
-    # await example3_convenience_function()
-    # await example4_default_config()
+    # 打印配置文件格式说明
+    print_config_example()
 
+    # 选择要运行的示例
+    print("\n可用示例:")
+    print("  1. 从配置文件夹加载（推荐）")
+    print("  2. 从多个配置文件加载")
+    print("  3. 使用上下文管理器")
+    print("  4. 单节点模式")
+    print("  5. 查看系统状态")
+
+    # 运行示例（取消注释来运行）
+    # await example1_from_folder()
+    # await example2_from_file_list()
+    # await example3_context_manager()
+    # await example4_single_node()
+    # await example5_system_status()
+
+    print("\n提示: 请取消注释 main() 中的示例代码来运行")
     print("\n" + "="*60)
-    print("所有示例运行完成！")
+    print("示例说明完成")
     print("="*60)
 
 

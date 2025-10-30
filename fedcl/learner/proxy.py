@@ -415,7 +415,7 @@ class LearnerProxy:
                     data=request.__dict__
                 )
                 
-                self.comm_logger.debug(f"[PROXY] 收到响应数据: {response_data.request_id}")
+                self.comm_logger.debug(f"[PROXY] 收到响应数据: {response_data.get("request_id", "N/A")}")
                 
                 # 检查路由结果
                 if response_data.get("status") == "filtered":

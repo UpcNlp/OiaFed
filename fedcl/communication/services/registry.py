@@ -70,9 +70,6 @@ class ClientRegistryService:
                 # 添加到注册表
                 self.clients[client_id] = client_info
 
-                # 从待注册列表中移除（如果存在）
-                self.pending_registrations.pop(client_id, None)
-
                 # 记录日志
                 self.logger.info(f"Client {client_id} registered successfully")
 

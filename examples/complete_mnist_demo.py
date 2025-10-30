@@ -125,7 +125,7 @@ class MNISTCNNModel(FederatedModel):
         """获取模型权重"""
         return {k: v.cpu().clone() for k, v in self.state_dict().items()}
 
-    def set_weights_from_dict(self, weights: Dict[str, torch.Tensor]):
+    def set_weights_from_dict(self, weights: Dict[str, torch.Tensor], strict: bool = True):
         """设置模型权重"""
         self.load_state_dict(weights)
 
@@ -353,6 +353,9 @@ class FedAvgMNISTTrainer(BaseTrainer):
     """联邦平均训练器 - 实现真实的模型聚合"""
 
     def __init__(self, global_model: Dict[str, Any] = None, training_config=None, logger=None):
+        # 创建全局模型对象（在调用父类初始化之前）
+        self.global_model_obj = MNISTCNNModel(num_classes=10)
+
         # 处理配置参数
         if isinstance(training_config, dict):
             config_obj = TrainingConfig(
@@ -365,13 +368,15 @@ class FedAvgMNISTTrainer(BaseTrainer):
         else:
             config_obj = TrainingConfig()
 
-        super().__init__(global_model, config_obj, logger)
+        # 调用父类初始化（传入None作为global_model，因为我们使用自己的模型对象）
+        super().__init__(None, config_obj, logger)
         self.logger = get_train_logger("FedAvgMNISTTrainer")
 
-        # 创建全局模型
-        self.global_model = MNISTCNNModel(num_classes=10)
+        # 确保 self.global_model 指向我们的模型对象
+        self.global_model = self.global_model_obj
+
+        # 如果提供了初始权重，设置到模型中
         if global_model and "parameters" in global_model:
-            # 设置初始权重
             weights = global_model["parameters"].get("weights", {})
             torch_weights = {}
             for k, v in weights.items():
@@ -424,12 +429,11 @@ class FedAvgMNISTTrainer(BaseTrainer):
                 failed_clients.append(client_id)
 
         # 聚合模型
+        aggregated_weights = None
         if client_results:
-            aggregated_model = await self.aggregate_models(client_results)
-            if aggregated_model:
-                self.global_model.set_weights_from_dict(aggregated_model)
-        else:
-            aggregated_model = None
+            aggregated_weights = await self.aggregate_models(client_results)
+            if aggregated_weights:
+                self.global_model.set_weights_from_dict(aggregated_weights)
 
         # 计算轮次指标
         if client_results:
@@ -440,12 +444,14 @@ class FedAvgMNISTTrainer(BaseTrainer):
 
         self.logger.info(f"  Round {round_num} summary: Loss={avg_loss:.4f}, Acc={avg_accuracy:.4f}")
 
+        # 返回结果 - 注意不要包含可能被父类误用的字段名
         return {
             "round": round_num,
             "participants": client_ids,
             "successful_clients": list(client_results.keys()),
             "failed_clients": failed_clients,
-            "aggregated_model": aggregated_model,
+            # 不使用 "aggregated_model" 这个键名，避免父类误用
+            "model_aggregated": aggregated_weights is not None,
             "round_metrics": {
                 "avg_loss": avg_loss,
                 "avg_accuracy": avg_accuracy,
@@ -521,13 +527,26 @@ class FedAvgMNISTTrainer(BaseTrainer):
 
         results = await asyncio.gather(*tasks, return_exceptions=True)
 
-        # 处理结果
-        valid_results = [r for r in results if not isinstance(r, Exception)]
+        # 处理结果 - 注意：proxy.evaluate() 返回的是 TrainingResponse 对象
+        valid_results = []
+        for r in results:
+            if not isinstance(r, Exception):
+                # 检查是否是 TrainingResponse 对象
+                if hasattr(r, 'result') and hasattr(r, 'success'):
+                    # 是 TrainingResponse 对象，提取 result 字段
+                    if r.success and r.result:
+                        valid_results.append(r.result)
+                elif isinstance(r, dict):
+                    # 是字典，直接使用
+                    valid_results.append(r)
 
         if not valid_results:
             return {"accuracy": 0.0, "loss": float('inf'), "samples_count": 0}
 
         total_samples = sum(r.get("samples", 0) for r in valid_results)
+        if total_samples == 0:
+            return {"accuracy": 0.0, "loss": float('inf'), "samples_count": 0}
+
         weighted_accuracy = sum(r["accuracy"] * r.get("samples", 1) for r in valid_results) / total_samples
         weighted_loss = sum(r["loss"] * r.get("samples", 1) for r in valid_results) / total_samples
 
