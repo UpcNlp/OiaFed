@@ -170,33 +170,72 @@ class ProxyManager:
 
 
 class BaseTrainer(ABC):
-    """服务端训练器抽象基类 - 用户继承实现联邦学习算法"""
-    
+    """服务端训练器抽象基类 - 用户继承实现联邦学习算法
+
+    使用统一的组件初始化策略：
+    1. 接收包含组件类引用和参数的配置字典
+    2. 支持延迟加载（默认）或立即初始化
+    3. 用户可覆盖默认创建方法
+    """
+
     def __init__(self,
-                 global_model: ModelData,
-                 training_config: Optional[TrainingConfig] = None,
+                 config: Optional[Dict[str, Any]] = None,
+                 lazy_init: bool = True,
                  logger: Optional[Logger] = None):
         """
         初始化训练器
-        
+
         Args:
-            global_model: 全局模型初始状态
-            training_config: 训练配置
+            config: 组件配置字典，包含类引用和参数
+                   由ComponentBuilder.parse_config()生成
+            lazy_init: 是否延迟初始化组件（默认True）
             logger: 日志记录器
         """
+        self.config = config or {}
+        self.lazy_init = lazy_init
+        self.logger = logger if logger else get_train_logger("server")
+
+        # 提取trainer自己的配置参数
+        trainer_config = self.config.get('trainer', {})
+        trainer_params = trainer_config.get('params', {})
+
+        # 应用trainer参数到实例属性
+        for key, value in trainer_params.items():
+            setattr(self, key, value)
+
+        # 如果没有从参数设置，使用默认值
+        if not hasattr(self, 'max_rounds'):
+            self.max_rounds = 100
+        if not hasattr(self, 'min_clients'):
+            self.min_clients = 2
+
+        # 创建TrainingConfig（向后兼容）
+        self.training_config = TrainingConfig(
+            max_rounds=getattr(self, 'max_rounds', 100),
+            min_clients=getattr(self, 'min_clients', 2),
+            client_selection_ratio=getattr(self, 'client_selection_ratio', 1.0)
+        )
+
         #  自动实例化代理管理器（用户无感知）
         self._proxy_manager = ProxyManager(self)
-        
+
         # 创建事件处理器，用于接收业务层的代理创建事件
         self._proxy_event_handler = ProxyManagerEventHandler(self._proxy_manager)
-        
+
         # learner_proxies变成代理管理器的代理属性
         self.learner_proxies = self._proxy_manager.proxies
-        
-        self.global_model = global_model
-        self.training_config = training_config or TrainingConfig()
-        self.logger = logger if logger else get_train_logger("server")
-        
+
+        # 组件占位符（延迟加载）
+        self._aggregator = None
+        self._global_model = None
+        self._evaluator = None
+
+        # 如果不延迟初始化，立即创建所有组件
+        if not self.lazy_init:
+            self._initialize_all_components()
+
+        self.logger.info(f"BaseTrainer initialized (lazy_init={self.lazy_init})")
+
         # 训练状态
         self.training_status = TrainingStatus()
         self.training_status.total_rounds = self.training_config.max_rounds
@@ -379,7 +418,101 @@ class BaseTrainer(ABC):
             return False
         """
         pass
-    
+
+    # ==================== 组件管理方法 (统一初始化策略) ====================
+
+    def _initialize_all_components(self):
+        """立即初始化所有组件"""
+        # 触发所有property，强制创建实例
+        _ = self.aggregator
+        _ = self.global_model
+        if 'evaluator' in self.config:
+            _ = self.evaluator
+
+        self.logger.info("All trainer components initialized")
+
+    @property
+    def aggregator(self):
+        """延迟加载聚合器"""
+        if self._aggregator is None:
+            self._aggregator = self._create_component('aggregator')
+            self.logger.debug("Aggregator created")
+        return self._aggregator
+
+    @property
+    def global_model(self):
+        """延迟加载全局模型"""
+        if self._global_model is None:
+            self._global_model = self._create_component('global_model')
+            self.logger.debug("Global model created")
+        return self._global_model
+
+    @property
+    def evaluator(self):
+        """延迟加载评估器（可选）"""
+        if self._evaluator is None and 'evaluator' in self.config:
+            self._evaluator = self._create_component('evaluator')
+            self.logger.debug("Evaluator created")
+        return self._evaluator
+
+    def _create_component(self, component_name: str):
+        """
+        通用组件创建方法（基类实现）
+
+        优先级：
+        1. 配置中的类 + 参数
+        2. 子类的默认创建方法
+        3. 抛出异常
+
+        Args:
+            component_name: 组件名称
+
+        Returns:
+            创建的组件实例
+        """
+        component_config = self.config.get(component_name)
+
+        # 优先使用配置
+        if component_config and 'class' in component_config:
+            component_class = component_config['class']
+            component_params = component_config.get('params', {})
+
+            self.logger.debug(
+                f"Creating {component_name} from config: "
+                f"{component_class.__name__}({component_params})"
+            )
+
+            return component_class(**component_params)
+
+        # 回退到默认创建方法
+        default_method = getattr(self, f'_create_default_{component_name}', None)
+        if default_method and callable(default_method):
+            self.logger.debug(f"Creating {component_name} using default method")
+            return default_method()
+
+        # 都没有则抛出异常
+        raise ValueError(
+            f"组件 '{component_name}' 未在配置中指定，"
+            f"且子类未提供 _create_default_{component_name}() 方法"
+        )
+
+    # 子类可以覆盖这些方法提供默认实现
+    def _create_default_aggregator(self):
+        """子类可覆盖：提供默认聚合器"""
+        raise NotImplementedError(
+            "必须在配置中指定 aggregator 或覆盖 _create_default_aggregator()"
+        )
+
+    def _create_default_global_model(self):
+        """子类可覆盖：提供默认全局模型"""
+        raise NotImplementedError(
+            "必须在配置中指定 global_model 或覆盖 _create_default_global_model()"
+        )
+
+    def _create_default_evaluator(self):
+        """子类可覆盖：提供默认评估器（可选）"""
+        return None  # 评估器是可选的，默认返回None
+
     # ==================== 状态管理方法 (框架提供) ====================
     
     def get_training_status(self) -> Dict[str, Any]:

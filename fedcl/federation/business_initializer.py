@@ -178,11 +178,19 @@ class BusinessInitializer:
         # 从注册表获取 Trainer 类
         trainer_class = self._get_component_from_registry(trainer_name, "trainer")
 
-        # 创建 Trainer 实例
-        trainer = trainer_class(
-            global_model=global_model,
-            training_config=trainer_params,
-        )
+        # 检查是否有 parsed_config（新的统一初始化策略）
+        if hasattr(self.train_config, 'parsed_config') and self.train_config.parsed_config:
+            # 使用统一初始化策略
+            trainer = trainer_class(
+                config=self.train_config.parsed_config,
+                lazy_init=True
+            )
+        else:
+            # 使用旧的初始化方式（向后兼容）
+            trainer = trainer_class(
+                global_model=global_model,
+                training_config=trainer_params,
+            )
 
         self.logger.debug(f"Trainer created: {trainer_class.__name__}")
 
@@ -213,11 +221,20 @@ class BusinessInitializer:
         # 从注册表获取 Learner 类
         learner_class = self._get_component_from_registry(learner_name, "learner")
 
-        # 创建 Learner 实例
-        learner = learner_class(
-            client_id=client_id,
-            config=learner_params,
-        )
+        # 检查是否有 parsed_config（新的统一初始化策略）
+        if hasattr(self.train_config, 'parsed_config') and self.train_config.parsed_config:
+            # 使用统一初始化策略
+            learner = learner_class(
+                client_id=client_id,
+                config=self.train_config.parsed_config,
+                lazy_init=True
+            )
+        else:
+            # 使用旧的初始化方式（向后兼容）
+            learner = learner_class(
+                client_id=client_id,
+                config=learner_params,
+            )
 
         self.logger.info(f"✓ Learner created: {learner_class.__name__}")
 

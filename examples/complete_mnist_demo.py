@@ -1,7 +1,13 @@
 """
-完整的MNIST联邦学习演示 - 真实训练版本
+完整的MNIST联邦学习演示 - 真实训练版本（统一初始化策略）
 使用新架构实现真实的MNIST联邦学习训练
 examples/complete_mnist_demo.py
+
+使用统一初始化策略：
+- 所有组件（Dataset, Model, Aggregator）在Trainer/Learner内部初始化
+- 支持延迟加载（lazy_init=True）
+- ComponentBuilder.parse_config() 解析配置，返回类引用和参数
+- 配置格式：training: {trainer: {name: ..., params: ...}}
 """
 
 import asyncio
@@ -20,7 +26,7 @@ import torchvision.transforms as transforms
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
 from fedcl.learner.base_learner import BaseLearner
-from fedcl.trainer.trainer import BaseTrainer, TrainingConfig
+from fedcl.trainer.trainer import BaseTrainer
 from fedcl.types import TrainingRequest, TrainingResponse
 from fedcl import FederatedLearning
 
@@ -32,7 +38,6 @@ from fedcl.methods.models.base import FederatedModel
 
 # 导入装饰器
 from fedcl.api import learner, trainer
-from fedcl.utils.auto_logger import get_train_logger
 
 # ==================== 1. 注册真实的MNIST数据集 ====================
 
@@ -141,27 +146,40 @@ class MNISTCNNModel(FederatedModel):
          author='MOE-FedCL',
          dataset='MNIST')
 class MNISTLearner(BaseLearner):
-    """MNIST学习器 - 实现真实的训练"""
+    """MNIST学习器 - 实现真实的训练（使用统一初始化策略）"""
 
-    def __init__(self, client_id: str, config: Dict[str, Any], logger=None):
-        super().__init__(client_id, config, logger)
-        self.logger = get_train_logger(client_id)
+    def __init__(self, client_id: str, config: Dict[str, Any] = None, lazy_init: bool = True):
+        """初始化MNIST学习器
 
-        # 训练配置
-        self.learning_rate = config.get('learning_rate', 0.01)
-        self.batch_size = config.get('batch_size', 32)
-        self.local_epochs = config.get('local_epochs', 1)
+        Args:
+            client_id: 客户端ID
+            config: 配置字典（由ComponentBuilder.parse_config()生成）
+            lazy_init: 是否延迟初始化组件
+        """
+        super().__init__(client_id, config, lazy_init)
+
+        # 提取训练参数（从config.learner.params）
+        if not hasattr(self, 'learning_rate'):
+            self.learning_rate = 0.01
+        if not hasattr(self, 'batch_size'):
+            self.batch_size = 32
+        if not hasattr(self, 'local_epochs'):
+            self.local_epochs = 1
+
         self.device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
 
-        # 加载数据集
-        self._load_dataset()
+        # 组件占位符（延迟加载）
+        self._model = None
+        self._optimizer = None
+        self._criterion = None
+        self._train_loader = None
 
-        # 创建模型
-        self.model = MNISTCNNModel(num_classes=10).to(self.device)
-        self.optimizer = optim.SGD(self.model.parameters(), lr=self.learning_rate, momentum=0.9)
-        self.criterion = nn.CrossEntropyLoss()
+        self.logger.info(f"MNISTLearner {client_id} 初始化完成 (lazy_init={lazy_init})")
 
-        print(f"✅ MNISTLearner {client_id} initialized with {len(self.train_dataset)} samples")
+    def _create_default_dataset(self):
+        """创建默认数据集（按需加载）"""
+        self.logger.info(f"Client {self.client_id}: 加载MNIST数据集...")
+        return self._load_dataset()
 
     def _load_dataset(self):
         """加载数据集"""
@@ -169,31 +187,96 @@ class MNISTLearner(BaseLearner):
         mnist_dataset_cls = registry.get_dataset('MNIST')
         mnist_dataset = mnist_dataset_cls(root='./data', train=True, download=True)
 
-        # 获取客户端数据划分
-        num_clients = int(self.client_id.split('_')[1]) + 3  # 假设总共3个客户端
-        client_datasets = mnist_dataset.partition(
-            num_clients=num_clients,
-            strategy='non_iid_label',
-            labels_per_client=2
-        )
+        # 获取底层的 PyTorch Dataset
+        base_dataset = mnist_dataset.dataset  # torchvision.datasets.MNIST
 
-        # 获取当前客户端的数据
+        # 简单的IID划分（手动划分）
+        num_clients = 3
         client_idx = int(self.client_id.split('_')[1])
-        if client_idx in client_datasets:
-            self.train_dataset = client_datasets[client_idx]
-        else:
-            # 如果没有划分，使用部分数据
-            total_size = len(mnist_dataset.dataset)
-            start = (client_idx * total_size) // num_clients
-            end = ((client_idx + 1) * total_size) // num_clients
-            indices = list(range(start, end))
-            self.train_dataset = Subset(mnist_dataset.dataset, indices)
 
-        self.train_loader = DataLoader(
-            self.train_dataset,
-            batch_size=self.batch_size,
-            shuffle=True
-        )
+        # 计算每个客户端的数据范围
+        total_size = len(base_dataset)
+        samples_per_client = total_size // num_clients
+        start_idx = client_idx * samples_per_client
+        end_idx = start_idx + samples_per_client if client_idx < num_clients - 1 else total_size
+
+        # 创建索引列表
+        indices = list(range(start_idx, end_idx))
+
+        # 创建 Subset
+        train_dataset = Subset(base_dataset, indices)
+
+        self.logger.info(f"Client {self.client_id}: 数据集加载完成，样本数={len(train_dataset)}")
+        return train_dataset
+
+    @property
+    def model(self):
+        """延迟加载模型"""
+        if self._model is None:
+            self._model = MNISTCNNModel(num_classes=10).to(self.device)
+            self.logger.debug(f"Client {self.client_id}: 模型创建完成")
+        return self._model
+
+    @property
+    def optimizer(self):
+        """延迟加载优化器"""
+        if self._optimizer is None:
+            self._optimizer = optim.SGD(self.model.parameters(), lr=self.learning_rate, momentum=0.9)
+            self.logger.debug(f"Client {self.client_id}: 优化器创建完成")
+        return self._optimizer
+
+    @property
+    def criterion(self):
+        """延迟加载损失函数"""
+        if self._criterion is None:
+            self._criterion = nn.CrossEntropyLoss()
+        return self._criterion
+
+    @property
+    def train_loader(self):
+        """延迟加载数据加载器"""
+        if self._train_loader is None:
+            # 触发数据集加载
+            dataset = self.dataset
+
+            # 打印数据集类型以验证
+            dataset_type = type(dataset).__name__
+            self.logger.info(f"Client {self.client_id}: 检测到数据集类型 = {dataset_type}")
+
+            # 检查是否是 FederatedDataset（需要进一步处理）
+            if hasattr(dataset, 'dataset'):
+                # 这是一个 FederatedDataset 包装器（如 MNISTFederatedDataset），需要获取实际的数据
+                self.logger.info(f"Client {self.client_id}: 使用 {dataset_type}，从中提取底层数据集")
+
+                # 获取底层的 PyTorch Dataset
+                base_dataset = dataset.dataset  # torchvision.datasets.MNIST
+                self.logger.debug(f"Client {self.client_id}: 底层数据集类型 = {type(base_dataset).__name__}")
+
+                # 简单的IID划分
+                num_clients = 3
+                client_idx = int(self.client_id.split('_')[1])
+
+                total_size = len(base_dataset)
+                samples_per_client = total_size // num_clients
+                start_idx = client_idx * samples_per_client
+                end_idx = start_idx + samples_per_client if client_idx < num_clients - 1 else total_size
+
+                indices = list(range(start_idx, end_idx))
+                actual_dataset = Subset(base_dataset, indices)
+
+                self.logger.info(f"Client {self.client_id}: 从 {dataset_type} 加载数据集，样本数={len(actual_dataset)}")
+            else:
+                # 已经是标准的 PyTorch Dataset（从 _create_default_dataset 返回）
+                self.logger.info(f"Client {self.client_id}: 使用标准 PyTorch Dataset")
+                actual_dataset = dataset
+
+            self._train_loader = DataLoader(
+                actual_dataset,
+                batch_size=self.batch_size,
+                shuffle=True
+            )
+            self.logger.debug(f"Client {self.client_id}: 数据加载器创建完成")
+        return self._train_loader
 
     async def train(self, params: Dict[str, Any]) -> TrainingResponse:
         """训练方法"""
@@ -301,12 +384,14 @@ class MNISTLearner(BaseLearner):
 
         直接返回torch.Tensor，框架会自动序列化
         """
+        # 获取数据集（触发延迟加载）
+        dataset = self.dataset
         return {
             "model_type": "mnist_cnn",
             "parameters": {"weights": self.model.get_weights_as_dict()},
             "metadata": {
                 "client_id": self.client_id,
-                "samples": len(self.train_dataset),
+                "samples": len(dataset),
                 "param_count": self.model.get_param_count()
             }
         }
@@ -336,8 +421,10 @@ class MNISTLearner(BaseLearner):
 
     def get_data_statistics(self) -> Dict[str, Any]:
         """获取数据统计"""
+        # 获取数据集（触发延迟加载）
+        dataset = self.dataset
         return {
-            "total_samples": len(self.train_dataset),
+            "total_samples": len(dataset),
             "num_classes": 10,
             "feature_dim": 784,
             "input_shape": (1, 28, 28)
@@ -357,43 +444,63 @@ class MNISTLearner(BaseLearner):
          author='MOE-FedCL',
          algorithms=['fedavg'])
 class FedAvgMNISTTrainer(BaseTrainer):
-    """联邦平均训练器 - 实现真实的模型聚合"""
+    """联邦平均训练器 - 实现真实的模型聚合（使用统一初始化策略）"""
 
-    def __init__(self, global_model: Dict[str, Any] = None, training_config=None, logger=None):
-        # 创建全局模型对象（在调用父类初始化之前）
-        self.global_model_obj = MNISTCNNModel(num_classes=10)
+    def __init__(self, config: Dict[str, Any] = None, lazy_init: bool = True, logger=None):
+        """初始化FedAvgMNIST训练器
 
-        # 处理配置参数
-        if isinstance(training_config, dict):
-            config_obj = TrainingConfig(
-                max_rounds=training_config.get("max_rounds", 5),
-                min_clients=training_config.get("min_clients", 2),
-                client_selection_ratio=training_config.get("client_selection_ratio", 1.0)
-            )
-        elif isinstance(training_config, TrainingConfig):
-            config_obj = training_config
-        else:
-            config_obj = TrainingConfig()
+        Args:
+            config: 配置字典（由ComponentBuilder.parse_config()生成）
+            lazy_init: 是否延迟初始化组件
+            logger: 日志记录器
+        """
+        super().__init__(config, lazy_init, logger)
 
-        # 调用父类初始化（传入None作为global_model，因为我们使用自己的模型对象）
-        super().__init__(None, config_obj, logger)
-        self.logger = get_train_logger("FedAvgMNISTTrainer")
+        # 提取训练参数（从config.trainer.params）
+        if not hasattr(self, 'local_epochs'):
+            self.local_epochs = 1
+        if not hasattr(self, 'learning_rate'):
+            self.learning_rate = 0.01
+        if not hasattr(self, 'batch_size'):
+            self.batch_size = 32
 
-        # 确保 self.global_model 指向我们的模型对象
-        self.global_model = self.global_model_obj
+        # 组件占位符（延迟加载）
+        self._global_model_obj = None
 
-        # 如果提供了初始权重，设置到模型中
-        if global_model and "parameters" in global_model:
-            weights = global_model["parameters"].get("weights", {})
-            torch_weights = {}
-            for k, v in weights.items():
-                if isinstance(v, np.ndarray):
-                    torch_weights[k] = torch.from_numpy(v)
-                else:
-                    torch_weights[k] = v
-            self.global_model.set_weights_from_dict(torch_weights)
+        self.logger.info("FedAvgMNISTTrainer初始化完成")
 
-        self.logger.info(f"FedAvgMNISTTrainer initialized with {self.global_model.get_param_count():,} parameters")
+    def _create_default_global_model(self):
+        """创建默认全局模型"""
+        self.logger.info("创建默认MNIST CNN全局模型")
+        model = MNISTCNNModel(num_classes=10)
+        return {
+            "model_type": "mnist_cnn",
+            "parameters": {"weights": model.get_weights_as_dict()},
+            "model_obj": model  # 保存模型对象以便后续使用
+        }
+
+    @property
+    def global_model_obj(self):
+        """延迟加载全局模型对象"""
+        if self._global_model_obj is None:
+            # 触发全局模型加载
+            global_model_data = self.global_model
+            if isinstance(global_model_data, dict) and "model_obj" in global_model_data:
+                self._global_model_obj = global_model_data["model_obj"]
+            else:
+                # 如果没有模型对象，创建新的
+                self._global_model_obj = MNISTCNNModel(num_classes=10)
+                if isinstance(global_model_data, dict) and "parameters" in global_model_data:
+                    weights = global_model_data["parameters"].get("weights", {})
+                    torch_weights = {}
+                    for k, v in weights.items():
+                        if isinstance(v, np.ndarray):
+                            torch_weights[k] = torch.from_numpy(v)
+                        else:
+                            torch_weights[k] = v
+                    self._global_model_obj.set_weights_from_dict(torch_weights)
+            self.logger.debug(f"全局模型对象创建完成，参数数量: {self._global_model_obj.get_param_count():,}")
+        return self._global_model_obj
 
     async def train_round(self, round_num: int, client_ids: List[str]) -> Dict[str, Any]:
         """执行一轮联邦训练"""
@@ -440,7 +547,7 @@ class FedAvgMNISTTrainer(BaseTrainer):
         if client_results:
             aggregated_weights = await self.aggregate_models(client_results)
             if aggregated_weights:
-                self.global_model.set_weights_from_dict(aggregated_weights)
+                self.global_model_obj.set_weights_from_dict(aggregated_weights)
 
         # 计算轮次指标
         if client_results:
@@ -527,7 +634,7 @@ class FedAvgMNISTTrainer(BaseTrainer):
 
         # 准备全局模型数据（直接传递torch.Tensor，框架会自动序列化）
         global_model_data = {
-            "model_weights": self.global_model.get_weights_as_dict()
+            "model_weights": self.global_model_obj.get_weights_as_dict()
         }
 
         # 并行评估
@@ -611,10 +718,10 @@ class FedAvgMNISTTrainer(BaseTrainer):
 
 async def demo_real_mnist_training():
     """
-    真实MNIST联邦学习演示
+    真实MNIST联邦学习演示（使用统一初始化策略）
     """
     print("=" * 80)
-    print("🚀 MNIST联邦学习真实训练演示")
+    print("🚀 MNIST联邦学习真实训练演示（统一初始化策略）")
     print("=" * 80)
 
     # 🔧 清理Memory模式的共享状态
@@ -633,8 +740,37 @@ async def demo_real_mnist_training():
     print(f"  Learners: {list(registry.learners.keys())}")
 
     from fedcl.config import CommunicationConfig, TrainingConfig
+    from fedcl.api import ComponentBuilder
 
-    # 创建服务器配置
+    # 使用ComponentBuilder解析配置
+    builder = ComponentBuilder()
+
+    # 创建服务器配置（新格式）
+    server_config_dict = {
+        "training": {
+            "trainer": {
+                "name": "FedAvgMNIST",
+                "params": {
+                    "max_rounds": 5,
+                    "min_clients": 2,
+                    "client_selection_ratio": 1.0,
+                    "local_epochs": 1,
+                    "learning_rate": 0.01,
+                    "batch_size": 32
+                }
+            },
+            "global_model": {
+                "name": "MNIST_CNN",
+                "params": {
+                    "num_classes": 10
+                }
+            }
+        }
+    }
+
+    # 解析服务器配置
+    server_parsed_config = builder.parse_config(server_config_dict)
+
     server_comm_config = CommunicationConfig(
         mode="process",
         role="server",
@@ -642,18 +778,48 @@ async def demo_real_mnist_training():
     )
 
     server_train_config = TrainingConfig()
+    # 设置旧格式的配置（用于BusinessInitializer）
     server_train_config.trainer = {
         "name": "FedAvgMNIST",
         "max_rounds": 5,
         "min_clients": 2,
         "client_selection_ratio": 1.0
     }
-    server_train_config.aggregator = {"name": None}
+    # 传递解析后的配置（用于Trainer的统一初始化）
+    server_train_config.parsed_config = server_parsed_config
+    server_train_config.max_rounds = 5
+    server_train_config.min_clients = 2
+    # 设置model配置以避免BusinessInitializer出错
     server_train_config.model = {"name": "MNIST_CNN"}
 
-    # 创建客户端配置
+    # 创建客户端配置（新格式）
     client_configs = []
     for i in range(3):
+        client_config_dict = {
+            "training": {
+                "learner": {
+                    "name": "MNISTLearner",
+                    "params": {
+                        "learning_rate": 0.01,
+                        "batch_size": 32,
+                        "local_epochs": 1
+                    }
+                },
+                "dataset": {
+                    # 使用注册表中的 MNIST 数据集，对应 MNISTFederatedDataset 类（第49行定义）
+                    "name": "MNIST",  # 这会创建 MNISTFederatedDataset 实例
+                    "params": {
+                        "root": "./data",
+                        "train": True,
+                        "download": True
+                    }
+                }
+            }
+        }
+
+        # 解析客户端配置
+        client_parsed_config = builder.parse_config(client_config_dict)
+
         client_comm_config = CommunicationConfig(
             mode="process",
             role="client",
@@ -661,13 +827,17 @@ async def demo_real_mnist_training():
         )
 
         client_train_config = TrainingConfig()
+        # 设置旧格式的配置（用于BusinessInitializer）
         client_train_config.learner = {
             "name": "MNISTLearner",
             "learning_rate": 0.01,
             "batch_size": 32,
             "local_epochs": 1
         }
+        # 设置 dataset 配置，会通过注册表创建 MNISTFederatedDataset
         client_train_config.dataset = {"name": "MNIST"}
+        # 传递解析后的配置（用于Learner的统一初始化）
+        client_train_config.parsed_config = client_parsed_config
 
         client_configs.append((client_comm_config, client_train_config))
 

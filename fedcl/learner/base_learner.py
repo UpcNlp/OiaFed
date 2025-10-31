@@ -13,39 +13,64 @@ from ..types import ModelData, TrainingResult, EvaluationResult
 from ..utils.auto_logger import get_train_logger
 
 class BaseLearner(ABC):
-    """客户端学习器抽象基类 - 用户继承实现本地训练逻辑"""
-    
-    def __init__(self, 
+    """客户端学习器抽象基类 - 用户继承实现本地训练逻辑
+
+    使用统一的组件初始化策略：
+    1. 接收包含组件类引用和参数的配置字典
+    2. 支持延迟加载（默认）或立即初始化
+    3. 用户可覆盖默认创建方法
+    """
+
+    def __init__(self,
                  client_id: str,
-                 local_data: Any = None,
-                 model_config: Dict[str, Any] = None,
-                 training_config: Dict[str, Any] = None):
+                 config: Optional[Dict[str, Any]] = None,
+                 lazy_init: bool = True):
         """
         初始化学习器
-        
+
         Args:
             client_id: 客户端唯一标识
-            local_data: 本地数据集
-            model_config: 模型配置
-            training_config: 训练配置
+            config: 组件配置字典，包含类引用和参数
+                   由ComponentBuilder.parse_config()生成
+            lazy_init: 是否延迟初始化组件（默认True）
         """
         self.client_id = client_id
-        self.local_data = local_data
-        self.model_config = model_config or {}
-        self.training_config = training_config or {}
+        self.config = config or {}
+        self.lazy_init = lazy_init
         self.logger = get_train_logger(client_id)
-        
+
+        # 提取learner自己的配置参数
+        learner_config = self.config.get('learner', {})
+        learner_params = learner_config.get('params', {})
+
+        # 应用learner参数到实例属性
+        for key, value in learner_params.items():
+            setattr(self, key, value)
+
+        # 向后兼容：保留旧字段
+        self.model_config = self.config.get('local_model', {}).get('params', {})
+        self.training_config = learner_params
+
         # 内部状态
         self._local_model: Optional[ModelData] = None
         self._training_history: List[Dict[str, Any]] = []
         self._is_initialized = False
         self._lock = asyncio.Lock()
-        
+
+        # 组件占位符（延迟加载）
+        self._dataset = None
+
         # 统计信息
         self.training_count = 0
         self.evaluation_count = 0
         self.last_training_time: Optional[datetime] = None
         self.last_evaluation_time: Optional[datetime] = None
+
+        # 如果不延迟初始化，立即创建所有组件
+        if not self.lazy_init:
+            self._initialize_all_components()
+
+        self.logger.info(f"BaseLearner {client_id} initialized (lazy_init={self.lazy_init})")
     
     # ==================== 核心训练方法 (用户必须实现) ====================
     
@@ -117,12 +142,106 @@ class BaseLearner(ABC):
             bool: 设置是否成功
         """
         pass
-    
+
+    # ==================== 组件管理方法 (统一初始化策略) ====================
+
+    def _initialize_all_components(self):
+        """立即初始化所有组件"""
+        _ = self.dataset
+        if 'local_model' in self.config:
+            _ = self.local_model
+        self.logger.info(f"Learner {self.client_id}: All components initialized")
+
+    @property
+    def dataset(self):
+        """延迟加载数据集"""
+        if self._dataset is None:
+            self._dataset = self._create_component('dataset')
+            # 向后兼容：设置local_data
+            self.local_data = self._dataset
+            self.logger.debug(f"Learner {self.client_id}: Dataset created")
+        return self._dataset
+
+    @property
+    def local_model(self):
+        """延迟加载/获取本地模型"""
+        # 注意：local_model可能通过set_local_model设置
+        # 所以这里只在没有_local_model时才创建
+        if self._local_model is None and 'local_model' in self.config:
+            self._local_model = self._create_component('local_model')
+            self.logger.debug(f"Learner {self.client_id}: Local model created")
+        return self._local_model
+
+    def _create_component(self, component_name: str):
+        """
+        通用组件创建方法（基类实现）
+
+        工作流程：
+        1. Builder 已经通过装饰器/注册表找到了类（component_config['class']）
+        2. 这里只负责用参数实例化这个类
+        3. 支持延迟加载：只在访问 @property 时才调用此方法
+
+        优先级：
+        1. 配置中的类 + 参数（Builder 已通过注册表解析）
+        2. 子类的默认创建方法
+        3. 抛出异常
+
+        Args:
+            component_name: 组件名称（如 'dataset', 'local_model'）
+
+        Returns:
+            创建的组件实例
+        """
+        component_config = self.config.get(component_name)
+
+        # 优先使用配置中的类（Builder 通过注册表找到的）
+        if component_config and 'class' in component_config:
+            component_class = component_config['class']  # Builder 已从注册表获取
+            component_params = component_config.get('params', {})
+
+            # 注入 client_id（如果组件需要）
+            import inspect
+            if 'client_id' in inspect.signature(component_class.__init__).parameters:
+                component_params['client_id'] = self.client_id
+
+            self.logger.debug(
+                f"Learner {self.client_id}: Creating {component_name} "
+                f"from config: {component_class.__name__} (来自注册表)"
+            )
+
+            return component_class(**component_params)
+
+        # 回退到默认创建方法（用户自定义）
+        default_method = getattr(self, f'_create_default_{component_name}', None)
+        if default_method and callable(default_method):
+            self.logger.debug(
+                f"Learner {self.client_id}: Creating {component_name} "
+                f"using default method"
+            )
+            return default_method()
+
+        raise ValueError(
+            f"组件 '{component_name}' 未在配置中指定，"
+            f"且子类未提供 _create_default_{component_name}() 方法"
+        )
+
+    # 子类可以覆盖这些方法提供默认实现
+    def _create_default_dataset(self):
+        """子类可覆盖：提供默认数据集"""
+        raise NotImplementedError(
+            "必须在配置中指定 dataset 或覆盖 _create_default_dataset()"
+        )
+
+    def _create_default_local_model(self):
+        """子类可覆盖：提供默认本地模型"""
+        # local_model是可选的，可以通过set_local_model设置
+        return None
+
     # ==================== 数据管理方法 (可选实现) ====================
     
     def get_data_statistics(self) -> Dict[str, Any]:
         """获取数据统计信息
-        
+
         Returns:
             Dict[str, Any]: 数据统计，可能包含：
                 - total_samples: 总样本数
@@ -130,21 +249,29 @@ class BaseLearner(ABC):
                 - data_distribution: 数据分布
                 - data_quality: 数据质量指标
         """
-        if self.local_data is None:
-            return {"total_samples": 0, "message": "No local data available"}
-        
+        try:
+            # 尝试获取dataset（会触发延迟加载）
+            local_data = self.dataset
+            if local_data is None:
+                return {"total_samples": 0, "message": "No local data available"}
+        except Exception:
+            # 如果没有配置dataset，尝试使用local_data（向后兼容）
+            local_data = getattr(self, 'local_data', None)
+            if local_data is None:
+                return {"total_samples": 0, "message": "No local data available"}
+
         # 默认实现，用户可以重写
         try:
-            if hasattr(self.local_data, '__len__'):
+            if hasattr(local_data, '__len__'):
                 return {
-                    "total_samples": len(self.local_data),
-                    "data_type": type(self.local_data).__name__,
+                    "total_samples": len(local_data),
+                    "data_type": type(local_data).__name__,
                     "available": True
                 }
             else:
                 return {
                     "total_samples": "unknown",
-                    "data_type": type(self.local_data).__name__,
+                    "data_type": type(local_data).__name__,
                     "available": True
                 }
         except Exception as e:
@@ -279,9 +406,15 @@ class BaseLearner(ABC):
     async def _perform_initialization(self):
         """执行具体的初始化逻辑 - 子类可重写"""
         # 默认初始化逻辑
-        if self.local_data is None:
-            self.logger.warning(f"Warning: No local data provided for client {self.client_id}")
-        
+        # 兼容两种方式：新的统一初始化（dataset）和旧的方式（local_data）
+        try:
+            # 尝试访问 dataset（会触发延迟加载）
+            _ = self.dataset
+        except Exception:
+            # 如果没有 dataset，尝试检查 local_data（向后兼容）
+            if not hasattr(self, 'local_data') or self.local_data is None:
+                self.logger.warning(f"Warning: No local data provided for client {self.client_id}")
+
         # 验证配置
         await self._validate_configuration()
 
