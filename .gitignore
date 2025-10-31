@@ -26,3 +26,4 @@ run_tests.py
 exp
 .claude
 .pytest_cache
+.DS_Store
