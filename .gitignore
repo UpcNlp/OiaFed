@@ -20,7 +20,7 @@ results
 .env.*
 .python-version
 CLAUDE.md
-tests
+tests/
 pytest.ini
 run_tests.py
 exp
