@@ -14,4 +14,15 @@ syn_imgs/
 outputs
 results
 .claude.sh
-.env*
+.env.template
+.env
+.env.local
+.env.*
+.python-version
+CLAUDE.md
+tests
+pytest.ini
+run_tests.py
+exp
+.claude
+.pytest_cache

@@ -1,2 +1,0 @@
-- 没有我的允许，禁止生成md文档
-- do not create md doc without my allow
