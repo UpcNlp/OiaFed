@@ -172,8 +172,36 @@ class DataSerializer:
 
 class CustomJSONEncoder(json.JSONEncoder):
     """自定义JSON编码器，处理特殊类型"""
-    
+
     def default(self, obj):
+        # 处理PyTorch张量
+        if hasattr(obj, '__class__') and 'torch' in obj.__class__.__module__:
+            # 检查是否是torch.Tensor
+            if hasattr(obj, 'detach') and hasattr(obj, 'cpu') and hasattr(obj, 'numpy'):
+                # 是torch.Tensor，转换为numpy再序列化
+                import numpy as np
+                numpy_array = obj.detach().cpu().numpy()
+                return {
+                    '__type__': 'numpy.ndarray',
+                    'dtype': str(numpy_array.dtype),
+                    'shape': numpy_array.shape,
+                    'data': numpy_array.tolist()
+                }
+
+        # 处理numpy数组
+        if hasattr(obj, '__class__') and 'numpy' in obj.__class__.__module__:
+            import numpy as np
+            if isinstance(obj, np.ndarray):
+                return {
+                    '__type__': 'numpy.ndarray',
+                    'dtype': str(obj.dtype),
+                    'shape': obj.shape,
+                    'data': obj.tolist()  # 转换为Python list
+                }
+            elif isinstance(obj, (np.integer, np.floating)):
+                # numpy标量类型
+                return obj.item()  # 转换为Python原生类型
+
         if isinstance(obj, datetime):
             return {
                 '__type__': 'datetime',
@@ -215,10 +243,21 @@ class CustomJSONDecoder(json.JSONDecoder):
     def object_hook(self, obj):
         if isinstance(obj, dict) and '__type__' in obj:
             obj_type = obj['__type__']
-            
-            if obj_type == 'datetime':
+
+            if obj_type == 'numpy.ndarray':
+                # 反序列化numpy数组
+                import numpy as np
+                data = obj['data']
+                dtype = obj.get('dtype', 'float64')
+                shape = tuple(obj.get('shape', []))
+                arr = np.array(data, dtype=dtype)
+                if shape:
+                    arr = arr.reshape(shape)
+                return arr
+
+            elif obj_type == 'datetime':
                 return datetime.fromisoformat(obj['value'])
-            
+
             elif obj_type == 'enum':
                 try:
                     # 动态导入枚举类

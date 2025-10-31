@@ -90,7 +90,7 @@ class SecurityService:
         # 启动令牌清理任务
         self._cleanup_task = asyncio.create_task(self._token_cleanup_loop())
         
-        self.logger.info("Security service started")
+        self.logger.debug("Security service started")
     
     async def stop(self) -> None:
         """停止安全服务"""
@@ -108,7 +108,7 @@ class SecurityService:
                 pass
             self._cleanup_task = None
         
-        self.logger.info("Security service stopped")
+        self.logger.debug("Security service stopped")
     
     async def authenticate_client(self, client_id: str, credentials: Dict[str, Any]) -> AuthToken:
         """认证客户端

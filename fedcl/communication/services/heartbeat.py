@@ -59,7 +59,7 @@ class HeartbeatService:
         # 启动心跳检查任务
         self._check_task = asyncio.create_task(self._heartbeat_check_loop())
         
-        self.logger.info(f"Heartbeat service started (interval={self.interval}s, timeout={self.timeout}s)")
+        self.logger.debug(f"Heartbeat service started (interval={self.interval}s, timeout={self.timeout}s)")
     
     async def stop(self) -> None:
         """停止心跳服务"""
@@ -86,7 +86,7 @@ class HeartbeatService:
                 pass
             self._check_task = None
         
-        self.logger.info("Heartbeat service stopped")
+        self.logger.debug("Heartbeat service stopped")
     
     async def process_heartbeat(self, heartbeat: HeartbeatMessage) -> bool:
         """处理心跳消息

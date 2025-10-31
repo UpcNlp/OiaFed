@@ -90,26 +90,26 @@ class MemoryTransport(TransportBase):
     async def push_event(self, source: str, target: str, event_type: str, data: Any) -> bool:
         """推送事件到目标节点"""
         try:
-            self.logger.info(f"[MemoryTransport] 推送事件: {source} -> {target}, 类型: {event_type}")
-            self.logger.info(f"[MemoryTransport] 当前事件监听器: {dict(self._global_event_listeners)}")
+            self.logger.debug(f"[MemoryTransport] 推送事件: {source} -> {target}, 类型: {event_type}")
+            self.logger.debug(f"[MemoryTransport] 当前事件监听器: {dict(self._global_event_listeners)}")
 
             # 检查目标节点是否有事件监听器
             if target in self._global_event_listeners:
                 if event_type in self._global_event_listeners[target]:
                     handlers = self._global_event_listeners[target][event_type]
-                    self.logger.info(f"[MemoryTransport] 找到 {len(handlers)} 个处理器用于 {target}.{event_type}")
+                    self.logger.debug(f"[MemoryTransport] 找到 {len(handlers)} 个处理器用于 {target}.{event_type}")
                     
                     # 直接调用所有匹配的事件处理器
                     for i, handler in enumerate(handlers):
                         try:
-                            self.logger.info(f"[MemoryTransport] 调用处理器 #{i+1}: {handler}")
+                            self.logger.debug(f"[MemoryTransport] 调用处理器 #{i+1}: {handler}")
                             if asyncio.iscoroutinefunction(handler):
                                 await handler(data)  # 修正参数传递
                             else:
                                 handler(data)  # 修正参数传递
-                            self.logger.info(f"[MemoryTransport] 处理器 #{i+1} 执行成功")
+                            self.logger.debug(f"[MemoryTransport] 处理器 #{i+1} 执行成功")
                         except Exception as e:
-                            self.logger.error(f"[MemoryTransport] 处理器 #{i+1} 执行失败: {e}")
+                            self.logger.exception(f"[MemoryTransport] 处理器 #{i+1} 执行失败: {e}")
                 else:
                     self.logger.warning(f"[MemoryTransport] 目标 {target} 没有 {event_type} 事件监听器")
             else:

@@ -306,7 +306,7 @@ class FederatedLearning:
 
                 if num_available >= min_clients:
                     self.logger.info(f"✓ {num_available} clients ready (minimum: {min_clients})")
-                    self.logger.info(f"  Available clients: {available_clients}")
+                    self.logger.debug(f"  Available clients: {available_clients}")
                     return
 
                 # 显示进度
@@ -370,7 +370,7 @@ class FederatedLearning:
 
     async def cleanup(self):
         """清理资源"""
-        self.logger.info("Cleaning up resources...")
+        self.logger.debug("Cleaning up resources...")
 
         # 停止所有Client
         for client in self.clients:
@@ -386,7 +386,7 @@ class FederatedLearning:
             except Exception as e:
                 self.logger.error(f"Error stopping server {server.server_id}: {e}")
 
-        self.logger.info("✅ Cleanup completed")
+        self.logger.debug("Cleanup completed")
 
     # ========== 状态查询 ==========
 

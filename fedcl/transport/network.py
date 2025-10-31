@@ -28,7 +28,8 @@ from aiohttp import web, WSMsgType
 from .base import TransportBase
 from ..exceptions import TransportError, TimeoutError
 from ..types import TransportConfig
-from ..utils.auto_logger import get_sys_logger
+from ..utils.auto_logger import get_sys_logger, get_comm_logger
+from ..utils.serialization import CustomJSONEncoder, CustomJSONDecoder
 
 
 class NetworkTransport(TransportBase):
@@ -77,6 +78,7 @@ class NetworkTransport(TransportBase):
         self._local_event_handlers = {}  # {event_type: [handlers]}
 
         self.logger = get_sys_logger()
+        self.comm_logger = get_comm_logger(config.node_id)
         
         # 模拟Memory模式的全局事件监听器（类变量，跨实例共享）
         if not hasattr(NetworkTransport, '_global_event_listeners'):
@@ -126,17 +128,22 @@ class NetworkTransport(TransportBase):
         try:
             if not self._http_session:
                 self._http_session = aiohttp.ClientSession()
-            
+
             url = f"{target_url}/api/v1/rpc"
             timeout = aiohttp.ClientTimeout(total=self.config.timeout)
-            
+
+            # 使用CustomJSONEncoder序列化数据
+            json_data = json.dumps(request_data, cls=CustomJSONEncoder)
+
             async with self._http_session.post(
-                url, 
-                json=request_data, 
+                url,
+                data=json_data,
+                headers={'Content-Type': 'application/json'},
                 timeout=timeout
             ) as response:
                 if response.status == 200:
-                    response_data = await response.json()
+                    response_text = await response.text()
+                    response_data = json.loads(response_text, cls=CustomJSONDecoder)
                     return response_data.get("result")
                 else:
                     error_text = await response.text()
@@ -171,29 +178,29 @@ class NetworkTransport(TransportBase):
         """通过WebSocket推送事件"""
         try:
             # 特殊处理：使用全局事件监听器（模拟Memory模式）
-            print(f"[NetworkTransport] 推送事件: {source} -> {target}, 类型: {event_type}")
-            print(f"[NetworkTransport] 当前全局事件监听器: {list(NetworkTransport._global_event_listeners.keys())}")
+            self.comm_logger.debug(f"[NetworkTransport] 推送事件: {source} -> {target}, 类型: {event_type}")
+            self.comm_logger.debug(f"[NetworkTransport] 当前全局事件监听器: {list(NetworkTransport._global_event_listeners.keys())}")
             
             if target in NetworkTransport._global_event_listeners:
                 if event_type in NetworkTransport._global_event_listeners[target]:
                     handlers = NetworkTransport._global_event_listeners[target][event_type]
-                    print(f"[NetworkTransport] 找到 {len(handlers)} 个处理器用于 {target}.{event_type}")
+                    self.comm_logger.debug(f"[NetworkTransport] 找到 {len(handlers)} 个处理器用于 {target}.{event_type}")
                     
                     for i, handler in enumerate(handlers):
                         try:
-                            print(f"[NetworkTransport] 调用处理器 #{i+1}: {handler}")
+                            self.comm_logger.debug(f"[NetworkTransport] 调用处理器 #{i+1}: {handler}")
                             if asyncio.iscoroutinefunction(handler):
                                 await handler(json_compatible(data))
                             else:
                                 handler(json_compatible(data))
-                            print(f"[NetworkTransport] 处理器 #{i+1} 执行成功")
+                            self.comm_logger.debug(f"[NetworkTransport] 处理器 #{i+1} 执行成功")
                         except Exception as e:
-                            print(f"[NetworkTransport] 处理器 #{i+1} 执行失败: {e}")
+                            self.comm_logger.exception(f"[NetworkTransport] 处理器 #{i+1} 执行失败: {e}")
                     return True
                 else:
-                    print(f"[NetworkTransport] 目标 {target} 没有 {event_type} 事件监听器")
+                    self.comm_logger.warning(f"[NetworkTransport] 目标 {target} 没有 {event_type} 事件监听器")
             else:
-                print(f"[NetworkTransport] 目标 {target} 没有注册任何事件监听器")
+                self.comm_logger.warning(f"[NetworkTransport] 目标 {target} 没有注册任何事件监听器")
             
             # 查找目标WebSocket连接
             if target in self._ws_connections:
@@ -236,7 +243,7 @@ class NetworkTransport(TransportBase):
             return False
             
         except Exception as e:
-            print(f"Push event failed: {e}")
+            self.comm_logger.exception(f"Push event failed: {e}")
             return False
     
     async def start_event_listener(self, node_id: str) -> None:
@@ -253,47 +260,42 @@ class NetworkTransport(TransportBase):
         4. 架构清晰，易于维护
         """
         self.node_id = node_id
-        print(f"🚀 [NetworkTransport] 开始启动事件监听器: {node_id}")
+        self.comm_logger.debug(f"[NetworkTransport] 开始启动事件监听器: {node_id}")
 
         if self._is_server_node():
             # 服务器节点：启动HTTP和WebSocket服务器
             self.add_target_id("system")
-            print(f"[NetworkTransport] 服务器节点自动添加system目标ID")
+            self.comm_logger.debug(f"[NetworkTransport] 服务器节点自动添加system目标ID")
 
             try:
-                print(f"🌐 [NetworkTransport] 正在启动HTTP服务器: {self.host}:{self.port}")
+                self.comm_logger.debug(f"[NetworkTransport] 正在启动HTTP服务器: {self.host}:{self.port}")
                 await self._start_http_server()
-                print(f"✅ [NetworkTransport] HTTP服务器启动成功")
+                self.comm_logger.debug(f"[NetworkTransport] HTTP服务器启动成功")
             except Exception as e:
-                print(f"❌ [NetworkTransport] HTTP服务器启动失败: {e}")
-                import traceback
-                traceback.print_exc()
+                self.comm_logger.exception(f"[NetworkTransport] HTTP服务器启动失败: {e}")
 
             try:
-                print(f"🔌 [NetworkTransport] 正在启动WebSocket服务器: {self.host}:{self.websocket_port}")
+                self.comm_logger.debug(f"[NetworkTransport] 正在启动WebSocket服务器: {self.host}:{self.websocket_port}")
                 await self._start_websocket_server()
-                print(f"✅ [NetworkTransport] WebSocket服务器启动成功")
+                self.comm_logger.debug(f"[NetworkTransport] WebSocket服务器启动成功")
             except Exception as e:
-                print(f"❌ [NetworkTransport] WebSocket服务器启动失败: {e}")
-                import traceback
-                traceback.print_exc()
+                self.comm_logger.exception(f"[NetworkTransport] WebSocket服务器启动失败: {e}")
 
-            print(f"✅ [NetworkTransport] 服务器事件监听器已启动: {node_id} (HTTP:{self.port}, WS:{self.websocket_port})")
+            self.comm_logger.debug(f"[NetworkTransport] 服务器事件监听器已启动: {node_id} (HTTP:{self.port}, WS:{self.websocket_port})")
         else:
             # 客户端节点：启动HTTP服务器
             try:
-                print(f"🌐 [NetworkTransport] 正在启动HTTP服务器: {self.host}:{self.port}")
+                self.comm_logger.debug(f"[NetworkTransport] 正在启动HTTP服务器: {self.host}:{self.port}")
                 await self._start_http_server()
-                print(f"✅ [NetworkTransport] HTTP服务器启动成功")
+                self.comm_logger.debug(f"[NetworkTransport] HTTP服务器启动成功")
             except Exception as e:
-                print(f"❌ [NetworkTransport] HTTP服务器启动失败: {e}")
-                import traceback
-                traceback.print_exc()
-            # 客户端节点：作为WebSocket客户端连接到服务器，支持双向通信
-            print(f"📡 [NetworkTransport] 客户端将通过WebSocket连接到服务器进行双向通信")
-            print(f"✅ [NetworkTransport] 客户端事件监听器已启动: {node_id} (客户端模式)")
+                self.comm_logger.exception(f"[NetworkTransport] HTTP服务器启动失败: {e}")
 
-        print(f"✅ [NetworkTransport] 事件监听器已启动: {node_id}")
+            # 客户端节点：作为WebSocket客户端连接到服务器，支持双向通信
+            self.comm_logger.debug(f"[NetworkTransport] 客户端将通过WebSocket连接到服务器进行双向通信")
+            self.comm_logger.debug(f"[NetworkTransport] 客户端事件监听器已启动: {node_id} (客户端模式)")
+
+        self.comm_logger.debug(f"[NetworkTransport] 事件监听器已启动: {node_id}")
     
     async def _start_http_server(self):
         """启动HTTP服务器"""
@@ -308,7 +310,7 @@ class NetworkTransport(TransportBase):
         
         self._runner = web.AppRunner(self._app)
         await self._runner.setup()
-        
+        self.comm_logger.debug(f"[NetworkTransport] HTTP服务器已设置")
         site = web.TCPSite(self._runner, self.host, self.port)
         await site.start()
 
@@ -331,9 +333,9 @@ class NetworkTransport(TransportBase):
                 except Exception as e:
                     self.logger.warning(f"获取实际端口时出错: {e}")
                     continue
-        
-        print(f"HTTP server started on {self.host}:{self.port}")
-    
+
+        self.comm_logger.debug(f"[NetworkTransport] HTTP server started on {self.host}:{self.port}")
+
     async def _start_websocket_server(self):
         """启动WebSocket服务器"""
         self._ws_app = web.Application()
@@ -345,13 +347,15 @@ class NetworkTransport(TransportBase):
         ws_site = web.TCPSite(self._ws_runner, self.host, self.websocket_port)
         await ws_site.start()
         
-        print(f"WebSocket server started on {self.host}:{self.websocket_port}")
+        self.comm_logger.debug(f"WebSocket server started on {self.host}:{self.websocket_port}")
     
     async def _handle_rpc_request(self, request: web.Request):
         """处理RPC请求"""
         try:
-            request_data = await request.json()
-            
+            # 使用CustomJSONDecoder反序列化请求
+            request_text = await request.text()
+            request_data = json.loads(request_text, cls=CustomJSONDecoder)
+
             # 调用注册的请求处理器
             if self._request_handler:
                 if asyncio.iscoroutinefunction(self._request_handler):
@@ -364,25 +368,43 @@ class NetworkTransport(TransportBase):
                         request_data.get("source"),
                         request_data.get("data")
                     )
-                
-                return web.json_response({
+
+                # 使用CustomJSONEncoder序列化响应
+                response_data = {
                     "success": True,
                     "result": result,
                     "timestamp": datetime.now().isoformat()
-                })
+                }
+                response_json = json.dumps(response_data, cls=CustomJSONEncoder)
+                return web.Response(
+                    text=response_json,
+                    content_type='application/json'
+                )
             else:
-                return web.json_response({
+                response_data = {
                     "success": False,
                     "error": "No request handler registered",
                     "timestamp": datetime.now().isoformat()
-                }, status=500)
-                
+                }
+                response_json = json.dumps(response_data, cls=CustomJSONEncoder)
+                return web.Response(
+                    text=response_json,
+                    content_type='application/json',
+                    status=500
+                )
+
         except Exception as e:
-            return web.json_response({
+            response_data = {
                 "success": False,
                 "error": str(e),
                 "timestamp": datetime.now().isoformat()
-            }, status=500)
+            }
+            response_json = json.dumps(response_data, cls=CustomJSONEncoder)
+            return web.Response(
+                text=response_json,
+                content_type='application/json',
+                status=500
+            )
     
     async def _handle_register_request(self, request: web.Request):
         """处理注册请求 - 转发给通信管理器处理"""
@@ -507,7 +529,7 @@ class NetworkTransport(TransportBase):
                     }))
                     
             elif msg.type == WSMsgType.ERROR:
-                print(f"WebSocket error: {ws.exception()}")
+                self.comm_logger.debug(f"[NetworkTransport] WebSocket error: {ws.exception()}")
                 break
         
         # 清理连接
@@ -520,7 +542,7 @@ class NetworkTransport(TransportBase):
         """注册请求处理器"""
         self._request_handler = handler
         self.logger.debug(f"[NetworkTransport] 注册请求处理器: {node_id}")
-        print(f"[NetworkTransport] 已注册请求处理器: {node_id}")
+        self.comm_logger.debug(f"[NetworkTransport] 已注册请求处理器: {node_id}")
     
     def _parse_node_address(self, node_id: str) -> Optional[str]:
         """解析节点地址，兼容network/process模式
@@ -648,12 +670,12 @@ class NetworkTransport(TransportBase):
     def add_target_id(self, target_id: str):
         """添加目标ID - 兼容Process模式"""
         self.target_ids.add(target_id)
-        print(f"[NetworkTransport] 添加目标ID: {target_id}")
+        self.comm_logger.debug(f"[NetworkTransport] 添加目标ID: {target_id}")
     
     def remove_target_id(self, target_id: str):
         """移除目标ID"""
         self.target_ids.discard(target_id)
-        print(f"[NetworkTransport] 移除目标ID: {target_id}")
+        self.comm_logger.debug(f"[NetworkTransport] 移除目标ID: {target_id}")
     
     def register_event_listener(self, target: str, event_type: str, listener: Callable) -> bool:
         """注册事件监听器 - 兼容Process模式"""
@@ -665,10 +687,10 @@ class NetworkTransport(TransportBase):
                 NetworkTransport._global_event_listeners[target][event_type] = []
             
             NetworkTransport._global_event_listeners[target][event_type].append(listener)
-            print(f"[NetworkTransport] 注册全局事件监听器: {target} -> {event_type}")
+            self.comm_logger.debug(f"[NetworkTransport] 注册全局事件监听器: {target} -> {event_type}")
             return True
         except Exception as e:
-            print(f"[NetworkTransport] 注册事件监听器失败: {e}")
+            self.comm_logger.debug(f"[NetworkTransport] 注册事件监听器失败: {e}")
             return False
     
     def unregister_event_listener(self, target: str, event_type: str, listener: Callable) -> bool:
@@ -676,10 +698,9 @@ class NetworkTransport(TransportBase):
         try:
             return self.unregister_event_handler(target, event_type, listener)
         except Exception as e:
-            print(f"[NetworkTransport] 注销事件监听器失败: {e}")
+            self.comm_logger.debug(f"[NetworkTransport] 注销事件监听器失败: {e}")
             return False
-        self.target_ids.discard(target_id)
-        print(f"[NetworkTransport] 移除目标ID: {target_id}")
+
 
     def validate_node_id(self, node_id: str) -> bool:
         """验证节点ID格式，兼容network和process模式"""

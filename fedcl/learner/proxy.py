@@ -405,7 +405,7 @@ class LearnerProxy:
                     timeout=self.config.default_timeout
                 )
                 
-                self.comm_logger.info(f"[PROXY] 创建请求: {request.request_id}")
+                self.comm_logger.debug(f"[PROXY] 创建请求: {request.request_id}")
                 
                 # 发送请求并等待响应
                 response_data = await self.connection_manager.route_message(
@@ -414,9 +414,9 @@ class LearnerProxy:
                     message_type="business_request",  # 修改为匹配Stub注册的处理器
                     data=request.__dict__
                 )
-                
-                self.comm_logger.debug(f"[PROXY] 收到响应数据: {response_data.get("request_id", "N/A")}")
-                
+
+                self.comm_logger.debug(f"[PROXY] 收到响应数据ID: {response_data.get('request_id', 'N/A')}")
+
                 # 检查路由结果
                 if response_data.get("status") == "filtered":
                     raise CommunicationError("Request was filtered by routing rules")
@@ -428,7 +428,7 @@ class LearnerProxy:
                     if client_result.get("success"):
                         response_result = client_result.get("result")
 
-                        self.comm_logger.info(f"[PROXY] 客户端响应结果: {response_result}")
+                        self.comm_logger.debug(f"[PROXY] 客户端响应结果id: {response_result['request_id']}")
 
                         # 记录成功统计
                         response_time = (datetime.now() - start_time).total_seconds()

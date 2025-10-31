@@ -15,7 +15,7 @@ from ..types import (
     RegistrationRequest, RegistrationResponse, RegistrationStatus,
     TrainingRequest, TrainingResponse
 )
-from ..utils.auto_logger import get_sys_logger
+from ..utils.auto_logger import get_sys_logger, get_train_logger
 
 
 class StubConfig:
@@ -53,6 +53,7 @@ class LearnerStub:
         """
         self.learner = learner
         self.logger = get_sys_logger()
+        self.train_logger = get_train_logger(learner.client_id)
         self.communication_manager = communication_manager
         self.connection_manager = connection_manager
         self.config = config or StubConfig()
@@ -139,13 +140,13 @@ class LearnerStub:
                         self._registration_status = RegistrationStatus.REGISTERED
                         self._server_info = response.server_info
                     
-                    print(f"Client {self.learner.client_id} registered successfully")
+                    self.logger.debug(f"Client {self.learner.client_id} registered successfully")
                     return response
                 else:
-                    print(f"Registration attempt {attempt + 1} failed: {response.error_message}")
+                    self.logger.error(f"Registration attempt {attempt + 1} failed: {response.error_message}")
                     
             except Exception as e:
-                print(f"Registration attempt {attempt + 1} error: {e}")
+                self.logger.exception(f"Registration attempt {attempt + 1} error: {e}")
             
             # 等待重试
             if attempt < self.config.registration_retry_attempts - 1:
@@ -175,12 +176,12 @@ class LearnerStub:
             
             if success:
                 self._server_info = None
-                print(f"Client {self.learner.client_id} unregistered successfully")
+                self.logger.info(f"Client {self.learner.client_id} unregistered successfully")
             
             return success
             
         except Exception as e:
-            print(f"Unregistration error: {e}")
+            self.logger.error(f"Unregistration error: {e}")
             return False
     
     async def update_registration_info(self, updates: Dict[str, Any]) -> bool:
@@ -197,7 +198,7 @@ class LearnerStub:
                 self.learner.client_id, updates
             )
         except Exception as e:
-            print(f"Update registration info error: {e}")
+            self.logger.error(f"Update registration info error: {e}")
             return False
     
     def get_registration_status(self) -> RegistrationStatus:
@@ -208,12 +209,12 @@ class LearnerStub:
         """处理注册失败"""
         async with self._lock:
             self._registration_status = RegistrationStatus.ERROR
-        
-        print(f"Registration failed for client {self.learner.client_id}")
-        
+
+        self.logger.error(f"Registration failed for client {self.learner.client_id}")
+
         # 可以添加自动重试逻辑
         if self.config.auto_register:
-            print("Attempting automatic re-registration...")
+            self.logger.info("Attempting automatic re-registration...")
             asyncio.create_task(self._auto_retry_registration())
     
     async def _auto_retry_registration(self):
@@ -222,7 +223,7 @@ class LearnerStub:
         try:
             await self.register_to_server()
         except Exception as e:
-            print(f"Auto retry registration failed: {e}")
+            self.logger.error(f"Auto retry registration failed: {e}")
     
     # ==================== RPC处理方法 ====================
     
@@ -238,8 +239,8 @@ class LearnerStub:
         start_time = datetime.now()
 
         try:
-            print(f"[STUB] 收到训练请求: {request.client_id}, 方法: {request.method_name}")
-            print(f"[STUB] 训练参数: {request.parameters}")
+            self.logger.debug(f"[STUB] 收到训练请求: {request.client_id}, 方法: {request.method_name}")
+            self.logger.debug(f"[STUB] 训练参数: {request.parameters}")
 
             # 参数验证
             if not self.validate_request_parameters(request):
@@ -256,7 +257,7 @@ class LearnerStub:
 
             # 执行训练
             result = await self.learner.train(request.parameters)
-            print(f"[STUB] 训练结果: {result}")
+            self.train_logger.debug(f"[STUB] 接收到learner {result.client_id} 的训练结果")
 
             # 记录训练历史
             await self.learner._record_training(request.parameters, result)
@@ -266,7 +267,7 @@ class LearnerStub:
             if isinstance(result, TrainingResponse):
                 if not result.request_id:
                     result.request_id = request.request_id
-                print(f"[STUB] 返回响应: success={result.success}, result={result.result}")
+                self.logger.debug(f"[STUB] 返回响应: success={result.success}, result={result.result.keys()}")
                 return result
             else:
                 # 如果learner返回的不是TrainingResponse（兼容旧接口），则包装它
@@ -278,13 +279,13 @@ class LearnerStub:
                     result=result,
                     execution_time=execution_time
                 )
-                print(f"[STUB] 返回响应: success={response.success}, result={response.result}")
+                self.logger.debug(f"[STUB] 返回响应: success={response.success}, result={response.result.keys()}")
                 return response
 
         except Exception as e:
             execution_time = (datetime.now() - start_time).total_seconds()
             error_msg = f"Training failed: {str(e)}"
-            print(f"[STUB] 训练失败: {error_msg}")
+            self.logger.exception(f"[STUB] 训练失败: {error_msg}")
 
             return TrainingResponse(
                 request_id=request.request_id,
@@ -331,7 +332,7 @@ class LearnerStub:
         except Exception as e:
             execution_time = (datetime.now() - start_time).total_seconds()
             error_msg = f"Evaluation failed: {str(e)}"
-            print(error_msg)
+            self.logger.exception(error_msg)
             
             return TrainingResponse(
                 request_id=request.request_id,
@@ -355,7 +356,7 @@ class LearnerStub:
             
         except Exception as e:
             error_msg = f"Get model failed: {str(e)}"
-            print(error_msg)
+            self.logger.exception(error_msg)
             
             return TrainingResponse(
                 request_id=request.request_id,
@@ -389,7 +390,7 @@ class LearnerStub:
             
         except Exception as e:
             error_msg = f"Set model failed: {str(e)}"
-            print(error_msg)
+            self.logger.exception(error_msg)
             
             return TrainingResponse(
                 request_id=request.request_id,
@@ -417,7 +418,7 @@ class LearnerStub:
             
         except Exception as e:
             error_msg = f"Get info failed: {str(e)}"
-            print(error_msg)
+            self.logger.exception(error_msg)
             
             return TrainingResponse(
                 request_id=request.request_id,
@@ -709,8 +710,9 @@ class LearnerStub:
     
     def log_request_error(self, request: Any, error: Exception):
         """记录请求错误"""
-        print(f"Request error for client {self.learner.client_id}: {error}")
-        print(f"Request details: {request}")
+        self.logger.error(f"Request details: {request}")
+        self.logger.exception(f"Request error for client {self.learner.client_id}: {error}")
+        
     
     def _serialize_response(self, response: TrainingResponse) -> Dict[str, Any]:
         """序列化响应对象"""
@@ -732,7 +734,7 @@ class LearnerStub:
         await self._setup_communication_handlers()
 
         if self._listening:
-            print(f"Client {self.learner.client_id} is already listening")
+            self.logger.info(f"Client {self.learner.client_id} is already listening")
             return
         
         self._listening = True
@@ -749,9 +751,9 @@ class LearnerStub:
             
             # 启动监听任务
             # self._listener_task = asyncio.create_task(self._request_listener())
-            
-            print(f"Client {self.learner.client_id} started listening for requests")
-            
+
+            self.logger.info(f"Client {self.learner.client_id} started listening for requests")
+
         except Exception as e:
             self._listening = False
             raise e
@@ -781,7 +783,7 @@ class LearnerStub:
         # 从服务端注销
         await self.unregister_from_server()
         
-        print(f"Client {self.learner.client_id} stopped listening")
+        self.logger.info(f"Client {self.learner.client_id} stopped listening")
     
     async def cleanup(self) -> None:
         """清理存根资源"""
@@ -804,7 +806,7 @@ class LearnerStub:
             self.communication_manager.register_message_handler(
                 "business_request", self.process_business_request
             )
-            self.logger.info("Registered business request handler")
+            self.logger.debug("Registered business request handler")
 
         self.logger.debug(f"message_handlers:{self.communication_manager}, stub:{self}")
         # 设置传输层处理器
@@ -827,7 +829,7 @@ class LearnerStub:
             except asyncio.CancelledError:
                 break
             except Exception as e:
-                print(f"Request listener error: {e}")
+                self.logger.exception(f"Request listener error: {e}")
                 await asyncio.sleep(1)
 
     def _get_client_address(self) -> Dict[str, Any]:

@@ -10,7 +10,7 @@ from typing import Any, Dict, Optional, List
 
 from ..exceptions import ValidationError
 from ..types import ModelData, TrainingResult, EvaluationResult
-
+from ..utils.auto_logger import get_train_logger
 
 class BaseLearner(ABC):
     """客户端学习器抽象基类 - 用户继承实现本地训练逻辑"""
@@ -33,6 +33,7 @@ class BaseLearner(ABC):
         self.local_data = local_data
         self.model_config = model_config or {}
         self.training_config = training_config or {}
+        self.logger = get_train_logger(client_id)
         
         # 内部状态
         self._local_model: Optional[ModelData] = None
@@ -198,7 +199,7 @@ class BaseLearner(ABC):
                 return True
                 
         except Exception as e:
-            print(f"Save model failed: {e}")
+            self.logger.exception(f"Save model failed: {e}")
             return False
     
     async def load_model(self, model_path: str) -> Optional[ModelData]:
@@ -220,7 +221,7 @@ class BaseLearner(ABC):
             return model_data if success else None
             
         except Exception as e:
-            print(f"Load model failed: {e}")
+            self.logger.exception(f"Load model failed: {e}")
             return None
     
     async def get_model_parameters(self) -> Dict[str, Any]:
@@ -272,19 +273,19 @@ class BaseLearner(ABC):
                 return True
                 
         except Exception as e:
-            print(f"Learner initialization failed: {e}")
+            self.logger.exception(f"Learner initialization failed: {e}")
             return False
     
     async def _perform_initialization(self):
         """执行具体的初始化逻辑 - 子类可重写"""
         # 默认初始化逻辑
         if self.local_data is None:
-            print(f"Warning: No local data provided for client {self.client_id}")
+            self.logger.warning(f"Warning: No local data provided for client {self.client_id}")
         
         # 验证配置
         await self._validate_configuration()
-        
-        print(f"BaseLearner {self.client_id} initialized successfully")
+
+        self.logger.info(f"BaseLearner {self.client_id} initialized successfully")
     
     async def _validate_configuration(self):
         """验证配置 - 子类可重写"""
@@ -304,7 +305,7 @@ class BaseLearner(ABC):
             self._training_history.clear()
             self._is_initialized = False
         
-        print(f"BaseLearner {self.client_id} cleaned up")
+        self.logger.debug(f"BaseLearner {self.client_id} cleaned up")
     
     def get_learner_info(self) -> Dict[str, Any]:
         """获取学习器信息

@@ -151,7 +151,7 @@ class FederationServer:
             """处理传输层的客户端注册事件"""
             client_id = data.get("client_id")
             if client_id:
-                self.logger.info(f"[传输层事件桥接] 收到CLIENT_REGISTERED事件: {client_id}")
+                self.logger.debug(f"[传输层事件桥接] 收到CLIENT_REGISTERED事件: {client_id}")
 
                 # 直接调用ConnectionManager处理层间事件
                 self.comm_components.connection_manager.handle_layer_event("CLIENT_REGISTERED", {
@@ -164,15 +164,15 @@ class FederationServer:
         self.comm_components.transport.register_event_listener(
             "system", "CLIENT_REGISTERED", handle_transport_client_registered
         )
-        self.logger.info("[传输层事件桥接] 已注册CLIENT_REGISTERED事件监听器")
+        self.logger.debug("[传输层事件桥接] 已注册CLIENT_REGISTERED事件监听器")
 
         # 🎯 关键修复：监听CommunicationManager的注册事件
         def handle_client_registration_event(event):
             """处理客户端注册事件并转换为层间事件"""
             if event.event_type == "CLIENT_REGISTERED":
                 client_id = event.source_id
-                self.logger.info(f"[事件桥接] 转换CLIENT_REGISTERED为层间事件: {client_id}")
-                self.logger.info(f"{event.data}")
+                self.logger.debug(f"[事件桥接] 转换CLIENT_REGISTERED为层间事件: {client_id}")
+                self.logger.debug(f"{event.data}")
 
                 # event.data 是 ClientInfo 对象，不是 dict
                 timestamp = None
@@ -216,25 +216,25 @@ class FederationServer:
 
         try:
             # 启动通信层
-            self.logger.info("Starting communication layers...")
+            self.logger.debug("Starting communication layers...")
 
             if hasattr(self.comm_components.communication_manager, 'start'):
                 await self.comm_components.communication_manager.start()
-                self.logger.info("✓ Communication manager started")
+                self.logger.debug("✓ Communication manager started")
 
             if hasattr(self.comm_components.connection_manager, 'start'):
                 await self.comm_components.connection_manager.start()
-                self.logger.info("✓ Connection manager started")
+                self.logger.debug("✓ Connection manager started")
 
             # 初始化 trainer
-            self.logger.info("Initializing trainer...")
+            self.logger.debug("Initializing trainer...")
             trainer_ready = await self.business_components.trainer.initialize()
             if not trainer_ready:
                 raise FederationError("Trainer initialization failed")
-            self.logger.info("✓ Trainer initialized")
+            self.logger.debug("✓ Trainer initialized")
 
             self.is_running = True
-            self.logger.info("✅ FederationServer started successfully")
+            self.logger.info("FederationServer started successfully")
 
             return True
 
@@ -267,18 +267,18 @@ class FederationServer:
             if self.comm_components:
                 if hasattr(self.comm_components.connection_manager, 'stop'):
                     await self.comm_components.connection_manager.stop()
-                    self.logger.info("✓ Connection manager stopped")
+                    self.logger.debug("✓ Connection manager stopped")
 
                 if hasattr(self.comm_components.communication_manager, 'stop'):
                     await self.comm_components.communication_manager.stop()
-                    self.logger.info("✓ Communication manager stopped")
+                    self.logger.debug("✓ Communication manager stopped")
 
                 if hasattr(self.comm_components.transport, 'stop'):
                     await self.comm_components.transport.stop()
-                    self.logger.info("✓ Transport stopped")
+                    self.logger.debug("✓ Transport stopped")
 
             self.is_running = False
-            self.logger.info("✅ FederationServer stopped successfully")
+            self.logger.info("FederationServer stopped successfully")
 
             return True
 

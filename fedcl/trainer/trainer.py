@@ -7,11 +7,12 @@ import asyncio
 from abc import ABC, abstractmethod
 from datetime import datetime
 from typing import Any, Dict, List, Optional, Callable
+from logging import Logger
 from ..communication.layer_event import ProxyManagerEventHandler
 from ..exceptions import FederationError
 from ..learner.proxy import LearnerProxy
 from ..types import ModelData, EvaluationResult, RoundResult
-
+from ..utils.auto_logger import get_train_logger, get_sys_logger
 
 class FederationResult:
     """联邦学习训练结果"""
@@ -127,12 +128,12 @@ class ProxyManager:
             # 更新trainer的客户端统计
             self.trainer.client_statistics[client_id] = ClientStatistics(client_id)
             
-            self.logger.info(f"✅ [代理管理器] 学习器代理已注册: {client_id}, 当前总数: {len(self.proxies)}")
-            self.logger.info(f"📊 [代理管理器] 可用客户端列表: {list(self.proxies.keys())}")
+            self.logger.debug(f"[代理管理器] 学习器代理已注册: {client_id}, 当前总数: {len(self.proxies)}")
+            self.logger.info(f"[代理管理器] 可用客户端列表: {list(self.proxies.keys())}")
     
     async def on_proxy_disconnected(self, client_id: str):
         """处理代理断开"""
-        self.logger.info(f"❌ [代理管理器] 收到代理断开通知: {client_id}")
+        self.logger.warning(f"[代理管理器] 收到代理断开通知: {client_id}")
         
         async with self._lock:
             if client_id in self.proxies:
@@ -142,7 +143,7 @@ class ProxyManager:
                 if client_id in self.trainer.client_statistics:
                     del self.trainer.client_statistics[client_id]
                 
-                self.logger.info(f"🗑️ [代理管理器] 学习器代理已移除: {client_id}, 剩余数量: {len(self.proxies)}")
+                self.logger.debug(f"🗑️ [代理管理器] 学习器代理已移除: {client_id}, 剩余数量: {len(self.proxies)}")
     
     def get_proxy(self, client_id: str) -> Optional[LearnerProxy]:
         """获取指定客户端的代理"""
@@ -155,16 +156,16 @@ class ProxyManager:
     def get_available_clients(self) -> List[str]:
         """获取可用客户端列表"""
         available_clients = []
-        self.logger.debug(f"🔍 [代理管理器] 检查可用客户端，总代理数: {len(self.proxies)}")
+        self.logger.debug(f"[代理管理器] 检查可用客户端，总代理数: {len(self.proxies)}")
         
         for client_id, proxy in self.proxies.items():
             if proxy.is_client_ready():
                 available_clients.append(client_id)
-                self.logger.debug(f"✅ [代理管理器] 客户端[{client_id}]可用")
+                self.logger.debug(f"[代理管理器] 客户端[{client_id}]可用")
             else:
-                self.logger.debug(f"❌ [代理管理器] 客户端[{client_id}]不可用")
+                self.logger.warning(f"[代理管理器] 客户端[{client_id}]不可用")
         
-        self.logger.info(f"📊 [代理管理器] 可用客户端总数: {len(available_clients)}/{len(self.proxies)}")
+        self.logger.info(f"[代理管理器] 可用客户端总数: {len(available_clients)}/{len(self.proxies)}")
         return available_clients
 
 
@@ -174,7 +175,7 @@ class BaseTrainer(ABC):
     def __init__(self,
                  global_model: ModelData,
                  training_config: Optional[TrainingConfig] = None,
-                 logger: Any = None):
+                 logger: Optional[Logger] = None):
         """
         初始化训练器
         
@@ -194,7 +195,7 @@ class BaseTrainer(ABC):
         
         self.global_model = global_model
         self.training_config = training_config or TrainingConfig()
-        self.logger = logger
+        self.logger = logger if logger else get_train_logger("server")
         
         # 训练状态
         self.training_status = TrainingStatus()
@@ -494,12 +495,12 @@ class BaseTrainer(ABC):
             import pickle
             with open(checkpoint_path, 'wb') as f:
                 pickle.dump(checkpoint_data, f)
-            
-            print(f"Checkpoint saved: {checkpoint_path}")
+
+            self.logger.debug(f"Checkpoint saved: {checkpoint_path}")
             return True
             
         except Exception as e:
-            print(f"Failed to save checkpoint: {e}")
+            self.logger.exception(f"Failed to save checkpoint: {e}")
             return False
     
     async def load_checkpoint(self, checkpoint_path: str) -> bool:
@@ -521,11 +522,11 @@ class BaseTrainer(ABC):
             self.global_model = checkpoint_data["global_model"]
             self._best_model = checkpoint_data.get("best_model")
             
-            print(f"Checkpoint loaded: {checkpoint_path}")
+            self.logger.debug(f"Checkpoint loaded: {checkpoint_path}")
             return True
             
         except Exception as e:
-            print(f"Failed to load checkpoint: {e}")
+            self.logger.exception(f"Failed to load checkpoint: {e}")
             return False
     
     # ==================== 客户端管理方法 ====================
@@ -583,7 +584,7 @@ class BaseTrainer(ABC):
                 await asyncio.wait_for(task, timeout=5.0)
                 readiness[client_id] = True
             except Exception as e:
-                print(f"❌ Ping failed for {client_id}: {type(e).__name__}: {e}")
+                self.logger.exception(f"Ping failed for {client_id}: {type(e).__name__}: {e}")
                 readiness[client_id] = False
         
         return readiness
@@ -678,9 +679,9 @@ class BaseTrainer(ABC):
         """
         try:
             # 检查客户端连接 (允许为0，在训练时再检查)
-            print("Checking client connections...")
+            self.logger.debug("Checking client connections...")
             available_clients = self.get_available_clients()
-            print(f"Found {len(available_clients)} available clients: {available_clients}")
+            self.logger.debug(f"Found {len(available_clients)} available clients: {available_clients}")
             
             # 初始化全局模型
             if self.global_model is None:
@@ -689,11 +690,11 @@ class BaseTrainer(ABC):
             # 执行用户自定义初始化
             await self._perform_custom_initialization()
             
-            print("BaseTrainer initialized successfully")
+            self.logger.debug("BaseTrainer initialized successfully")
             return True
             
         except Exception as e:
-            print(f"Trainer initialization failed: {e}")
+            self.logger.exception(f"Trainer initialization failed: {e}")
             return False
     
     async def _perform_custom_initialization(self):
@@ -715,7 +716,7 @@ class BaseTrainer(ABC):
             self.round_callbacks.clear()
             self.training_callbacks.clear()
         
-        print("BaseTrainer cleaned up")
+        self.logger.debug("BaseTrainer cleaned up")
     
     async def handle_client_failure(self, client_id: str) -> None:
         """处理客户端故障
@@ -723,7 +724,7 @@ class BaseTrainer(ABC):
         Args:
             client_id: 故障的客户端ID
         """
-        print(f"Handling client failure: {client_id}")
+        self.logger.debug(f"Handling client failure: {client_id}")
         
         # 更新失败统计
         await self._update_client_statistics(client_id, False, 0.0)
@@ -799,7 +800,7 @@ class BaseTrainer(ABC):
                 else:
                     callback(round_num, round_result)
             except Exception as e:
-                print(f"Round callback {callback_id} error: {e}")
+                self.logger.debug(f"Round callback {callback_id} error: {e}")
     
     async def _trigger_training_callbacks(self, event: str, data: Any):
         """触发训练回调"""
@@ -810,7 +811,7 @@ class BaseTrainer(ABC):
                 else:
                     callback(event, data)
             except Exception as e:
-                print(f"Training callback {callback_id} error: {e}")
+                self.logger.debug(f"Training callback {callback_id} error: {e}")
     # ==================== 训练循环方法 (框架提供) ====================
 
     async def run_training(self, max_rounds: int) -> FederationResult:
@@ -832,9 +833,7 @@ class BaseTrainer(ABC):
         self.training_status.is_training = True
         self.training_status.start_time = datetime.now()
 
-        print("=" * 60)
-        print(f"Starting federated training for {max_rounds} rounds...")
-        print("=" * 60)
+        self.logger.info(f"Starting federated training for {max_rounds} rounds...")
 
         try:
             # 触发训练开始回调
@@ -850,14 +849,14 @@ class BaseTrainer(ABC):
                 try:
                     # 选择客户端
                     selected_clients = self.select_clients_for_round(round_num)
-                    print(f"\nRound {round_num}/{max_rounds}: Selected {len(selected_clients)} clients")
+                    self.logger.info(f"\nRound {round_num}/{max_rounds}: Selected {len(selected_clients)} clients")
 
                     # 检查客户端就绪状态
                     client_readiness = await self.check_client_readiness(selected_clients)
                     ready_clients = [cid for cid, ready in client_readiness.items() if ready]
 
                     if len(ready_clients) < self.training_config.min_clients:
-                        print(f"Warning: Insufficient ready clients ({len(ready_clients)} < {self.training_config.min_clients})")
+                        self.logger.info(f"Warning: Insufficient ready clients ({len(ready_clients)} < {self.training_config.min_clients})")
                         continue
 
                     # 更新训练状态
@@ -906,18 +905,18 @@ class BaseTrainer(ABC):
                     # 触发轮次回调
                     await self._trigger_round_callbacks(round_num, round_result)
 
-                    print(f"Round {round_num} completed in {round_time:.2f}s")
-                    print(f"  Metrics: accuracy={round_metrics.get('avg_accuracy', 0):.4f}, loss={round_metrics.get('avg_loss', 0):.4f}")
+                    self.logger.info(f"Round {round_num} completed in {round_time:.2f}s")
+                    self.logger.info(f"  Metrics: accuracy={round_metrics.get('avg_accuracy', 0):.4f}, loss={round_metrics.get('avg_loss', 0):.4f}")
 
                     # 检查收敛条件
                     if self.should_stop_training(round_num, round_result):
                         result.termination_reason = "converged"
                         result.convergence_round = round_num
-                        print(f"\n✅ Training converged at round {round_num}")
+                        self.logger.info(f"Training converged at round {round_num}")
                         break
 
                 except Exception as e:
-                    print(f"Round {round_num} failed: {e}")
+                    self.logger.exception(f"Round {round_num} failed: {e}")
                     # 可以选择继续下一轮或终止训练
                     continue
 
@@ -926,7 +925,7 @@ class BaseTrainer(ABC):
                 result.termination_reason = "max_rounds_reached"
 
             # 最终评估
-            print("\nPerforming final evaluation...")
+            self.logger.info("Performing final evaluation...")
             try:
                 final_evaluation = await self.evaluate_global_model()
                 if final_evaluation.get("accuracy") is not None:
@@ -934,7 +933,7 @@ class BaseTrainer(ABC):
                 if final_evaluation.get("loss") is not None:
                     result.final_loss = final_evaluation["loss"]
             except Exception as e:
-                print(f"Final evaluation failed: {e}")
+                self.logger.exception(f"Final evaluation failed: {e}")
 
             # 保存最终模型
             if result.best_model is None:
@@ -945,7 +944,7 @@ class BaseTrainer(ABC):
         except Exception as e:
             result.error_message = str(e)
             result.success = False
-            print(f"Training failed: {e}")
+            self.logger.exception(f"Training failed: {e}")
             raise FederationError(f"Training failed: {str(e)}")
 
         finally:
@@ -968,12 +967,10 @@ class BaseTrainer(ABC):
                 "termination_reason": result.termination_reason
             })
 
-            print("=" * 60)
-            print(f"Training completed: {result.completed_rounds}/{max_rounds} rounds")
-            print(f"  Final accuracy: {result.final_accuracy:.4f}")
-            print(f"  Final loss: {result.final_loss:.4f}")
-            print(f"  Total time: {result.total_time:.2f}s")
-            print(f"  Termination reason: {result.termination_reason}")
-            print("=" * 60)
+            self.logger.info(f"Training completed: {result.completed_rounds}/{max_rounds} rounds")
+            self.logger.info(f"  Final accuracy: {result.final_accuracy:.4f}")
+            self.logger.info(f"  Final loss: {result.final_loss:.4f}")
+            self.logger.info(f"  Total time: {result.total_time:.2f}s")
+            self.logger.info(f"  Termination reason: {result.termination_reason}")
 
         return result

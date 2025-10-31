@@ -276,7 +276,7 @@ class ClientRegistryService:
             client_id: 客户端ID
             data: 事件数据
         """
-        self.logger.info(f"[RegistryService] 触发事件: {event_type}, 客户端: {client_id}, 回调数量: {len(self.event_callbacks)}")
+        self.logger.debug(f"[RegistryService] 触发事件: {event_type}, 客户端: {client_id}, 回调数量: {len(self.event_callbacks)}")
         
         event = EventMessage(
             event_type=event_type,
@@ -288,15 +288,13 @@ class ClientRegistryService:
         for i, callback in enumerate(self.event_callbacks):
             try:
                 callback_name = callback.__name__ if hasattr(callback, '__name__') else str(callback)
-                self.logger.info(f"[RegistryService] 调用回调 #{i+1}: {callback_name}")
+                self.logger.debug(f"[RegistryService] 调用回调 #{i+1}: {callback_name}")
                 self.logger.debug(f"[RegistryService] 回调详情 #{i+1}: {callback}")
                 
                 if asyncio.iscoroutinefunction(callback):
                     await callback(event)
                 else:
                     callback(event)
-                self.logger.info(f"[RegistryService] 回调 #{i+1} 执行成功")
+                self.logger.debug(f"[RegistryService] 回调 #{i+1} 执行成功")
             except Exception as e:
-                self.logger.error(f"[RegistryService] 回调 #{i+1} 执行失败: {e}")
-                import traceback
-                self.logger.error(f"[RegistryService] 回调 #{i+1} 错误详情: {traceback.format_exc()}")
+                self.logger.exception(f"[RegistryService] 回调 #{i+1} 执行失败: {e}")

@@ -240,6 +240,9 @@ class MNISTLearner(BaseLearner):
         avg_loss = total_loss / total_samples
         accuracy = correct_predictions / total_samples
 
+        # 获取模型权重（直接返回torch.Tensor，底层会自动转换）
+        model_weights = self.model.get_weights_as_dict()
+
         # 创建训练响应
         response = TrainingResponse(
             request_id="",  # 会被stub填充
@@ -250,7 +253,7 @@ class MNISTLearner(BaseLearner):
                 "loss": avg_loss,
                 "accuracy": accuracy,
                 "samples_used": total_samples,
-                "model_weights": self.model.get_weights_as_dict()
+                "model_weights": model_weights  # 框架会自动序列化tensor
             },
             execution_time=0.0
         )
@@ -294,14 +297,13 @@ class MNISTLearner(BaseLearner):
         }
 
     async def get_model(self) -> Dict[str, Any]:
-        """获取模型数据"""
-        weights = self.model.get_weights_as_dict()
-        # 转换为numpy数组以便序列化
-        numpy_weights = {k: v.numpy() for k, v in weights.items()}
+        """获取模型数据
 
+        直接返回torch.Tensor，框架会自动序列化
+        """
         return {
             "model_type": "mnist_cnn",
-            "parameters": {"weights": numpy_weights},
+            "parameters": {"weights": self.model.get_weights_as_dict()},
             "metadata": {
                 "client_id": self.client_id,
                 "samples": len(self.train_dataset),
@@ -310,15 +312,20 @@ class MNISTLearner(BaseLearner):
         }
 
     async def set_model(self, model_data: Dict[str, Any]) -> bool:
-        """设置模型数据"""
+        """设置模型数据
+
+        接受torch.Tensor或numpy数组，自动转换
+        """
         try:
             if "parameters" in model_data and "weights" in model_data["parameters"]:
                 weights = model_data["parameters"]["weights"]
-                # 将numpy数组转换为torch tensor
+                # 智能转换：支持numpy数组、torch.Tensor和dict
                 torch_weights = {}
                 for k, v in weights.items():
                     if isinstance(v, np.ndarray):
                         torch_weights[k] = torch.from_numpy(v)
+                    elif torch.is_tensor(v):
+                        torch_weights[k] = v
                     else:
                         torch_weights[k] = v
                 self.model.set_weights_from_dict(torch_weights)
@@ -460,7 +467,10 @@ class FedAvgMNISTTrainer(BaseTrainer):
         }
 
     async def aggregate_models(self, client_results: Dict[str, Any]) -> Dict[str, torch.Tensor]:
-        """聚合客户端模型（FedAvg）"""
+        """聚合客户端模型（FedAvg）
+
+        支持接收torch.Tensor或numpy数组，自动转换
+        """
         self.logger.info("  Aggregating models using FedAvg...")
 
         if not client_results:
@@ -472,13 +482,16 @@ class FedAvgMNISTTrainer(BaseTrainer):
 
         for client_id, result in client_results.items():
             if "model_weights" in result.result:
-                # 将numpy权重转换为torch tensor
+                # 智能转换：支持numpy数组和torch.Tensor
                 torch_weights = {}
                 for k, v in result.result["model_weights"].items():
                     if isinstance(v, np.ndarray):
                         torch_weights[k] = torch.from_numpy(v)
-                    else:
+                    elif torch.is_tensor(v):
                         torch_weights[k] = v
+                    else:
+                        # 如果既不是numpy也不是tensor，尝试转换
+                        torch_weights[k] = torch.tensor(v)
                 client_weights.append(torch_weights)
                 client_samples.append(result.result['samples_used'])
 
@@ -499,7 +512,7 @@ class FedAvgMNISTTrainer(BaseTrainer):
                 weighted_sum += weights[key] * samples
             aggregated_weights[key] = weighted_sum / total_samples
 
-        # 分发全局模型
+        # 分发全局模型（直接传递tensor，框架会自动序列化）
         await self._distribute_global_model(aggregated_weights)
 
         return aggregated_weights
@@ -512,7 +525,7 @@ class FedAvgMNISTTrainer(BaseTrainer):
         if not available_clients:
             return {"accuracy": 0.0, "loss": float('inf'), "samples_count": 0}
 
-        # 准备全局模型数据
+        # 准备全局模型数据（直接传递torch.Tensor，框架会自动序列化）
         global_model_data = {
             "model_weights": self.global_model.get_weights_as_dict()
         }
@@ -573,12 +586,13 @@ class FedAvgMNISTTrainer(BaseTrainer):
         return False
 
     async def _distribute_global_model(self, global_weights: Dict[str, torch.Tensor]):
-        """分发全局模型到所有客户端"""
-        # 转换为numpy数组以便传输
-        numpy_weights = {k: v.numpy() for k, v in global_weights.items()}
+        """分发全局模型到所有客户端
+
+        注意：直接传递torch.Tensor，框架会自动序列化
+        """
         global_model_data = {
             "model_type": "mnist_cnn",
-            "parameters": {"weights": numpy_weights}
+            "parameters": {"weights": global_weights}
         }
 
         tasks = []
@@ -622,7 +636,7 @@ async def demo_real_mnist_training():
 
     # 创建服务器配置
     server_comm_config = CommunicationConfig(
-        mode="memory",
+        mode="process",
         role="server",
         node_id="server_1"
     )
@@ -641,7 +655,7 @@ async def demo_real_mnist_training():
     client_configs = []
     for i in range(3):
         client_comm_config = CommunicationConfig(
-            mode="memory",
+            mode="process",
             role="client",
             node_id=f"client_{i}"
         )

@@ -18,7 +18,7 @@ from ..types import (
     ClientInfo, RegistrationRequest, RegistrationResponse,
     HeartbeatMessage, CommunicationConfig, HealthStatus
 )
-
+from ..utils.auto_logger import get_comm_logger
 
 class CommunicationManagerBase(ABC):
     """通用通信管理器抽象基类"""
@@ -27,7 +27,7 @@ class CommunicationManagerBase(ABC):
         self.node_id = node_id
         self.transport = transport
         self.config = config
-
+        self.logger = get_comm_logger(node_id)
         # 确定节点角色
         if node_role is not None:
             self.node_role = node_role.lower()
@@ -255,7 +255,7 @@ class CommunicationManagerBase(ABC):
             return True
             
         except Exception as e:
-            print(f"Send heartbeat failed: {e}")
+            self.logger.exception(f"Send heartbeat failed: {e}")
             return False
     
     async def handle_heartbeat(self, source: str, heartbeat: HeartbeatMessage) -> bool:
@@ -271,7 +271,7 @@ class CommunicationManagerBase(ABC):
             return True
             
         except Exception as e:
-            print(f"Handle heartbeat failed: {e}")
+            self.logger.exception(f"Handle heartbeat failed: {e}")
             return False
     
     async def check_client_alive(self, client_id: str) -> bool:
@@ -293,7 +293,7 @@ class CommunicationManagerBase(ABC):
             except asyncio.CancelledError:
                 break
             except Exception as e:
-                print(f"Heartbeat loop error: {e}")
+                self.logger.exception(f"Heartbeat loop error: {e}")
                 await asyncio.sleep(interval)
     
     async def _heartbeat_check_loop(self):
@@ -305,7 +305,7 @@ class CommunicationManagerBase(ABC):
             except asyncio.CancelledError:
                 break
             except Exception as e:
-                print(f"Heartbeat check loop error: {e}")
+                self.logger.exception(f"Heartbeat check loop error: {e}")
                 await asyncio.sleep(self.config.heartbeat_interval)
     
     async def _check_client_timeouts(self):
@@ -363,7 +363,7 @@ class CommunicationManagerBase(ABC):
             await self.transport.push_event(self.node_id, target, message_type, data)
             return True
         except Exception as e:
-            print(f"Send control message failed: {e}")
+            self.logger.exception(f"Send control message failed: {e}")
             return False
     
     async def broadcast_message(self, targets: List[str], message_type: str, data: Any) -> Dict[str, bool]:
@@ -374,7 +374,7 @@ class CommunicationManagerBase(ABC):
                 await self.send_control_message(target, message_type, data)
                 results[target] = True
             except Exception as e:
-                print(f"Broadcast to {target} failed: {e}")
+                self.logger.exception(f"Broadcast to {target} failed: {e}")
                 results[target] = False
         
         return results
@@ -436,12 +436,12 @@ class CommunicationManagerBase(ABC):
     async def start(self) -> None:
         """启动通信管理器"""
         self._running = True
-        print(f"[CommunicationManager] 开始启动: {self.node_id}")
+        self.logger.debug(f"[CommunicationManager] 开始启动: {self.node_id}")
         
         # 启动传输层
-        print(f"[CommunicationManager] 启动传输层...")
+        self.logger.debug(f"[CommunicationManager] 启动传输层...")
         await self.transport.start()
-        print(f"[CommunicationManager] 调用start_event_listener: {self.node_id}")
+        self.logger.debug(f"[CommunicationManager] 调用start_event_listener: {self.node_id}")
         await self.transport.start_event_listener(self.node_id)
         
         # 启动服务组件
@@ -483,17 +483,17 @@ class CommunicationManagerBase(ABC):
     
     async def _handle_registry_event(self, event) -> None:
         """处理注册服务事件"""
-        print(f"[基类注册事件处理器] 收到事件: {event.event_type}, 源: {event.source_id}")
-        
+        self.logger.debug(f"[基类注册事件处理器] 收到事件: {event.event_type}, 源: {event.source_id}")
+
         # 由于子类可能有自己的注册逻辑，这里我们不做具体处理
         # 只是确保事件被正确记录
         if hasattr(event, 'event_type'):
-            print(f"[基类注册事件处理器] 事件类型: {event.event_type}")
+            self.logger.debug(f"[基类注册事件处理器] 事件类型: {event.event_type}")
         if hasattr(event, 'source_id'):
-            print(f"[基类注册事件处理器] 事件源: {event.source_id}")
+            self.logger.debug(f"[基类注册事件处理器] 事件源: {event.source_id}")
         if hasattr(event, 'data'):
-            print(f"[基类注册事件处理器] 事件数据: {event.data}")
-        
+            self.logger.debug(f"[基类注册事件处理器] 事件数据: {event.data}")
+
         # 注意：实际的事件处理由 FederationServer 的桥接回调处理
     
     async def _handle_heartbeat_event(self, event) -> None:

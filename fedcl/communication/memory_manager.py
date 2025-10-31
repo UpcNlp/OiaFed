@@ -47,7 +47,7 @@ class MemoryCommunicationManager(CommunicationManagerBase):
                 # 使用通用别名 "server"（服务端会同时注册到实际ID和别名）
                 server_target = self._get_server_target()
 
-                self.logger.info(f"[Client {self.node_id}] 向服务端发送注册请求，目标: {server_target}")
+                self.logger.debug(f"[Client {self.node_id}] 向服务端发送注册请求，目标: {server_target}")
 
                 response_data = await self.transport.send(
                     self.node_id,
@@ -63,13 +63,13 @@ class MemoryCommunicationManager(CommunicationManagerBase):
                     }
                 )
 
-                self.logger.info(f"[Client {self.node_id}] 收到注册响应: {response_data}")
+                self.logger.debug(f"[Client {self.node_id}] 收到注册响应: {response_data}")
 
                 # 解析响应
                 return RegistrationResponse(**response_data) if isinstance(response_data, dict) else RegistrationResponse(success=False, client_id=client_id, error_message="Invalid response")
 
             # === Server 端行为：处理注册请求 ===
-            self.logger.info(f"[Server {self.node_id}] 处理客户端注册请求: {client_id}")
+            self.logger.debug(f"[Server {self.node_id}] 处理客户端注册请求: {client_id}")
 
             # 检查是否已注册
             if client_id in self.clients:

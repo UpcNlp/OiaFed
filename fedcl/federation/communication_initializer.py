@@ -97,7 +97,7 @@ class CommunicationInitializer:
                     communication_manager, connection_manager
                 )
 
-            self.logger.info("✅ Communication stack initialized successfully")
+            self.logger.debug("Communication stack initialized successfully")
 
             return CommunicationComponents(
                 transport=transport,
@@ -148,7 +148,7 @@ class CommunicationInitializer:
         Returns:
             TransportBase: 传输层实例
         """
-        self.logger.info("Creating Layer 5: Transport...")
+        self.logger.debug("Creating Layer 5: Transport...")
 
         transport_config = factory._create_transport_config(
             config_dict,
@@ -158,7 +158,7 @@ class CommunicationInitializer:
 
         transport = factory.create_transport(transport_config, self.mode)
 
-        self.logger.info(f"✓ Layer 5 created: {type(transport).__name__}")
+        self.logger.debug(f"✓ Layer 5 created: {type(transport).__name__}")
 
         return transport
 
@@ -179,7 +179,7 @@ class CommunicationInitializer:
         Returns:
             CommunicationManagerBase: 通信管理层实例
         """
-        self.logger.info("Creating Layer 4: CommunicationManager...")
+        self.logger.debug("Creating Layer 4: CommunicationManager...")
 
         communication_config = factory._create_communication_config(config_dict)
 
@@ -191,7 +191,7 @@ class CommunicationInitializer:
             node_role=self.node_role
         )
 
-        self.logger.info(
+        self.logger.debug(
             f"✓ Layer 4 created: {type(communication_manager).__name__}"
         )
 
@@ -214,7 +214,7 @@ class CommunicationInitializer:
         Returns:
             ConnectionManager: 连接管理层实例
         """
-        self.logger.info("Creating Layer 3: ConnectionManager...")
+        self.logger.debug("Creating Layer 3: ConnectionManager...")
 
         communication_config = factory._create_communication_config(config_dict)
 
@@ -223,7 +223,7 @@ class CommunicationInitializer:
             communication_config
         )
 
-        self.logger.info(
+        self.logger.debug(
             f"✓ Layer 3 created: {type(connection_manager).__name__}"
         )
 
@@ -244,7 +244,7 @@ class CommunicationInitializer:
         Returns:
             BusinessCommunicationLayer: 业务通信层实例
         """
-        self.logger.info("Creating Layer 2: BusinessCommunicationLayer (server only)...")
+        self.logger.debug("Creating Layer 2: BusinessCommunicationLayer (server only)...")
 
         business_layer = BusinessCommunicationLayer()
         business_layer.set_dependencies(
@@ -252,6 +252,6 @@ class CommunicationInitializer:
             connection_manager
         )
 
-        self.logger.info("✓ Layer 2 created: BusinessCommunicationLayer")
+        self.logger.debug("✓ Layer 2 created: BusinessCommunicationLayer")
 
         return business_layer

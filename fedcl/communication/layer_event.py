@@ -50,13 +50,13 @@ class ProxyManagerEventHandler(LayerEventHandler):
     
     def handle_layer_event(self, event_type: str, event_data: Dict[str, Any]):
         """处理代理相关事件"""
-        self.logger.info(f"[第1层-应用层] 代理管理器收到事件: {event_type}, 数据: {event_data}")
+        self.logger.debug(f"[第1层-应用层] 代理管理器收到事件: {event_type}, 数据: {event_data}")
         
         if event_type == "LEARNER_PROXY_READY":
             client_id = event_data["client_id"]
             proxy = event_data["proxy"]
             
-            self.logger.info(f"[第1层-应用层] 学习器代理就绪: {client_id}")
+            self.logger.debug(f"[第1层-应用层] 学习器代理就绪: {client_id}")
             
             # 异步处理代理就绪事件
             import asyncio
@@ -65,7 +65,7 @@ class ProxyManagerEventHandler(LayerEventHandler):
         elif event_type == "LEARNER_PROXY_DISCONNECTED":
             client_id = event_data["client_id"]
             
-            self.logger.info(f"[第1层-应用层] 学习器代理断开: {client_id}")
+            self.logger.debug(f"[第1层-应用层] 学习器代理断开: {client_id}")
             
             # 异步处理代理断开事件
             import asyncio

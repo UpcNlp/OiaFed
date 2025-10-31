@@ -89,23 +89,21 @@ class FederationClient:
             self.system_logger.warning("Client already initialized")
             return False
 
-        self.system_logger.info("="*60)
-        self.system_logger.info("Starting FederationClient initialization...")
-        self.system_logger.info("="*60)
+        self.system_logger.debug("Starting FederationClient initialization...")
 
         try:
             # Phase 1: 初始化通信层（委托给 CommunicationInitializer）
-            self.system_logger.info("Phase 1: Initializing communication layer...")
+            self.system_logger.debug("Phase 1: Initializing communication layer...")
             comm_initializer = CommunicationInitializer(
                 self.comm_config,
                 self.client_id,
                 node_role="client"
             )
             self.comm_components = await comm_initializer.initialize()
-            self.system_logger.info("✓ Phase 1 completed: Communication layer ready")
+            self.system_logger.debug("✓ Phase 1 completed: Communication layer ready")
 
             # Phase 2: 初始化业务层（委托给 BusinessInitializer）
-            self.system_logger.info("Phase 2: Initializing business layer...")
+            self.system_logger.debug("Phase 2: Initializing business layer...")
             business_initializer = BusinessInitializer(
                 self.train_config,
                 node_role="client"
@@ -113,20 +111,20 @@ class FederationClient:
             self.business_components = await business_initializer.initialize_client_components(
                 self.client_id
             )
-            self.system_logger.info("✓ Phase 2 completed: Business layer ready")
+            self.system_logger.debug("✓ Phase 2 completed: Business layer ready")
 
             # Phase 3: 创建 LearnerStub
-            self.system_logger.info("Phase 3: Creating LearnerStub...")
+            self.system_logger.debug("Phase 3: Creating LearnerStub...")
             await self._initialize_learner_stub()
-            self.system_logger.info("✓ Phase 3 completed: LearnerStub created")
+            self.system_logger.debug("✓ Phase 3 completed: LearnerStub created")
 
             self.is_initialized = True
-            self.system_logger.info("FederationClient initialized successfully")
+            self.system_logger.debug("FederationClient initialized successfully")
 
             return True
 
         except Exception as e:
-            self.system_logger.error(f"FederationClient initialization failed: {e}")
+            self.system_logger.exception(f"FederationClient initialization failed: {e}")
             raise FederationError(f"Client initialization failed: {str(e)}")
 
     async def _initialize_learner_stub(self):
@@ -151,7 +149,7 @@ class FederationClient:
             config=stub_config
         )
 
-        self.system_logger.info("LearnerStub created successfully")
+        self.system_logger.debug("LearnerStub created successfully")
 
     async def start_client(self) -> bool:
         """
@@ -177,20 +175,20 @@ class FederationClient:
 
         try:
             # 启动通信层
-            self.system_logger.info("Starting communication layers...")
+            self.system_logger.debug("Starting communication layers...")
 
             if hasattr(self.comm_components.communication_manager, 'start'):
                 await self.comm_components.communication_manager.start()
-                self.system_logger.info("✓ Communication manager started")
+                self.system_logger.debug("✓ Communication manager started")
 
             if hasattr(self.comm_components.connection_manager, 'start'):
                 await self.comm_components.connection_manager.start()
-                self.system_logger.info("✓ Connection manager started")
+                self.system_logger.debug("✓ Connection manager started")
 
             # 启动 LearnerStub（会自动注册到服务端）
-            self.system_logger.info("Starting LearnerStub...")
+            self.system_logger.debug("Starting LearnerStub...")
             await self.learner_stub.start_listening()
-            self.system_logger.info("✓ LearnerStub started")
+            self.system_logger.debug("✓ LearnerStub started")
 
             # 更新注册状态
             self.is_registered = (
@@ -205,7 +203,7 @@ class FederationClient:
                 )
 
             self.is_running = True
-            self.system_logger.info("✅ FederationClient started successfully")
+            self.system_logger.info("FederationClient started successfully")
 
             return True
 
@@ -221,39 +219,39 @@ class FederationClient:
             bool: 停止是否成功
         """
         if not self.is_running:
-            self.system_logger.info("Client not running, nothing to stop")
+            self.system_logger.debug("Client not running, nothing to stop")
             return True
 
-        self.system_logger.info("Stopping FederationClient...")
+        self.system_logger.debug("Stopping FederationClient...")
 
         try:
             # 从服务端注销
             if self.is_registered and self.learner_stub:
                 await self.learner_stub.unregister_from_server()
                 self.is_registered = False
-                self.system_logger.info("✓ Client unregistered from server")
+                self.system_logger.debug("✓ Client unregistered from server")
 
             # 停止 LearnerStub
             if self.learner_stub:
                 await self.learner_stub.stop_listening()
-                self.system_logger.info("✓ LearnerStub stopped")
+                self.system_logger.debug("✓ LearnerStub stopped")
 
             # 停止通信层
             if self.comm_components:
                 if hasattr(self.comm_components.connection_manager, 'stop'):
                     await self.comm_components.connection_manager.stop()
-                    self.system_logger.info("✓ Connection manager stopped")
+                    self.system_logger.debug("✓ Connection manager stopped")
 
                 if hasattr(self.comm_components.communication_manager, 'stop'):
                     await self.comm_components.communication_manager.stop()
-                    self.system_logger.info("✓ Communication manager stopped")
+                    self.system_logger.debug("✓ Communication manager stopped")
 
                 if hasattr(self.comm_components.transport, 'stop'):
                     await self.comm_components.transport.stop()
-                    self.system_logger.info("✓ Transport stopped")
+                    self.system_logger.debug("✓ Transport stopped")
 
             self.is_running = False
-            self.system_logger.info("✅ FederationClient stopped successfully")
+            self.system_logger.debug("FederationClient stopped successfully")
 
             return True
 

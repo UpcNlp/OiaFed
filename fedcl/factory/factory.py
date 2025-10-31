@@ -28,6 +28,8 @@ from ..types import (
     FederationConfig
 )
 
+from ..utils.auto_logger import get_sys_logger
+
 
 @dataclass
 class TrainerComponents:
@@ -70,7 +72,7 @@ class ComponentFactory:
         
         # 保存配置
         self.config = config
-        
+        self.logger = get_sys_logger()
         # Transport类映射 - Process和Network都使用NetworkTransport
         self._transport_classes = {
             CommunicationMode.MEMORY: MemoryTransport,
@@ -495,9 +497,9 @@ class ComponentFactory:
             if "port" not in specific_config or specific_config["port"] == "" or specific_config["port"] is None or specific_config["port"] <= 0:
                 specific_config["port"] = 8000 if (node_role.lower() == "server") else 0
             else:
-                print(f"[Factory] 使用配置端口: {specific_config['port']}")
+                self.logger.debug(f"[Factory] 使用配置端口: {specific_config['port']}")
 
-        print(f"[Factory] transport最终specific_config : {specific_config}")
+        self.logger.debug(f"[Factory] transport最终specific_config : {specific_config}")
 
         return TransportConfig(
             type=str(mode.value),

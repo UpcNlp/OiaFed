@@ -109,7 +109,7 @@ class BusinessInitializer:
         Raises:
             ValueError: 如果配置缺失或组件未找到
         """
-        self.logger.info("Initializing client business components...")
+        self.logger.debug("Initializing client business components...")
 
         try:
             # 1. 导入组件模块（触发装饰器注册）
@@ -121,7 +121,7 @@ class BusinessInitializer:
             # 3. 创建数据集（可选）
             dataset = self._create_dataset_from_config()
 
-            self.logger.info("✅ Client business components initialized successfully")
+            self.logger.debug("Client business components initialized successfully")
 
             return ClientBusinessComponents(
                 learner=learner,
@@ -129,7 +129,7 @@ class BusinessInitializer:
             )
 
         except Exception as e:
-            self.logger.error(f"Client business components initialization failed: {e}")
+            self.logger.exception(f"Client business components initialization failed: {e}")
             raise
 
     def _import_component_modules(self):
@@ -147,11 +147,11 @@ class BusinessInitializer:
         for module_name in components:
             try:
                 __import__(module_name)
-                self.logger.info(f"✓ Imported component module: {module_name}")
+                self.logger.debug(f"✓ Imported component module: {module_name}")
             except ImportError as e:
                 self.logger.warning(f"✗ Failed to import module: {module_name} - {e}")
             except Exception as e:
-                self.logger.error(f"✗ Error importing module: {module_name} - {e}")
+                self.logger.exception(f"✗ Error importing module: {module_name} - {e}")
 
     def _create_trainer_from_config(self, global_model: ModelData) -> BaseTrainer:
         """
@@ -184,7 +184,7 @@ class BusinessInitializer:
             training_config=trainer_params,
         )
 
-        self.logger.info(f"✓ Trainer created: {trainer_class.__name__}")
+        self.logger.debug(f"Trainer created: {trainer_class.__name__}")
 
         return trainer
 

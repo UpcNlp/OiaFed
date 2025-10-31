@@ -68,7 +68,7 @@ class StatusManagementService:
         # 启动状态收集任务
         self._collection_task = asyncio.create_task(self._status_collection_loop())
         
-        self.logger.info(f"Status management service started (collection_interval={self.collection_interval}s)")
+        self.logger.debug(f"Status management service started (collection_interval={self.collection_interval}s)")
     
     async def stop(self) -> None:
         """停止状态管理服务"""
@@ -86,7 +86,7 @@ class StatusManagementService:
                 pass
             self._collection_task = None
         
-        self.logger.info("Status management service stopped")
+        self.logger.debug("Status management service stopped")
     
     async def update_client_status(self, client_id: str, status_updates: Dict[str, Any]) -> bool:
         """更新客户端状态
