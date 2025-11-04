@@ -284,9 +284,7 @@ async def main():
                         "local_epochs": 1,
                         "learning_rate": 0.01
                     }
-                },
-                max_rounds=args.rounds,
-                min_clients=2
+                }
             )
 
         # 创建服务器

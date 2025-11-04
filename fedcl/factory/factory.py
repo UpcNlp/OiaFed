@@ -517,20 +517,20 @@ class ComponentFactory:
                 # 如果明确配置了端口，即使是0也要使用（用户可能就是想要随机端口）
                 self.logger.info(f"[Factory] 使用配置端口: {specific_config['port']} (role={node_role})")
 
-            # ✅ 客户端专用：处理服务器地址配置
-            # 支持两种格式：
-            # 1. server: {host: "...", port: ...}  (嵌套格式)
-            # 2. server_host/server_port (平铺格式)
-            if node_role and node_role.lower() == "client":
-                # 如果有 server 嵌套配置，展开为 server_host 和 server_port
-                if "server" in specific_config and isinstance(specific_config["server"], dict):
-                    server_config = specific_config["server"]
-                    if "host" in server_config and "server_host" not in specific_config:
-                        specific_config["server_host"] = server_config["host"]
-                        self.logger.debug(f"[Factory] 从 server.host 提取服务器地址: {specific_config['server_host']}")
-                    if "port" in server_config and "server_port" not in specific_config:
-                        specific_config["server_port"] = server_config["port"]
-                        self.logger.debug(f"[Factory] 从 server.port 提取服务器端口: {specific_config['server_port']}")
+            # # ✅ 客户端专用：处理服务器地址配置
+            # # 支持两种格式：
+            # # 1. server: {host: "...", port: ...}  (嵌套格式)
+            # # 2. server_host/server_port (平铺格式)
+            # if node_role and node_role.lower() == "client":
+            #     # 如果有 server 嵌套配置，展开为 server_host 和 server_port
+            #     if "server" in specific_config and isinstance(specific_config["server"], dict):
+            #         server_config = specific_config["server"]
+            #         if "host" in server_config and "server_host" not in specific_config:
+            #             specific_config["server_host"] = server_config["host"]
+            #             self.logger.debug(f"[Factory] 从 server.host 提取服务器地址: {specific_config['server_host']}")
+            #         if "port" in server_config and "server_port" not in specific_config:
+            #             specific_config["server_port"] = server_config["port"]
+            #             self.logger.debug(f"[Factory] 从 server.port 提取服务器端口: {specific_config['server_port']}")
 
         self.logger.debug(f"[Factory] transport最终specific_config : {specific_config}")
 
