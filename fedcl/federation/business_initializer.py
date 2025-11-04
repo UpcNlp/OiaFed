@@ -178,15 +178,31 @@ class BusinessInitializer:
         # 从注册表获取 Trainer 类
         trainer_class = self._get_component_from_registry(trainer_name, "trainer")
 
-        # 检查是否有 parsed_config（新的统一初始化策略）
-        if hasattr(self.train_config, 'parsed_config') and self.train_config.parsed_config:
-            # 使用统一初始化策略
+        # 智能检测初始化方式：检查 Trainer 类的 __init__ 签名
+        import inspect
+        sig = inspect.signature(trainer_class.__init__)
+        param_names = [p.name for p in sig.parameters.values() if p.name != 'self']
+
+        # 如果第一个参数是 'config'，使用新的统一初始化策略
+        if param_names and param_names[0] == 'config':
+            # 新的统一初始化策略
+            self.logger.debug(f"使用新的统一初始化策略创建 Trainer: {trainer_name}")
+
+            # 构建完整的配置字典
+            full_config = {
+                'trainer': self.train_config.trainer,
+                'global_model': self.train_config.global_model,
+                'max_rounds': getattr(self.train_config, 'max_rounds', 100),
+                'min_clients': getattr(self.train_config, 'min_clients', 2),
+            }
+
             trainer = trainer_class(
-                config=self.train_config.parsed_config,
+                config=full_config,
                 lazy_init=True
             )
         else:
-            # 使用旧的初始化方式（向后兼容）
+            # 旧的初始化方式（向后兼容）
+            self.logger.debug(f"使用旧的初始化方式创建 Trainer: {trainer_name}")
             trainer = trainer_class(
                 global_model=global_model,
                 training_config=trainer_params,
@@ -221,16 +237,32 @@ class BusinessInitializer:
         # 从注册表获取 Learner 类
         learner_class = self._get_component_from_registry(learner_name, "learner")
 
-        # 检查是否有 parsed_config（新的统一初始化策略）
-        if hasattr(self.train_config, 'parsed_config') and self.train_config.parsed_config:
-            # 使用统一初始化策略
+        # 智能检测初始化方式：检查 Learner 类的 __init__ 签名
+        import inspect
+        sig = inspect.signature(learner_class.__init__)
+        param_names = [p.name for p in sig.parameters.values() if p.name != 'self']
+
+        # Learner 的新签名是：__init__(self, client_id, config, lazy_init)
+        # 第一个参数应该是 client_id
+        if param_names and param_names[0] == 'client_id':
+            # 标准的 BaseLearner 签名
+            self.logger.debug(f"使用标准签名创建 Learner: {learner_name}")
+
+            # 构建完整的配置字典
+            full_config = {
+                'learner': self.train_config.learner,
+                'dataset': self.train_config.dataset,
+                'local_model': self.train_config.local_model,
+            }
+
             learner = learner_class(
                 client_id=client_id,
-                config=self.train_config.parsed_config,
+                config=full_config,
                 lazy_init=True
             )
         else:
-            # 使用旧的初始化方式（向后兼容）
+            # 旧的初始化方式（向后兼容）
+            self.logger.debug(f"使用旧的初始化方式创建 Learner: {learner_name}")
             learner = learner_class(
                 client_id=client_id,
                 config=learner_params,
@@ -275,12 +307,12 @@ class BusinessInitializer:
         Returns:
             ModelData: 全局模型数据
         """
-        if not self.train_config.model:
+        if not self.train_config.global_model:
             # 使用默认模型
-            self.logger.info("No model config, using default initial weights")
+            self.logger.info("No global_model config, using default initial weights")
             return {"weights": 1.0, "round": 0}
 
-        model_config = self.train_config.model
+        model_config = self.train_config.global_model
 
         # 方式1：从检查点加载
         checkpoint_path = model_config.get("checkpoint")

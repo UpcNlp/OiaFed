@@ -39,7 +39,7 @@ class NetworkTransport(TransportBase):
         super().__init__(config)
 
         # 服务端配置
-        self.host = config.specific_config.get("host", "0.0.0.0")
+        self.host = config.specific_config.get("host", "127.0.0.1")  # 默认使用本地地址
         self.port = config.specific_config.get("port", 8000)
 
         self.websocket_port = config.specific_config.get("websocket_port", 9501)  # 改为9501避免冲突

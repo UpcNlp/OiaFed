@@ -1,0 +1,47 @@
+# Network 模式客户端1配置（新架构）
+# 用于跨机器的联邦学习测试
+
+# ==================== 节点基本信息 ====================
+role: client  # 节点角色：server 或 client
+mode: network  # 通信模式：memory, process, network
+node_id: network_client_1  # 节点ID
+
+# ==================== 传输层配置 ====================
+transport:
+  type: websocket
+  host: "0.0.0.0"  # 监听所有网络接口（服务器需要回调客户端）
+  port: 0  # HTTP端口（客户端端口）
+  websocket_port: 9502  # WebSocket端口
+  timeout: 60.0
+  retry_attempts: 5
+  ssl_enabled: false
+
+  # 服务器地址（客户端需要连接的服务器）
+  server:
+    host: "192.168.31.68"  # 服务端IP地址（需要根据实际情况修改）
+    port: 8000  # 服务端端口
+
+# ==================== 通信层配置 ====================
+communication:
+  heartbeat_interval: 30.0
+  heartbeat_timeout: 90.0
+  rpc_timeout: 180.0
+
+# ==================== 学习器配置 ====================
+training:
+  # Learner配置
+  learner:
+    name: SimpleNetworkLearner  # Learner名称
+    params:
+      local_epochs: 1
+      learning_rate: 0.01
+      batch_size: 32
+      sample_count: 1000  # 本地样本数量
+
+  # Stub配置
+  stub:
+    auto_register: true  # 自动注册到服务器
+    registration_retry_attempts: 5
+    registration_retry_delay: 5.0
+    request_timeout: 180.0
+    max_concurrent_requests: 5

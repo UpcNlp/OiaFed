@@ -40,7 +40,7 @@ class BaseLearner(ABC):
         self.logger = get_train_logger(client_id)
 
         # 提取learner自己的配置参数
-        learner_config = self.config.get('learner', {})
+        learner_config = self.config.get('learner') or {}
         learner_params = learner_config.get('params', {})
 
         # 应用learner参数到实例属性
@@ -48,7 +48,7 @@ class BaseLearner(ABC):
             setattr(self, key, value)
 
         # 向后兼容：保留旧字段
-        self.model_config = self.config.get('local_model', {}).get('params', {})
+        self.model_config = (self.config.get('local_model') or {}).get('params', {})
         self.training_config = learner_params
 
         # 内部状态

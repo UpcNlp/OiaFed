@@ -837,7 +837,7 @@ class LearnerStub:
 
         Returns:
             Dict包含:
-            - host: 客户端监听的主机地址
+            - host: 客户端监听的主机地址（可连接的地址）
             - port: 客户端监听的端口
             - url: 完整的URL地址（http://host:port）
         """
@@ -847,6 +847,39 @@ class LearnerStub:
             # 从transport获取实际监听的地址和端口
             host = getattr(transport, 'host', '127.0.0.1')
             port = getattr(transport, 'port', None)
+
+            # ✅ 智能转换 0.0.0.0 为可连接的地址
+            if host == '0.0.0.0' or host == '' or host is None:
+                # 检测通信模式
+                comm_config = getattr(self.communication_manager, 'config', None)
+                mode = getattr(comm_config, 'mode', 'process') if comm_config else 'process'
+
+                if mode == 'network':
+                    # Network 模式：尝试获取实际的网卡 IP
+                    try:
+                        import socket
+                        # 获取本机的实际 IP 地址（不是 127.0.0.1）
+                        s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+                        try:
+                            # 连接到外部地址（不会真正发送数据）
+                            s.connect(('8.8.8.8', 80))
+                            actual_ip = s.getsockname()[0]
+                        finally:
+                            s.close()
+
+                        if actual_ip and actual_ip != '0.0.0.0':
+                            host = actual_ip
+                            self.logger.info(f"Network模式：将监听地址 0.0.0.0 转换为网卡地址: {host}")
+                        else:
+                            host = '127.0.0.1'
+                            self.logger.warning(f"Network模式：无法获取网卡IP，使用本地地址: {host}")
+                    except Exception as e:
+                        host = '127.0.0.1'
+                        self.logger.warning(f"Network模式：获取网卡IP失败({e})，使用本地地址: {host}")
+                else:
+                    # Process 模式：使用本地地址
+                    host = '127.0.0.1'
+                    self.logger.debug(f"Process模式：将监听地址 0.0.0.0 转换为本地地址: {host}")
 
             # Process模式和Network模式都使用NetworkTransport
             # 需要获取HTTP服务器的实际端口
@@ -865,6 +898,8 @@ class LearnerStub:
             else:
                 url = None
 
+            self.logger.debug(f"客户端注册地址: host={host}, port={port}, url={url}")
+
             return {
                 "host": host,
                 "port": port,
@@ -873,7 +908,7 @@ class LearnerStub:
         except Exception as e:
             self.logger.warning(f"Failed to get client address: {e}")
             return {
-                "host": "unknown",
+                "host": "127.0.0.1",
                 "port": 0,
                 "url": None
             }

@@ -14,20 +14,22 @@ import asyncio
 import sys
 from pathlib import Path
 from typing import Dict, Any, List
+
 import numpy as np
 import torch
 import torch.nn as nn
 import torch.optim as optim
-from torch.utils.data import DataLoader, Subset
 import torchvision
 import torchvision.transforms as transforms
+from torchvision import datasets
+from torch.utils.data import DataLoader, Subset
 
 # 添加项目路径
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
 from fedcl.learner.base_learner import BaseLearner
 from fedcl.trainer.trainer import BaseTrainer
-from fedcl.types import TrainingRequest, TrainingResponse
+from fedcl.types import TrainingResponse
 from fedcl import FederatedLearning
 
 # 导入新实现的数据集和模型管理
@@ -466,8 +468,24 @@ class FedAvgMNISTTrainer(BaseTrainer):
 
         # 组件占位符（延迟加载）
         self._global_model_obj = None
+        self._test_loader = None  # 服务器端测试数据加载器
 
         self.logger.info("FedAvgMNISTTrainer初始化完成")
+
+    @property
+    def test_loader(self):
+        """延迟加载服务器端测试数据集"""
+        if self._test_loader is None:
+            self.logger.info("加载服务器端MNIST测试数据集...")
+            # 加载完整的MNIST测试集（10000个样本）
+            transform = transforms.Compose([
+                transforms.ToTensor(),
+                transforms.Normalize((0.1307,), (0.3081,))
+            ])
+            test_dataset = datasets.MNIST('./data', train=False, download=True, transform=transform)
+            self._test_loader = DataLoader(test_dataset, batch_size=1000, shuffle=False)
+            self.logger.info(f"服务器端测试集加载完成: {len(test_dataset)} 个样本")
+        return self._test_loader
 
     def _create_default_global_model(self):
         """创建默认全局模型"""
@@ -625,62 +643,50 @@ class FedAvgMNISTTrainer(BaseTrainer):
         return aggregated_weights
 
     async def evaluate_global_model(self) -> Dict[str, Any]:
-        """评估全局模型"""
-        self.logger.info("  Evaluating global model...")
+        """评估全局模型（服务器端评估）
 
-        available_clients = self.get_available_clients()
-        if not available_clients:
-            return {"accuracy": 0.0, "loss": float('inf'), "samples_count": 0}
+        在服务器端使用独立的测试集直接评估全局模型，
+        而不是通过客户端评估，这样更快速、可靠。
+        """
+        self.logger.info("  在服务器端评估全局模型...")
 
-        # 准备全局模型数据（直接传递torch.Tensor，框架会自动序列化）
-        global_model_data = {
-            "model_weights": self.global_model_obj.get_weights_as_dict()
-        }
+        # 获取全局模型和测试数据
+        model = self.global_model_obj
+        test_loader = self.test_loader
 
-        # 并行评估
-        tasks = []
-        for client_id in available_clients:
-            proxy = self._proxy_manager.get_proxy(client_id)
-            if proxy:
-                task = proxy.evaluate(global_model_data)
-                tasks.append(task)
+        # 设置为评估模式
+        model.eval()
 
-        results = await asyncio.gather(*tasks, return_exceptions=True)
+        test_loss = 0.0
+        correct = 0
+        total = 0
 
-        # 处理结果 - 注意：proxy.evaluate() 返回的是 TrainingResponse 对象
-        valid_results = []
-        for r in results:
-            if not isinstance(r, Exception):
-                # 检查是否是 TrainingResponse 对象
-                if hasattr(r, 'result') and hasattr(r, 'success'):
-                    # 是 TrainingResponse 对象，提取 result 字段
-                    if r.success and r.result:
-                        valid_results.append(r.result)
-                elif isinstance(r, dict):
-                    # 是字典，直接使用
-                    valid_results.append(r)
+        device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+        model = model.to(device)
+        criterion = nn.CrossEntropyLoss()
 
-        if not valid_results:
-            return {"accuracy": 0.0, "loss": float('inf'), "samples_count": 0}
+        with torch.no_grad():
+            for data, target in test_loader:
+                data, target = data.to(device), target.to(device)
+                output = model(data)
+                test_loss += criterion(output, target).item() * data.size(0)
+                pred = output.argmax(dim=1, keepdim=True)
+                correct += pred.eq(target.view_as(pred)).sum().item()
+                total += data.size(0)
 
-        total_samples = sum(r.get("samples", 0) for r in valid_results)
-        if total_samples == 0:
-            return {"accuracy": 0.0, "loss": float('inf'), "samples_count": 0}
+        accuracy = correct / total if total > 0 else 0.0
+        avg_loss = test_loss / total if total > 0 else float('inf')
 
-        weighted_accuracy = sum(r["accuracy"] * r.get("samples", 1) for r in valid_results) / total_samples
-        weighted_loss = sum(r["loss"] * r.get("samples", 1) for r in valid_results) / total_samples
+        self.logger.info(f"  服务器端评估结果: Acc={accuracy:.4f}, Loss={avg_loss:.4f}, Samples={total}")
 
         return {
-            "accuracy": weighted_accuracy,
-            "loss": weighted_loss,
-            "samples_count": total_samples
+            "accuracy": accuracy,
+            "loss": avg_loss,
+            "samples_count": total
         }
 
     def should_stop_training(self, round_num: int, round_result: Dict[str, Any]) -> bool:
         """判断是否应该停止训练"""
-        # 检查最大轮次
-        if round_num >= self.training_config.max_rounds:
-            return True
 
         # 检查准确率收敛
         round_metrics = round_result.get("round_metrics", {})
@@ -721,19 +727,19 @@ async def demo_real_mnist_training():
     真实MNIST联邦学习演示（使用统一初始化策略）
     """
     print("=" * 80)
-    print("🚀 MNIST联邦学习真实训练演示（统一初始化策略）")
+    print("[Start] MNIST联邦学习真实训练演示（统一初始化策略）")
     print("=" * 80)
 
-    # 🔧 清理Memory模式的共享状态
+    # 清理Memory模式的共享状态
     from fedcl.communication.memory_manager import MemoryCommunicationManager
     from fedcl.transport.memory import MemoryTransport
-    print("\n🧹 清理Memory模式共享状态...")
+    print("\n[Cleanup] 清理Memory模式共享状态...")
     MemoryCommunicationManager.clear_global_state()
     MemoryTransport.clear_global_state()
-    print("✅ 共享状态已清理\n")
+    print("[OK] 共享状态已清理\n")
 
     # 显示已注册的组件
-    print("📋 已注册组件:")
+    print("[Components] 已注册组件:")
     print(f"  Datasets: {list(registry.datasets.keys())}")
     print(f"  Models: {list(registry.models.keys())}")
     print(f"  Trainers: {list(registry.trainers.keys())}")
@@ -849,22 +855,22 @@ async def demo_real_mnist_training():
 
     try:
         # 初始化系统
-        print("\n🔧 初始化联邦学习系统...")
+        print("\n[Init] 初始化联邦学习系统...")
         await fl.initialize()
-        print("✅ 系统初始化完成")
+        print("[OK] 系统初始化完成")
 
         # 运行训练
         print("\n" + "=" * 80)
-        print("🏋️ 开始真实MNIST训练...")
+        print("[Training] 开始真实MNIST训练...")
         print("=" * 80)
 
         result = await fl.run(max_rounds=5)
 
         # 显示结果
         print("\n" + "=" * 80)
-        print("🎉 训练完成！")
+        print("[Done] 训练完成！")
         print("=" * 80)
-        print(f"\n📊 训练结果:")
+        print(f"\n[Results] 训练结果:")
         print(f"  完成轮数: {result.completed_rounds}/{result.total_rounds}")
         print(f"  终止原因: {result.termination_reason}")
         print(f"  最终准确率: {result.final_accuracy:.4f}")
@@ -872,7 +878,7 @@ async def demo_real_mnist_training():
         print(f"  总时间: {result.total_time:.2f}秒")
 
         # 显示训练轨迹
-        print(f"\n📈 训练轨迹:")
+        print(f"\n[History] 训练轨迹:")
         for i, round_result in enumerate(result.training_history):
             metrics = round_result.get("round_metrics", {})
             print(f"  Round {i+1}: Loss={metrics.get('avg_loss', 0):.4f}, "
@@ -883,7 +889,7 @@ async def demo_real_mnist_training():
         # 清理资源
         await fl.cleanup()
 
-    print("\n✅ 演示完成!")
+    print("\n[OK] 演示完成!")
 
 # ==================== 6. 程序入口 ====================
 
@@ -892,20 +898,20 @@ if __name__ == "__main__":
     print("MOE-FedCL 真实MNIST联邦学习演示")
     print("=" * 80)
     print("\n特性:")
-    print("  ✅ 真实MNIST数据集加载和划分")
-    print("  ✅ 真实CNN模型训练")
-    print("  ✅ FedAvg聚合算法")
-    print("  ✅ 装饰器注册组件")
-    print("  ✅ 配置文件驱动")
-    print("  ✅ 异步训练和评估")
+    print("  [OK] 真实MNIST数据集加载和划分")
+    print("  [OK] 真实CNN模型训练")
+    print("  [OK] FedAvg聚合算法")
+    print("  [OK] 装饰器注册组件")
+    print("  [OK] 配置文件驱动")
+    print("  [OK] 异步训练和评估")
     print()
 
     # 运行演示
     try:
         asyncio.run(demo_real_mnist_training())
     except KeyboardInterrupt:
-        print("\n❌ 被用户中断")
+        print("\n[X] 被用户中断")
     except Exception as e:
-        print(f"\n❌ 演示失败: {e}")
+        print(f"\n[Error] 演示失败: {e}")
         import traceback
         traceback.print_exc()

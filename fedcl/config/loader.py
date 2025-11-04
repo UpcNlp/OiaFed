@@ -238,7 +238,17 @@ class ConfigLoader:
         config_dict = ConfigLoader.load_with_inheritance(file_path)
 
         # 分离通信配置和训练配置
-        comm_dict = config_dict.get('communication', {})
+        # 注意：通信配置可能分布在两个地方：
+        # 1. 顶层字段：mode, role, node_id, transport
+        # 2. communication 部分：heartbeat, rpc等设置
+        comm_dict = config_dict.get('communication', {}).copy()
+
+        # 合并顶层的通信字段到 comm_dict
+        top_level_comm_fields = {'mode', 'role', 'node_id', 'transport'}
+        for field in top_level_comm_fields:
+            if field in config_dict:
+                comm_dict[field] = config_dict[field]
+
         train_dict = config_dict.get('training', {})
 
         # 创建配置对象
@@ -253,8 +263,8 @@ class ConfigLoader:
         智能加载配置（自动判断格式）
 
         支持两种格式：
-        1. 合并格式：包含 communication 和 training 两个部分
-        2. 分离格式：只包含其中一个部分
+        1. 分离格式：包含 communication 和 training 两个顶层键
+        2. 扁平格式：直接在顶层包含所有字段
 
         Args:
             file_path: 配置文件路径
@@ -266,34 +276,62 @@ class ConfigLoader:
         config_dict = ConfigLoader.load_with_inheritance(file_path)
 
         # 判断配置格式
-        has_communication = 'communication' in config_dict
-        has_training = 'training' in config_dict
+        has_communication_section = 'communication' in config_dict
+        has_training_section = 'training' in config_dict
 
-        if has_communication and has_training:
-            # 合并格式
+        # 先检查是否有扁平格式的通信/训练字段（在处理 section 格式之前）
+        comm_fields = {'mode', 'role', 'node_id', 'transport'}  # 不包含 'communication'，避免误判
+        train_fields = {'trainer', 'learner', 'aggregator', 'evaluator',
+                       'global_model', 'local_model', 'dataset',
+                       'max_rounds', 'min_clients', 'components'}  # 不包含 'training'
+        has_comm_fields_toplevel = any(f in config_dict for f in comm_fields)
+        has_train_fields_toplevel = any(f in config_dict for f in train_fields)
+
+        # 方式1：分离格式（有独立的 communication 和 training 部分）
+        if has_communication_section and has_training_section:
             return ConfigLoader.load_combined(file_path)
-        elif has_communication:
-            # 只有通信配置
+        elif has_communication_section:
+            # 只有通信配置部分
             comm_config = ConfigLoader.dict_to_config(config_dict['communication'], CommunicationConfig)
             train_config = TrainingConfig()  # 默认训练配置
             return comm_config, train_config
-        elif has_training:
-            # 只有训练配置
+        elif has_training_section and not has_comm_fields_toplevel:
+            # 只有训练配置部分，且顶层没有通信字段
             comm_config = CommunicationConfig()  # 默认通信配置
             train_config = ConfigLoader.dict_to_config(config_dict['training'], TrainingConfig)
             return comm_config, train_config
-        else:
-            # 尝试作为通信配置解析（根据是否有 mode/role 字段判断）
-            if 'mode' in config_dict or 'role' in config_dict:
-                comm_config = ConfigLoader.dict_to_config(config_dict, CommunicationConfig)
-                train_config = TrainingConfig()
-            # 尝试作为训练配置解析（根据是否有 trainer/learner 字段判断）
-            elif 'trainer' in config_dict or 'learner' in config_dict:
-                comm_config = CommunicationConfig()
-                train_config = ConfigLoader.dict_to_config(config_dict, TrainingConfig)
-            else:
-                # 无法判断，返回默认配置
-                comm_config = CommunicationConfig()
-                train_config = TrainingConfig()
 
+        # 方式2：扁平格式（所有字段在顶层）或混合格式（training section + 顶层通信字段）
+        has_comm_fields = has_comm_fields_toplevel or has_communication_section
+        has_train_fields = has_train_fields_toplevel or has_training_section
+
+        if has_comm_fields or has_train_fields:
+            # 提取通信配置
+            comm_dict = {}
+            if has_comm_fields_toplevel:
+                # 从顶层提取通信字段
+                for key in comm_fields:
+                    if key in config_dict:
+                        comm_dict[key] = config_dict[key]
+
+            # 提取训练配置
+            train_dict = {}
+            if has_training_section:
+                # 如果有 training section，使用其内容
+                train_dict = config_dict['training']
+            elif has_train_fields_toplevel:
+                # 从顶层提取训练字段
+                for key in train_fields:
+                    if key in config_dict:
+                        train_dict[key] = config_dict[key]
+
+            # 创建配置对象
+            comm_config = ConfigLoader.dict_to_config(comm_dict, CommunicationConfig) if comm_dict else CommunicationConfig()
+            train_config = ConfigLoader.dict_to_config(train_dict, TrainingConfig) if train_dict else TrainingConfig()
+            return comm_config, train_config
+
+        else:
+            # 无法判断，返回默认配置
+            comm_config = CommunicationConfig()
+            train_config = TrainingConfig()
             return comm_config, train_config

@@ -125,11 +125,29 @@ class CommunicationInitializer:
         config_dict["mode"] = self.comm_config.mode
         config_dict["node_id"] = self.node_id
 
-        # 合并 transport 配置
+        # ✅ 正确保留 transport 配置的嵌套结构
+        # 不要使用 update()，这会把 transport 字典的内容展开到顶层
         if hasattr(self.comm_config, "transport") and self.comm_config.transport:
-            config_dict.update(self.comm_config.transport)
+            # 确保 transport 字段正确嵌套在配置字典中
+            if "transport" not in config_dict or not config_dict["transport"]:
+                config_dict["transport"] = {}
 
-        self.logger.debug(f"Prepared config dict: mode={config_dict.get('mode')}")
+            # 保留 transport 的完整结构
+            config_dict["transport"].update(self.comm_config.transport)
+
+            # 确保有 specific_config 字段
+            if "specific_config" not in config_dict["transport"]:
+                config_dict["transport"]["specific_config"] = {}
+
+            # 将顶层的 host, port 等字段移到 specific_config 中（如果存在）
+            transport_keys = ["host", "port", "websocket_port", "timeout", "type"]
+            for key in transport_keys:
+                if key in config_dict["transport"]:
+                    # 如果在 transport 顶层，移到 specific_config
+                    if key not in config_dict["transport"]["specific_config"]:
+                        config_dict["transport"]["specific_config"][key] = config_dict["transport"][key]
+
+        self.logger.debug(f"Prepared config dict: mode={config_dict.get('mode')}, transport={config_dict.get('transport')}")
 
         return config_dict
 

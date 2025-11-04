@@ -445,7 +445,7 @@ class ComponentFactory:
         elif mode_enum == CommunicationMode.NETWORK:
             base_config["transport"]["specific_config"] = {
                 "protocol": "http",
-                "host": "0.0.0.0",
+                "host": "127.0.0.1",  # 默认使用本地地址
                 "port": 8000,
                 "websocket_port": 8001,
                 "ssl_enabled": False,
@@ -484,27 +484,45 @@ class ComponentFactory:
         # 获取特定配置
         specific_config = transport_config.get("specific_config", {}).copy()
 
+        # ✅ 关键修复：如果 transport 字典顶层有配置字段，也要复制到 specific_config
+        # 这样可以支持两种配置方式：
+        # 1. transport: {host: "127.0.0.1", port: 8000}
+        # 2. transport: {specific_config: {host: "127.0.0.1", port: 8000}}
+        for key in ["host", "port", "websocket_port", "timeout", "type", "server"]:
+            if key in transport_config and key not in specific_config:
+                specific_config[key] = transport_config[key]
+
         # 添加节点角色到配置中（用于 NetworkTransport）
         if node_role is not None:
             specific_config["node_role"] = node_role
 
-        # Process模式和Network模式下，添加主机和端口到配置中
+        # Process模式和Network模式下，处理主机和端口配置
         if mode == CommunicationMode.PROCESS or mode == CommunicationMode.NETWORK:
-            # 如果没有指定主机，使用本地主机
-            if "host" not in specific_config or specific_config["host"] == "" or specific_config["host"] is None:
-                specific_config["host"] = "0.0.0.0"
-            # 如果没有指定端口，服务器端口为8000，客户端端口为0（随机端口）
-            if "port" not in specific_config or specific_config["port"] == "" or specific_config["port"] is None or specific_config["port"] <= 0:
-                specific_config["port"] = 8000 if (node_role.lower() == "server") else 0
+            # ✅ 主机处理：根据模式使用不同的默认值
+            if "host" not in specific_config or specific_config["host"] is None or specific_config["host"] == "":
+                # process模式: 默认 127.0.0.1
+                # network模式: 默认 0.0.0.0
+                default_host = "127.0.0.1" if mode == CommunicationMode.PROCESS else "0.0.0.0"
+                specific_config["host"] = default_host
+                self.logger.debug(f"[Factory] 使用默认主机: {default_host} (mode={mode.value})")
             else:
-                self.logger.debug(f"[Factory] 使用配置端口: {specific_config['port']}")
+                self.logger.debug(f"[Factory] 使用配置主机: {specific_config['host']}")
+
+            # ✅ 端口处理：只在未配置或配置为None时才使用默认值
+            if "port" not in specific_config or specific_config["port"] is None:
+                # 服务器默认8000，客户端默认0（自动分配）
+                specific_config["port"] = 8000 if (node_role and node_role.lower() == "server") else 0
+                self.logger.debug(f"[Factory] 使用默认端口: {specific_config['port']} (role={node_role})")
+            else:
+                # 如果明确配置了端口，即使是0也要使用（用户可能就是想要随机端口）
+                self.logger.info(f"[Factory] 使用配置端口: {specific_config['port']} (role={node_role})")
 
         self.logger.debug(f"[Factory] transport最终specific_config : {specific_config}")
 
         return TransportConfig(
             type=str(mode.value),
             node_id=node_id,
-            timeout=transport_config.get("timeout", 30.0),
+            timeout=transport_config.get("timeout", specific_config.get("timeout", 30.0)),
             retry_attempts=transport_config.get("retry_attempts", 3),
             specific_config=specific_config
         )
@@ -687,7 +705,7 @@ def create_process_client(learner: BaseLearner,
 
 def create_network_server(trainer: BaseTrainer,
                          clients_config: Dict[str, Dict[str, Any]],
-                         host: str = "0.0.0.0",
+                         host: str = "127.0.0.1",  # 默认使用本地地址
                          port: int = 8000) -> TrainerComponents:
     """便捷创建Network模式服务端
     

@@ -51,9 +51,11 @@ class FederationClient:
         self.comm_config = communication_config
         self.train_config = training_config
 
+        # 先设置 mode（_generate_client_id 需要使用）
+        self.mode = CommunicationMode(communication_config.mode)
+
         # 确定 client_id
         self.client_id = client_id or communication_config.node_id or self._generate_client_id()
-        self.mode = CommunicationMode(communication_config.mode)
 
         # 组件引用
         self.comm_components: Optional[CommunicationComponents] = None

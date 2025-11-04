@@ -19,7 +19,8 @@ class TransportLayerConfig:
     retry_attempts: int = 3
 
     # 模式特定配置
-    host: str = "0.0.0.0"
+    # host 默认值根据模式动态决定：process模式为 127.0.0.1，network模式为 0.0.0.0
+    host: Optional[str] = None
     websocket_port: int = 9501
 
     # Network模式额外配置

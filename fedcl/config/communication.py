@@ -91,7 +91,7 @@ class CommunicationConfig(BaseConfig):
         if self.role == "server":
             # 服务端必须有监听地址和端口
             if self.transport.get("host") is None:
-                self.transport["host"] = "0.0.0.0"
+                self.transport["host"] = "127.0.0.1"  # 默认使用本地地址
             if self.transport.get("port") is None:
                 self.transport["port"] = 8000
 
