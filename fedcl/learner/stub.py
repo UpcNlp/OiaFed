@@ -854,7 +854,16 @@ class LearnerStub:
                 comm_config = getattr(self.communication_manager, 'config', None)
                 mode = getattr(comm_config, 'mode', 'process') if comm_config else 'process'
 
-                if mode == 'network':
+                # 将 mode 转换为字符串（兼容枚举类型）
+                mode_str = str(mode).lower() if mode else 'process'
+                if 'network' in mode_str:
+                    mode_str = 'network'
+                elif 'process' in mode_str:
+                    mode_str = 'process'
+                elif 'memory' in mode_str:
+                    mode_str = 'memory'
+
+                if mode_str == 'network':
                     # Network 模式：尝试获取实际的网卡 IP
                     try:
                         import socket
@@ -877,9 +886,9 @@ class LearnerStub:
                         host = '127.0.0.1'
                         self.logger.warning(f"Network模式：获取网卡IP失败({e})，使用本地地址: {host}")
                 else:
-                    # Process 模式：使用本地地址
+                    # Process/Memory 模式：使用本地地址
                     host = '127.0.0.1'
-                    self.logger.debug(f"Process模式：将监听地址 0.0.0.0 转换为本地地址: {host}")
+                    self.logger.debug(f"{mode_str.capitalize()}模式：将监听地址 0.0.0.0 转换为本地地址: {host}")
 
             # Process模式和Network模式都使用NetworkTransport
             # 需要获取HTTP服务器的实际端口
