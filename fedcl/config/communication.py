@@ -21,7 +21,7 @@ class CommunicationConfig(BaseConfig):
 
     # ========== 基本部署信息 ==========
     mode: str = "process"                      # memory / process / network
-    role: str = "server"                       # server / client / local
+    role: str = "server"                       # server / client
     node_id: Optional[str] = None              # 节点ID（None = 自动生成）
 
     # ========== 传输层配置（字典形式，灵活）==========
