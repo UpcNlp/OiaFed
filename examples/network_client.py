@@ -120,7 +120,7 @@ async def main():
     parser.add_argument(
         "--config",
         type=str,
-        default="examples/configs/network_demo/client1.yaml",
+        default="configs/network_demo/client1.yaml",
         help="客户端配置文件路径"
     )
     parser.add_argument(
