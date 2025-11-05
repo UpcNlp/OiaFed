@@ -25,7 +25,7 @@ from torchvision import datasets
 from torch.utils.data import DataLoader, Subset
 
 # 添加项目路径
-sys.path.insert(0, str(Path(__file__).parent.parent))
+sys.path.insert(0, str(Path(__file__).parent))
 
 from fedcl.learner.base_learner import BaseLearner
 from fedcl.trainer.trainer import BaseTrainer
