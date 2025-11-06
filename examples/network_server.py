@@ -48,7 +48,7 @@ from fedcl.methods.models.base import FederatedModel
 class MNISTFederatedDataset(FederatedDataset):
     """MNIST联邦数据集实现"""
 
-    def __init__(self, root: str = '.examples/data', train: bool = True, download: bool = True):
+    def __init__(self, root: str = 'examples/data', train: bool = True, download: bool = True):
         super().__init__(root, train, download)
 
         # 数据转换
