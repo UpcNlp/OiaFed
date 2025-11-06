@@ -864,7 +864,7 @@ async def demo_real_mnist_training():
         print("[Training] 开始真实MNIST训练...")
         print("=" * 80)
 
-        result = await fl.run(max_rounds=5)
+        result = await fl.run(max_rounds=10)
 
         # 显示结果
         print("\n" + "=" * 80)
