@@ -48,7 +48,7 @@ from fedcl.methods.models.base import FederatedModel
 class MNISTFederatedDataset(FederatedDataset):
     """MNIST联邦数据集实现"""
 
-    def __init__(self, root: str = './data', train: bool = True, download: bool = True):
+    def __init__(self, root: str = '.examples/data', train: bool = True, download: bool = True):
         super().__init__(root, train, download)
 
         # 数据转换
@@ -182,7 +182,7 @@ class FedAvgMNISTTrainer(BaseTrainer):
                 transforms.ToTensor(),
                 transforms.Normalize((0.1307,), (0.3081,))
             ])
-            test_dataset = datasets.MNIST('./data', train=False, download=True, transform=transform)
+            test_dataset = datasets.MNIST('examples/data', train=False, download=True, transform=transform)
             self._test_loader = DataLoader(test_dataset, batch_size=1000, shuffle=False)
             self.logger.info(f"服务器端测试集加载完成: {len(test_dataset)} 个样本")
         return self._test_loader
@@ -436,7 +436,7 @@ async def main():
     config_file = "examples/configs/network_demo/server.yaml"
 
     # 训练参数
-    max_rounds = 5
+    max_rounds = 10
     wait_time = 30  # 等待客户端连接的时间（秒）
     min_clients = 2  # 最少需要的客户端数量
 
