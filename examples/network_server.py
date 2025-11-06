@@ -436,9 +436,7 @@ async def main():
     config_file = "examples/configs/network_demo/server.yaml"
 
     # 训练参数
-    max_rounds = 10
     wait_time = 30  # 等待客户端连接的时间（秒）
-    min_clients = 2  # 最少需要的客户端数量
 
     server = None
 
@@ -472,6 +470,7 @@ async def main():
         for client_id in available_clients:
             print(f"  - {client_id}")
 
+        min_clients = server.trainer.min_clients
         if len(available_clients) < min_clients:
             print(f"\n[Warning] 期望至少{min_clients}个客户端，但只有 {len(available_clients)} 个")
             print(f"继续等待{wait_time}秒或按 Ctrl+C 取消...\n")
@@ -483,37 +482,24 @@ async def main():
             print("[Error] 没有客户端连接，退出")
             return
 
-        # 开始训练
+        # 开始训练 - 使用 Trainer 的 run_training 方法
+        max_rounds = server.trainer.max_rounds  # 从 trainer 中读取配置
         print(f"\n{'='*70}")
-        print(f"开始联邦学习训练 ({max_rounds} 轮)")
+        print(f"开始联邦学习训练 (最多 {max_rounds} 轮)")
         print(f"{'='*70}\n")
 
-        for round_num in range(1, max_rounds + 1):
-            # 选择参与的客户端
-            selected_clients = available_clients[:min(min_clients, len(available_clients))]
+        result = await server.trainer.run_training(max_rounds)
 
-            # 执行训练轮次
-            round_result = await server.trainer.train_round(round_num, selected_clients)
-
-            successful = round_result.get('successful_clients', [])
-            print(f"\nRound {round_num} 完成: {len(successful)}/{len(selected_clients)} 客户端成功")
-
-            # 评估全局模型
-            if round_num % 1 == 0:  # 每轮都评估
-                eval_result = await server.trainer.evaluate_global_model()
-                print(f"全局模型评估 - Acc: {eval_result['accuracy']:.4f}, Loss: {eval_result['loss']:.4f}")
-
+        # 显示训练结果
         print(f"\n{'='*70}")
         print("训练完成!")
         print(f"{'='*70}")
-        print(f"完成轮数: {max_rounds}")
-
-        # 最终评估
-        final_eval = await server.trainer.evaluate_global_model()
+        print(f"实际完成轮数: {result.completed_rounds}/{max_rounds}")
+        print(f"停止原因: {result.termination_reason}")
         print(f"\n最终全局模型评估:")
-        print(f"  准确率: {final_eval['accuracy']:.4f}")
-        print(f"  损失: {final_eval['loss']:.4f}")
-        print(f"  测试样本数: {final_eval['samples_count']}")
+        print(f"  准确率: {result.final_accuracy:.4f}")
+        print(f"  损失: {result.final_loss:.4f}")
+        print(f"  总时间: {result.total_time:.2f}秒")
 
         # 保持服务器运行
         print("\n服务器将继续运行...")

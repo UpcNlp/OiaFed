@@ -34,11 +34,9 @@ training:
       local_epochs: 1
       learning_rate: 0.01
       batch_size: 32
-
-  # 训练参数
-  max_rounds: 10
-  min_clients: 2  # 最少需要的客户端数量
-  clients_per_round: 2  # 每轮参与的客户端数量
+      max_rounds: 10  # 最大训练轮数
+      min_clients: 2  # 最少需要的客户端数量
+      client_selection_ratio: 1.0  # 客户端选择比例（1.0表示全选）
 
   # 全局模型初始化
   global_model:

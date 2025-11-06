@@ -1,434 +1,601 @@
-# Network 模式跨机器测试指南
+# Network模式跨机器测试指南
 
-## 📋 测试环境
+## 目录
 
-| 角色 | IP 地址 | 操作系统 | 端口 |
-|------|---------|----------|------|
-| 服务端 | 192.168.31.68 (笔记本) | Windows | 8000, 9501 |
-| 客户端1 | 192.168.31.75 (服务器1) | Linux | 8001, 9502 |
-| 客户端2 | 192.168.31.166 (服务器2) | Linux | 8002, 9503 |
-
-## 🚀 快速开始
-
-### 第一步：准备服务端（笔记本 - 192.168.31.68）
-
-#### 1.1 检查防火墙
-
-**Windows 防火墙：**
-```powershell
-# 打开 PowerShell（管理员权限）
-
-# 允许 8000 端口（HTTP）
-netsh advfirewall firewall add rule name="FedCL Server HTTP" dir=in action=allow protocol=TCP localport=8000
-
-# 允许 9501 端口（WebSocket）
-netsh advfirewall firewall add rule name="FedCL Server WebSocket" dir=in action=allow protocol=TCP localport=9501
-```
-
-或者通过 Windows Defender 防火墙界面：
-1. 搜索"Windows Defender 防火墙"
-2. 点击"高级设置"
-3. 点击"入站规则" -> "新建规则"
-4. 选择"端口" -> "TCP" -> 输入"8000,9501"
-5. 选择"允许连接"
-
-#### 1.2 验证网络连通性
-
-在笔记本上，确保可以被其他机器访问：
-```powershell
-# 查看本机 IP
-ipconfig
-
-# 应该看到：192.168.31.68
-```
-
-#### 1.3 启动服务端
-
-```bash
-# 进入项目目录
-cd D:\PyCharm\MOE-FedCL
-
-# 激活 conda 环境
-conda activate your_env_name
-
-# 运行服务端脚本（使用独立服务端脚本）
-python examples/network_server_standalone.py
-```
-
-你应该看到：
-```
-============================================================
-Network 模式测试 - 服务端
-============================================================
-服务端地址: 192.168.31.68:8000
-等待客户端连接...
-============================================================
-配置模式: network
-监听地址: 0.0.0.0:8000
-
-✅ 服务端已启动: network_server_main
-等待客户端注册...
-```
+- [概述](#概述)
+- [环境要求](#环境要求)
+- [网络配置](#网络配置)
+- [配置文件说明](#配置文件说明)
+- [启动步骤](#启动步骤)
+- [测试流程](#测试流程)
+- [预期结果](#预期结果)
+- [常见问题](#常见问题)
+- [高级配置](#高级配置)
 
 ---
 
-### 第二步：准备客户端（Linux 服务器）
+## 概述
 
-#### 2.1 同步代码到服务器
+本指南介绍如何使用 MOE-FedCL 框架进行跨机器的联邦学习训练。Network 模式支持在不同的物理机器上部署服务器和客户端，实现真正的分布式联邦学习。
 
-在**两台 Linux 服务器**上分别执行：
+### 特性
 
-```bash
-# 方法1：使用 git（推荐）
-cd ~
-git clone <your-repo-url> MOE-FedCL
-cd MOE-FedCL
+- **真实MNIST训练**: 使用真实的MNIST数据集和CNN模型
+- **FedAvg聚合**: 实现标准的联邦平均算法
+- **服务器端评估**: 使用独立测试集评估全局模型
+- **自动地址转换**: 客户端地址自动转换为实际网络IP
+- **配置文件驱动**: 所有配置通过YAML文件管理
 
-# 方法2：使用 scp 从笔记本传输
-# 在笔记本上执行：
-# scp -r D:\PyCharm\MOE-FedCL username@192.168.31.75:~/
-# scp -r D:\PyCharm\MOE-FedCL username@192.168.31.166:~/
+---
+
+## 环境要求
+
+### 硬件要求
+
+- **服务器**: 至少1台机器
+- **客户端**: 至少2台机器（可以与服务器在同一机器上用于测试）
+- **网络**: 所有机器需要在同一局域网内或可互相访问
+
+---
+
+## 网络配置
+
+### 1. 确定网络拓扑
+
+假设我们有以下机器配置：
+
+```
+服务器: 192.168.31.68 (端口 8000)
+客户端1: 192.168.31.100
+客户端2: 192.168.31.101
 ```
 
-#### 2.2 安装依赖
+### 2. 防火墙配置
 
-在**两台服务器**上分别执行：
+确保服务器和客户端的端口可以互相访问：
 
+**服务器端口**:
+- HTTP: 8000
+- WebSocket: 9501
+
+**客户端端口**:
+- HTTP: 随机分配（系统自动）
+- WebSocket: 9502 (客户端1), 9503 (客户端2)
+
+**Linux防火墙配置**:
 ```bash
-cd ~/MOE-FedCL
-
-# 激活 conda 环境
-conda activate your_env_name
-
-# 验证依赖
-pip list | grep -E "aiohttp|asyncio|pyyaml"
-```
-
-#### 2.3 检查防火墙（Linux）
-
-在**两台服务器**上分别执行：
-
-```bash
-# 检查防火墙状态
-sudo firewall-cmd --state
-# 或
-sudo ufw status
-
-# 如果使用 firewalld：
-sudo firewall-cmd --permanent --add-port=8001/tcp  # 服务器1
-sudo firewall-cmd --permanent --add-port=9502/tcp
+# 服务器
+sudo firewall-cmd --add-port=8000/tcp --permanent
+sudo firewall-cmd --add-port=9501/tcp --permanent
 sudo firewall-cmd --reload
 
-# 服务器2 使用不同端口：
-# sudo firewall-cmd --permanent --add-port=8002/tcp
-# sudo firewall-cmd --permanent --add-port=9503/tcp
-# sudo firewall-cmd --reload
-
-# 如果使用 ufw：
-sudo ufw allow 8001/tcp  # 服务器1
-sudo ufw allow 9502/tcp
-
-# 服务器2：
-# sudo ufw allow 8002/tcp
-# sudo ufw allow 9503/tcp
+# 客户端
+sudo firewall-cmd --add-port=9502/tcp --permanent  # 客户端1
+sudo firewall-cmd --add-port=9503/tcp --permanent  # 客户端2
+sudo firewall-cmd --reload
 ```
 
-#### 2.4 测试网络连通性
+**Windows防火墙配置**:
+```powershell
+# 允许Python程序通过防火墙
+New-NetFirewallRule -DisplayName "MOE-FedCL Server" -Direction Inbound -Protocol TCP -LocalPort 8000,9501 -Action Allow
+```
 
-在**两台服务器**上分别测试与服务端的连接：
+### 3. 测试网络连通性
 
 ```bash
-# 测试 HTTP 端口
-curl http://192.168.31.68:8000/api/v1/health
-# 或
+# 从客户端测试服务器连接
+ping 192.168.31.68
 telnet 192.168.31.68 8000
-
-# 测试 WebSocket 端口
-telnet 192.168.31.68 9501
 ```
-
-如果连接失败，检查：
-1. 服务端防火墙是否开放
-2. 网络路由是否正常
-3. 服务端程序是否已启动
 
 ---
 
-### 第三步：启动客户端
+## 配置文件说明
 
-#### 3.1 在服务器1 (192.168.31.75) 上启动客户端1
+### 服务器配置 (server.yaml)
+
+位置: `examples/configs/network_demo/server.yaml`
+
+```yaml
+# 节点基本信息
+role: server
+mode: network
+node_id: network_server_main
+
+# 传输层配置
+transport:
+  type: websocket
+  host: "0.0.0.0"  # 监听所有网络接口
+  port: 8000
+  websocket_port: 9501
+  timeout: 60.0
+  retry_attempts: 5
+
+# 通信层配置
+communication:
+  heartbeat_interval: 30.0
+  heartbeat_timeout: 90.0
+  rpc_timeout: 180.0
+
+# 训练配置
+training:
+  trainer:
+    name: FedAvgMNIST
+    params:
+      algorithm: fedavg
+      local_epochs: 1
+      learning_rate: 0.01
+      batch_size: 32
+      max_rounds: 10
+      min_clients: 2
+      client_selection_ratio: 1.0
+```
+
+**关键配置项说明**:
+- `host: "0.0.0.0"`: 监听所有网络接口，允许外部连接
+- `max_rounds: 10`: 最大训练轮数
+- `min_clients: 2`: 最少需要2个客户端才能开始训练
+- `client_selection_ratio: 1.0`: 选择所有可用客户端参与训练
+
+### 客户端配置 (client1.yaml)
+
+位置: `examples/configs/network_demo/client1.yaml`
+
+```yaml
+# 节点基本信息
+role: client
+mode: network
+node_id: network_client_1
+
+# 传输层配置
+transport:
+  type: websocket
+  host: "0.0.0.0"  # 监听所有接口（服务器需要回调）
+  port: 0  # 0表示随机端口
+  websocket_port: 9502
+  timeout: 60.0
+  retry_attempts: 5
+
+  # 服务器地址（重要：需要修改为实际服务器IP）
+  server:
+    host: "192.168.31.68"  # 服务器IP地址
+    port: 8000
+
+# 通信层配置
+communication:
+  heartbeat_interval: 30.0
+  heartbeat_timeout: 90.0
+  rpc_timeout: 180.0
+
+# 学习器配置
+training:
+  learner:
+    name: MNISTLearner
+    params:
+      local_epochs: 1
+      learning_rate: 0.01
+      batch_size: 32
+```
+
+**关键配置项说明**:
+- `server.host`: **必须修改为实际的服务器IP地址**
+- `port: 0`: 客户端使用随机端口
+- `websocket_port`: 每个客户端使用不同的WebSocket端口
+
+### 客户端2配置 (client2.yaml)
+
+与client1.yaml类似，只需修改：
+```yaml
+node_id: network_client_2
+websocket_port: 9503  # 与client1不同
+```
+
+---
+
+## 启动步骤
+
+### 步骤1: 修改配置文件
+
+1. **确定服务器IP地址**:
+   ```bash
+   # Linux/Mac
+   ifconfig | grep "inet "
+
+   # Windows
+   ipconfig
+   ```
+
+2. **修改客户端配置**:
+
+   编辑 `examples/configs/network_demo/client1.yaml`:
+   ```yaml
+   server:
+     host: "YOUR_SERVER_IP"  # 替换为实际的服务器IP
+     port: 8000
+   ```
+
+   对 `client2.yaml` 做相同修改。
+
+3. **（可选）修改服务器配置**:
+
+   如果服务器不想监听所有接口，可以指定具体IP：
+   ```yaml
+   transport:
+     host: "192.168.31.68"  # 服务器的实际IP
+   ```
+
+### 步骤2: 启动服务器
+
+在服务器机器上执行：
 
 ```bash
-cd ~/MOE-FedCL
-
-# 激活环境
-conda activate your_env_name
-
-# 启动客户端1（使用独立客户端脚本）
-python examples/network_client_standalone.py \
-    --config configs/network_test/client1.yaml \
-    --server-ip 192.168.31.68 \
-    --server-port 8000
+cd MOE-FedCL
+python examples/network_server.py
 ```
 
-你应该看到：
+**预期输出**:
 ```
-============================================================
-Network 模式测试 - 客户端
-============================================================
-配置文件: configs/network_test/client1.yaml
-服务端地址: 192.168.31.68:8000
-============================================================
-客户端ID: client_server1
-监听端口: 8001
+======================================================================
+Network模式 - MNIST联邦学习服务器（真实训练版本）
+======================================================================
 
+从配置文件加载: examples/configs/network_demo/server.yaml
+服务器ID: network_server_main
+监听地址: 0.0.0.0:8000
+
+初始化服务器...
+启动服务器...
+
+[OK] 服务器已启动
+
+等待客户端连接（30秒）...
+```
+
+### 步骤3: 启动客户端
+
+#### 客户端1
+
+在第一台客户端机器上执行：
+
+```bash
+cd MOE-FedCL
+python examples/network_client.py
+```
+
+默认使用 `client1.yaml` 配置。
+
+**如果要使用client2配置**，需要修改 `network_client.py` 第469行：
+```python
+config_file = "examples/configs/network_demo/client2.yaml"
+```
+
+#### 客户端2
+
+在第二台客户端机器上执行相同命令，但需要使用不同的配置文件。
+
+**预期输出**:
+```
+======================================================================
+Network模式 - MNIST联邦学习客户端（真实训练版本）
+======================================================================
+
+从配置文件加载: examples/configs/network_demo/client1.yaml
+客户端ID: network_client_1
+服务器地址: 192.168.31.68:8000
+
+初始化客户端...
 启动客户端...
-✅ 客户端已启动: client_server1
 
-等待服务端训练指令...
+[OK] 客户端已启动并等待服务器训练指令
+
+等待注册到服务器...
+   注册状态: 已注册
+
+[INFO] 客户端正在运行...
 (按 Ctrl+C 停止)
 ```
 
-#### 3.2 在服务器2 (192.168.31.166) 上启动客户端2
-
-```bash
-cd ~/MOE-FedCL
-
-# 激活环境
-conda activate your_env_name
-
-# 启动客户端2（使用独立客户端脚本）
-python examples/network_client_standalone.py \
-    --config configs/network_test/client2.yaml \
-    --server-ip 192.168.31.68 \
-    --server-port 8000
-```
-
-你应该看到类似输出，但 client_id 是 `client_server2`，端口是 `8002`。
-
 ---
 
-### 第四步：观察训练过程
+## 测试流程
 
-#### 4.1 服务端输出
+### 完整测试流程
 
-当两个客户端都连接后，服务端会自动开始训练，你会看到：
+1. **启动服务器** → 等待客户端连接
+2. **启动客户端1** → 注册到服务器
+3. **启动客户端2** → 注册到服务器
+4. **服务器开始训练** → 自动执行多轮训练
+5. **查看训练结果** → 评估模型性能
+6. **停止所有节点** → Ctrl+C
+
+### 训练过程监控
+
+服务器端会显示：
 
 ```
-============================================================
-[Trainer] 第 1 轮：聚合 2 个客户端模型
-============================================================
-  客户端 1: weights=1.1000
-  客户端 2: weights=1.1000
-  聚合结果: weights=1.1000
+======================================================================
+开始联邦学习训练 (最多 10 轮)
+======================================================================
 
-============================================================
-[Trainer] 第 2 轮：聚合 2 个客户端模型
-============================================================
-  客户端 1: weights=1.2000
-  客户端 2: weights=1.2000
-  聚合结果: weights=1.2000
+--- Round 1 ---
+  Selected clients: ['network_client_1', 'network_client_2']
+  [network_client_1] Starting training...
+  [network_client_2] Starting training...
+  [network_client_1] Training succeeded: Loss=0.5234, Acc=0.8456
+  [network_client_2] Training succeeded: Loss=0.4987, Acc=0.8612
+  Round 1 summary: Loss=0.5111, Acc=0.8534
+  Aggregating models using FedAvg...
+  在服务器端评估全局模型...
+  服务器端评估结果: Acc=0.8523, Loss=0.5023, Samples=10000
 
+Round 1 completed in 15.23s
+  Metrics: accuracy=0.8534, loss=0.5111
+
+--- Round 2 ---
 ...
+```
 
-============================================================
+客户端会显示训练日志：
+
+```
+[network_client_1] Round 1, Training 1 epochs...
+    [network_client_1] Epoch 1: Loss=0.5234, Acc=0.8456
+  [network_client_1] Round 1 completed: Loss=0.5234, Acc=0.8456
+```
+
+---
+
+## 预期结果
+
+### 训练指标
+
+经过10轮训练后，预期结果：
+
+| 指标 | 预期范围 | 说明 |
+|------|---------|------|
+| 最终准确率 | 0.95 - 0.98 | 在测试集上的准确率 |
+| 最终损失 | 0.05 - 0.15 | 交叉熵损失 |
+| 每轮时间 | 10 - 30秒 | 取决于网络和数据量 |
+| 总训练时间 | 2 - 5分钟 | 10轮训练 |
+
+### 提前停止
+
+如果训练准确率达到 **0.98**，训练会自动提前停止：
+
+```
+[INFO] 训练提前停止（达到停止条件）
+
+======================================================================
 训练完成!
-============================================================
-完成轮数: 3
-最终准确率: 0.6500
-最终损失: 0.1667
-总耗时: 18.52秒
-============================================================
+======================================================================
+实际完成轮数: 7/10
+停止原因: converged
+
+最终全局模型评估:
+  准确率: 0.9815
+  损失: 0.0623
+  总时间: 189.45秒
 ```
 
-#### 4.2 客户端输出
+### 成功标志
 
-每个客户端会显示训练过程：
+训练成功的标志：
+- ✅ 所有客户端成功注册
+- ✅ 每轮训练都有客户端参与
+- ✅ 模型准确率逐步提升
+- ✅ 损失逐步下降
+- ✅ 无客户端断开或超时错误
 
+---
+
+## 常见问题
+
+### 1. 客户端无法连接到服务器
+
+**症状**:
 ```
-[client_server1] 执行本地训练 - 第 1 轮
-[client_server1] 训练完成: loss=0.5000, acc=0.5000
-
-[client_server1] 执行本地训练 - 第 2 轮
-[client_server1] 训练完成: loss=0.2500, acc=0.5500
-
-[client_server1] 执行本地训练 - 第 3 轮
-[client_server1] 训练完成: loss=0.1667, acc=0.6000
+Register to server failed: Cannot connect to host 192.168.31.68:8000
 ```
 
----
+**解决方案**:
+- 检查服务器IP地址是否正确
+- 检查服务器是否已启动
+- 检查防火墙配置
+- 使用 `ping` 和 `telnet` 测试连通性
 
-## 🔧 故障排查
+### 2. 客户端注册失败
 
-### 问题1：客户端无法连接到服务端
+**症状**:
+```
+Registration attempt 1 failed: Failed to register with server
+```
 
-**症状：** 客户端报错 `Connection refused` 或超时
+**解决方案**:
+- 检查客户端配置中的 `server.host` 和 `server.port`
+- 确保服务器已完全启动
+- 检查网络延迟，可能需要增加超时时间
 
-**解决方案：**
+### 3. 训练无法开始
 
-1. **检查服务端是否启动**
-   ```bash
-   # 在笔记本上检查
-   netstat -an | findstr 8000
-   ```
+**症状**:
+```
+[Warning] 期望至少2个客户端，但只有 1 个
+```
 
-2. **检查防火墙**
-   ```powershell
-   # Windows 查看防火墙规则
-   netsh advfirewall firewall show rule name=all | findstr 8000
-   ```
+**解决方案**:
+- 确保启动了足够数量的客户端（至少2个）
+- 检查客户端是否成功注册（查看客户端日志）
+- 等待更长时间让客户端连接
 
-3. **测试网络连通性**
-   ```bash
-   # 在服务器上测试
-   ping 192.168.31.68
-   telnet 192.168.31.68 8000
-   ```
+### 4. 端口冲突
 
-4. **检查服务端监听地址**
-   - 确保 `server.yaml` 中 `host: "0.0.0.0"`（而不是 `127.0.0.1`）
+**症状**:
+```
+OSError: [Errno 98] Address already in use
+```
 
-### 问题2：客户端连接成功但无法通信
+**解决方案**:
+- 修改配置文件中的端口号
+- 或者停止占用端口的进程
 
-**症状：** 客户端注册失败或心跳超时
+### 5. 地址转换错误
 
-**解决方案：**
+**症状**:
+客户端地址显示为 `127.0.0.1` 而不是实际网络IP
 
-1. **检查客户端防火墙**
-   ```bash
-   # Linux 服务器上
-   sudo firewall-cmd --list-ports
-   # 应该看到 8001/tcp 或 8002/tcp
-   ```
+**解决方案**:
+- 这是一个已知问题，在 `fedcl/learner/stub.py` 中的地址转换逻辑
+- 确保客户端配置使用 `host: "0.0.0.0"`
+- 系统会自动获取网卡IP地址
 
-2. **检查客户端监听地址**
-   - 确保客户端配置文件中 `host: "0.0.0.0"`
+### 6. MNIST数据下载失败
 
-3. **查看详细日志**
-   - 在启动脚本中添加 `--verbose` 标志
+**症状**:
+```
+HTTPError: HTTP Error 403: Forbidden
+```
 
-### 问题3：训练过程中断
-
-**症状：** 训练开始后突然停止
-
-**解决方案：**
-
-1. **检查网络稳定性**
-   ```bash
-   # 持续 ping 测试
-   ping -t 192.168.31.68  # Windows
-   ping 192.168.31.68     # Linux
-   ```
-
-2. **增加超时时间**
-   - 在配置文件中增加 `timeout` 和 `rpc_timeout` 值
-
-3. **查看错误日志**
-   - 检查服务端和客户端的错误输出
+**解决方案**:
+- 手动下载MNIST数据集到 `examples/data` 目录
+- 或使用国内镜像站点
+- 或配置代理
 
 ---
 
-## 📊 验证测试成功
+## 高级配置
 
-成功的测试应该满足：
+### 1. 调整训练参数
 
-✅ 服务端成功启动并监听 8000 端口
-✅ 两个客户端都成功连接到服务端
-✅ 客户端成功注册并开始心跳
-✅ 完成3轮联邦学习训练
-✅ 显示最终的训练结果
-
----
-
-## 🎯 下一步
-
-测试成功后，你可以：
-
-1. **修改训练轮数**
-   ```python
-   # 在 network_server_standalone.py 中修改
-   max_rounds = 10  # 改为10轮（默认是3轮）
-   ```
-
-2. **添加更多客户端**
-   - 创建 `client3.yaml`, `client4.yaml`
-   - 在更多服务器上启动客户端
-
-3. **使用真实数据**
-   - 替换 `SimpleLearner` 和 `SimpleTrainer`
-   - 加载真实数据集（MNIST, CIFAR等）
-
-4. **启用 SSL/TLS**
-   - 在配置文件中设置 `ssl_enabled: true`
-   - 配置证书路径
-
----
-
-## 📝 配置文件说明
-
-### 服务端配置 (`server.yaml`)
+修改 `server.yaml` 中的训练参数：
 
 ```yaml
-transport:
-  host: "0.0.0.0"  # ⚠️ 必须是 0.0.0.0 才能接受外部连接
-  port: 8000        # HTTP 端口
-  websocket_port: 9501  # WebSocket 端口
+training:
+  trainer:
+    params:
+      max_rounds: 20        # 增加训练轮数
+      min_clients: 3        # 需要更多客户端
+      local_epochs: 2       # 每轮本地训练2个epoch
+      learning_rate: 0.001  # 降低学习率
+      batch_size: 64        # 增大batch size
 ```
 
-### 客户端配置 (`client1.yaml`, `client2.yaml`)
+### 2. 修改停止条件
 
-```yaml
-client_id: client_server1  # ⚠️ 每个客户端必须有唯一 ID
+编辑 `examples/network_server.py` 的 `should_stop_training` 方法：
 
-transport:
-  host: "0.0.0.0"  # ⚠️ 必须是 0.0.0.0 才能接受服务端回调
-  port: 8001        # ⚠️ 每个客户端必须使用不同端口
+```python
+def should_stop_training(self, round_num: int, round_result: Dict[str, Any]) -> bool:
+    """判断是否应该停止训练"""
+    round_metrics = round_result.get("round_metrics", {})
+    avg_accuracy = round_metrics.get("avg_accuracy", 0.0)
+
+    # 修改停止条件
+    if avg_accuracy >= 0.95:  # 降低到0.95
+        self.logger.info(f"High accuracy achieved: {avg_accuracy:.4f}")
+        return True
+
+    return False
+```
+
+### 3. 客户端数据划分
+
+修改 `examples/network_client.py` 的 `_load_dataset` 方法来改变数据划分策略：
+
+```python
+def _load_dataset(self):
+    """加载数据集"""
+    mnist_dataset_cls = registry.get_dataset('MNIST')
+    mnist_dataset = mnist_dataset_cls(root='examples/data', train=True, download=True)
+    base_dataset = mnist_dataset.dataset
+
+    # 自定义数据划分逻辑
+    # 例如：非IID划分、按标签划分等
+    client_idx = int(self.client_id.split('_')[-1])
+    # ... 实现自定义划分策略
+
+    return train_dataset
+```
+
+### 4. 使用GPU加速
+
+确保PyTorch能够访问GPU：
+
+```python
+# 在 MNISTLearner 中
+self.device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
+print(f"Using device: {self.device}")
+```
+
+### 5. 日志级别调整
+
+在脚本开头设置日志级别：
+
+```python
+import logging
+logging.getLogger('fedcl').setLevel(logging.DEBUG)  # 详细日志
+# 或
+logging.getLogger('fedcl').setLevel(logging.INFO)   # 正常日志
 ```
 
 ---
 
-## 🔐 安全注意事项
+## 性能优化建议
 
-1. **生产环境建议：**
-   - 启用 SSL/TLS 加密
-   - 使用认证机制
-   - 配置访问控制列表（ACL）
+### 1. 网络优化
 
-2. **防火墙配置：**
-   - 只开放必要的端口
-   - 限制来源 IP 范围
-   - 使用 VPN 或专用网络
+- 使用有线网络而非WiFi
+- 减少网络跳数
+- 增加带宽
 
-3. **数据隐私：**
-   - 不要在日志中输出敏感数据
-   - 使用差分隐私保护
-   - 定期审计访问日志
+### 2. 训练优化
 
----
+- 增大batch size（在GPU内存允许的情况下）
+- 使用更快的优化器（如 AdamW）
+- 减少模型大小
 
-## ❓ 常见问题
+### 3. 系统优化
 
-**Q: 为什么要使用 0.0.0.0 而不是 127.0.0.1？**
-A: `127.0.0.1` 只监听本地回环接口，外部机器无法连接。`0.0.0.0` 监听所有网络接口，可以接受来自任何 IP 的连接。
-
-**Q: 可以在公网环境测试吗？**
-A: 可以，但需要：
-   1. 配置公网 IP 或域名
-   2. 配置端口转发（如果在 NAT 后）
-   3. 强烈建议启用 SSL/TLS
-   4. 配置认证机制
-
-**Q: 客户端数量可以动态变化吗？**
-A: 当前版本需要在启动时指定 `num_clients`。未来版本可以支持动态加入/退出。
+- 使用SSD而非HDD
+- 增加系统内存
+- 使用GPU加速
 
 ---
 
-## 📞 获取帮助
+## 故障排除检查清单
 
-如果遇到问题：
-1. 查看详细错误日志
-2. 检查防火墙和网络配置
-3. 参考故障排查部分
-4. 提交 Issue 到项目仓库
+启动前检查：
+- [ ] 所有机器网络互通
+- [ ] 防火墙配置正确
+- [ ] Python环境和依赖安装完成
+- [ ] 配置文件中的IP地址正确
+- [ ] 端口没有冲突
 
-祝测试顺利！🎉
+运行时检查：
+- [ ] 服务器成功启动
+- [ ] 客户端成功注册
+- [ ] 日志没有错误信息
+- [ ] 训练正常进行
+- [ ] 模型准确率提升
+
+---
+
+## 参考资料
+
+- [MOE-FedCL 项目文档](../README.md)
+- [配置文件示例](../examples/configs/network_demo/)
+- [API文档](../docs/API.md)
+- [常见问题FAQ](../docs/FAQ.md)
+
+---
+
+## 联系方式
+
+如有问题，请：
+1. 查看项目Issue: <repository_issues_url>
+2. 提交新的Issue描述问题
+3. 参考项目文档获取更多信息
+
+---
+
+**祝测试顺利！🎉**
