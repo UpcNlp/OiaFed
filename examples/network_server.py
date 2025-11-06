@@ -1,70 +1,236 @@
 """
-Network模式 - 独立服务器脚本（新架构）
+Network模式 - 独立服务器脚本（真实MNIST训练版本）
 用于跨机器的联邦学习测试
 
 使用方法:
-  python examples/network_server.py --config configs/network_demo/server.yaml
-  python examples/network_server.py --mode class
+  python examples/network_server.py
+
+配置文件:
+  - examples/configs/network_demo/server.yaml
 """
 
 import asyncio
 import sys
-import argparse
 from pathlib import Path
 from typing import Dict, Any, List
+
+import numpy as np
+import torch
+import torch.nn as nn
+import torchvision
+import torchvision.transforms as transforms
+from torch.utils.data import DataLoader
+from torchvision import datasets
 
 # 添加项目路径
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
-from fedcl.config import CommunicationConfig, TrainingConfig, ConfigLoader
+from fedcl.config import ConfigLoader
 from fedcl.federation.server import FederationServer
 from fedcl.trainer.trainer import BaseTrainer
 from fedcl.api import trainer
 from fedcl.utils.auto_logger import setup_auto_logging
 
+# 导入新实现的数据集和模型管理
+from fedcl.api.decorators import dataset, model
+from fedcl.methods.datasets.base import FederatedDataset
+from fedcl.methods.models.base import FederatedModel
 
-# ==================== 定义Trainer ====================
 
-@trainer('SimpleNetworkTrainer',
-         description='简单的Network模式训练器',
+# ==================== 1. 注册真实的MNIST数据集 ====================
+
+@dataset(
+    name='MNIST',
+    description='MNIST手写数字数据集',
+    dataset_type='image_classification',
+    num_classes=10
+)
+class MNISTFederatedDataset(FederatedDataset):
+    """MNIST联邦数据集实现"""
+
+    def __init__(self, root: str = './data', train: bool = True, download: bool = True):
+        super().__init__(root, train, download)
+
+        # 数据转换
+        transform = transforms.Compose([
+            transforms.ToTensor(),
+            transforms.Normalize((0.1307,), (0.3081,))
+        ])
+
+        # 加载MNIST数据集
+        self.dataset = torchvision.datasets.MNIST(
+            root=root,
+            train=train,
+            download=download,
+            transform=transform
+        )
+
+        # 设置属性
+        self.num_classes = 10
+        self.input_shape = (1, 28, 28)
+
+    def get_statistics(self) -> Dict[str, Any]:
+        """获取数据集统计信息"""
+        return {
+            'dataset_name': 'MNIST',
+            'num_samples': len(self.dataset),
+            'num_classes': self.num_classes,
+            'input_shape': self.input_shape,
+            'train': self.train,
+        }
+
+
+# ==================== 2. 注册真实的CNN模型 ====================
+
+@model(
+    name='MNIST_CNN',
+    description='MNIST CNN分类模型',
+    task='classification',
+    input_shape=(1, 28, 28),
+    output_shape=(10,)
+)
+class MNISTCNNModel(FederatedModel):
+    """MNIST CNN模型"""
+
+    def __init__(self, num_classes: int = 10):
+        super().__init__()
+
+        # 设置元数据
+        self.set_metadata(
+            task_type='classification',
+            input_shape=(1, 28, 28),
+            output_shape=(num_classes,)
+        )
+
+        # 定义网络结构
+        self.conv1 = nn.Conv2d(1, 32, kernel_size=3, padding=1)
+        self.conv2 = nn.Conv2d(32, 64, kernel_size=3, padding=1)
+        self.pool = nn.MaxPool2d(2, 2)
+        self.dropout1 = nn.Dropout(0.25)
+        self.dropout2 = nn.Dropout(0.5)
+        self.fc1 = nn.Linear(64 * 14 * 14, 128)
+        self.fc2 = nn.Linear(128, num_classes)
+
+        # 损失函数
+        self.criterion = nn.CrossEntropyLoss()
+
+    def forward(self, x):
+        x = torch.relu(self.conv1(x))
+        x = torch.relu(self.conv2(x))
+        x = self.pool(x)
+        x = self.dropout1(x)
+        x = x.view(-1, 64 * 14 * 14)
+        x = torch.relu(self.fc1(x))
+        x = self.dropout2(x)
+        x = self.fc2(x)
+        return x
+
+    def get_weights_as_dict(self) -> Dict[str, torch.Tensor]:
+        """获取模型权重"""
+        return {k: v.cpu().clone() for k, v in self.state_dict().items()}
+
+    def set_weights_from_dict(self, weights: Dict[str, torch.Tensor], strict: bool = True):
+        """设置模型权重"""
+        self.load_state_dict(weights)
+
+    def get_param_count(self) -> int:
+        """获取参数数量"""
+        return sum(p.numel() for p in self.parameters())
+
+
+# ==================== 3. 定义Trainer ====================
+
+@trainer('FedAvgMNIST',
+         description='MNIST联邦平均训练器',
          version='1.0',
          author='MOE-FedCL',
          algorithms=['fedavg'])
-class SimpleNetworkTrainer(BaseTrainer):
-    """简单的网络模式训练器"""
+class FedAvgMNISTTrainer(BaseTrainer):
+    """联邦平均训练器 - 实现真实的模型聚合（使用统一初始化策略）"""
 
-    def __init__(self, config: Dict[str, Any] = None, lazy_init: bool = True):
-        super().__init__(config, lazy_init)
+    def __init__(self, config: Dict[str, Any] = None, lazy_init: bool = True, logger=None):
+        """初始化FedAvgMNIST训练器
 
-        # 从配置中获取参数
-        trainer_params = config.get('trainer', {}).get('params', {}) if config else {}
-        self.algorithm = trainer_params.get('algorithm', 'fedavg')
-        self.local_epochs = trainer_params.get('local_epochs', 1)
-        self.learning_rate = trainer_params.get('learning_rate', 0.01)
+        Args:
+            config: 配置字典（由ComponentBuilder.parse_config()生成）
+            lazy_init: 是否延迟初始化组件
+            logger: 日志记录器
+        """
+        super().__init__(config, lazy_init, logger)
 
-        self.logger.info(f"SimpleNetworkTrainer初始化完成 (算法: {self.algorithm})")
+        # 提取训练参数（从config.trainer.params）
+        if not hasattr(self, 'local_epochs'):
+            self.local_epochs = 1
+        if not hasattr(self, 'learning_rate'):
+            self.learning_rate = 0.01
+        if not hasattr(self, 'batch_size'):
+            self.batch_size = 32
+
+        # 组件占位符（延迟加载）
+        self._global_model_obj = None
+        self._test_loader = None  # 服务器端测试数据加载器
+
+        self.logger.info("FedAvgMNISTTrainer初始化完成")
+
+    @property
+    def test_loader(self):
+        """延迟加载服务器端测试数据集"""
+        if self._test_loader is None:
+            self.logger.info("加载服务器端MNIST测试数据集...")
+            # 加载完整的MNIST测试集（10000个样本）
+            transform = transforms.Compose([
+                transforms.ToTensor(),
+                transforms.Normalize((0.1307,), (0.3081,))
+            ])
+            test_dataset = datasets.MNIST('./data', train=False, download=True, transform=transform)
+            self._test_loader = DataLoader(test_dataset, batch_size=1000, shuffle=False)
+            self.logger.info(f"服务器端测试集加载完成: {len(test_dataset)} 个样本")
+        return self._test_loader
 
     def _create_default_global_model(self):
         """创建默认全局模型"""
-        self.logger.info("创建默认全局模型")
+        self.logger.info("创建默认MNIST CNN全局模型")
+        model = MNISTCNNModel(num_classes=10)
         return {
-            "model_type": "simple",
-            "weights": 1.0,
-            "round": 0,
-            "version": 1
+            "model_type": "mnist_cnn",
+            "parameters": {"weights": model.get_weights_as_dict()},
+            "model_obj": model  # 保存模型对象以便后续使用
         }
+
+    @property
+    def global_model_obj(self):
+        """延迟加载全局模型对象"""
+        if self._global_model_obj is None:
+            # 触发全局模型加载
+            global_model_data = self.global_model
+            if isinstance(global_model_data, dict) and "model_obj" in global_model_data:
+                self._global_model_obj = global_model_data["model_obj"]
+            else:
+                # 如果没有模型对象，创建新的
+                self._global_model_obj = MNISTCNNModel(num_classes=10)
+                if isinstance(global_model_data, dict) and "parameters" in global_model_data:
+                    weights = global_model_data["parameters"].get("weights", {})
+                    torch_weights = {}
+                    for k, v in weights.items():
+                        if isinstance(v, np.ndarray):
+                            torch_weights[k] = torch.from_numpy(v)
+                        else:
+                            torch_weights[k] = v
+                    self._global_model_obj.set_weights_from_dict(torch_weights)
+            self.logger.debug(f"全局模型对象创建完成，参数数量: {self._global_model_obj.get_param_count():,}")
+        return self._global_model_obj
 
     async def train_round(self, round_num: int, client_ids: List[str]) -> Dict[str, Any]:
         """执行一轮联邦训练"""
-        self.logger.info(f"\n{'='*60}")
-        self.logger.info(f"Round {round_num} - 选择客户端: {client_ids}")
-        self.logger.info(f"{'='*60}")
+        self.logger.info(f"\n--- Round {round_num} ---")
+        self.logger.info(f"  Selected clients: {client_ids}")
 
-        # 准备训练参数
+        # 创建训练请求
         training_params = {
             "round_number": round_num,
-            "num_epochs": self.local_epochs,
-            "learning_rate": self.learning_rate
+            "num_epochs": 1,
+            "batch_size": 32,
+            "learning_rate": 0.01
         }
 
         # 并行训练所有客户端
@@ -73,7 +239,7 @@ class SimpleNetworkTrainer(BaseTrainer):
             if self.is_client_ready(client_id):
                 proxy = self._proxy_manager.get_proxy(client_id)
                 if proxy:
-                    self.logger.info(f"  [{client_id}] 启动训练...")
+                    self.logger.info(f"  [{client_id}] Starting training...")
                     task = proxy.train(training_params)
                     tasks.append((client_id, task))
 
@@ -86,38 +252,38 @@ class SimpleNetworkTrainer(BaseTrainer):
                 result = await task
                 if result.success:
                     client_results[client_id] = result
-                    self.logger.info(
-                        f"  [{client_id}] 训练成功: Loss={result.result['loss']:.4f}, "
-                        f"Acc={result.result['accuracy']:.4f}"
-                    )
+                    self.logger.info(f"  [{client_id}] Training succeeded: Loss={result.result['loss']:.4f}, Acc={result.result['accuracy']:.4f}")
                 else:
-                    self.logger.error(f"  [{client_id}] 训练失败: {result}")
+                    self.logger.error(f"  [{client_id}] Training failed: {result}")
                     failed_clients.append(client_id)
             except Exception as e:
-                self.logger.exception(f"  [{client_id}] 训练异常: {e}")
+                self.logger.exception(f"  [{client_id}] Training failed: {e}")
                 failed_clients.append(client_id)
 
         # 聚合模型
+        aggregated_weights = None
         if client_results:
             aggregated_weights = await self.aggregate_models(client_results)
             if aggregated_weights:
-                self.global_model = aggregated_weights
+                self.global_model_obj.set_weights_from_dict(aggregated_weights)
 
-        # 计算平均指标
+        # 计算轮次指标
         if client_results:
-            avg_loss = sum(r.result['loss'] for r in client_results.values()) / len(client_results)
-            avg_accuracy = sum(r.result['accuracy'] for r in client_results.values()) / len(client_results)
+            avg_loss = np.mean([r.result['loss'] for r in client_results.values()])
+            avg_accuracy = np.mean([r.result['accuracy'] for r in client_results.values()])
         else:
             avg_loss, avg_accuracy = 0.0, 0.0
 
-        self.logger.info(f"  Round {round_num} 汇总: Loss={avg_loss:.4f}, Acc={avg_accuracy:.4f}")
+        self.logger.info(f"  Round {round_num} summary: Loss={avg_loss:.4f}, Acc={avg_accuracy:.4f}")
 
+        # 返回结果 - 注意不要包含可能被父类误用的字段名
         return {
             "round": round_num,
             "participants": client_ids,
             "successful_clients": list(client_results.keys()),
             "failed_clients": failed_clients,
-            "model_aggregated": bool(client_results),
+            # 不使用 "aggregated_model" 这个键名，避免父类误用
+            "model_aggregated": aggregated_weights is not None,
             "round_metrics": {
                 "avg_loss": avg_loss,
                 "avg_accuracy": avg_accuracy,
@@ -125,186 +291,180 @@ class SimpleNetworkTrainer(BaseTrainer):
             }
         }
 
-    async def aggregate_models(self, client_results: Dict[str, Any]) -> Dict[str, Any]:
-        """聚合客户端模型（FedAvg）"""
-        self.logger.info("  聚合模型 (FedAvg)...")
+    async def aggregate_models(self, client_results: Dict[str, Any]) -> Dict[str, torch.Tensor]:
+        """聚合客户端模型（FedAvg）
+
+        支持接收torch.Tensor或numpy数组，自动转换
+        """
+        self.logger.info("  Aggregating models using FedAvg...")
 
         if not client_results:
             return None
 
-        # 计算加权平均
-        total_samples = sum(r.result['samples'] for r in client_results.values())
+        # 获取所有客户端的模型权重
+        client_weights = []
+        client_samples = []
 
-        if total_samples == 0:
+        for client_id, result in client_results.items():
+            if "model_weights" in result.result:
+                # 智能转换：支持numpy数组和torch.Tensor
+                torch_weights = {}
+                for k, v in result.result["model_weights"].items():
+                    if isinstance(v, np.ndarray):
+                        torch_weights[k] = torch.from_numpy(v)
+                    elif torch.is_tensor(v):
+                        torch_weights[k] = v
+                    else:
+                        # 如果既不是numpy也不是tensor，尝试转换
+                        torch_weights[k] = torch.tensor(v)
+                client_weights.append(torch_weights)
+                client_samples.append(result.result['samples_used'])
+
+        if not client_weights:
             return None
 
-        # 简单加权平均
-        weighted_sum = sum(
-            r.result['model_weights'].get('weights', 1.0) * r.result['samples']
-            for r in client_results.values()
-        )
+        # 计算加权平均
+        total_samples = sum(client_samples)
+        aggregated_weights = {}
 
-        avg_weights = weighted_sum / total_samples
+        # 获取第一个模型的键
+        first_model_keys = client_weights[0].keys()
 
-        # 更新全局模型
-        current_round = self.global_model.get('round', 0)
-        aggregated_model = {
-            "model_type": "simple",
-            "weights": avg_weights,
-            "round": current_round + 1,
-            "num_clients": len(client_results),
-            "version": self.global_model.get('version', 1) + 1
-        }
+        for key in first_model_keys:
+            # 加权平均每个参数
+            weighted_sum = torch.zeros_like(client_weights[0][key])
+            for weights, samples in zip(client_weights, client_samples):
+                weighted_sum += weights[key] * samples
+            aggregated_weights[key] = weighted_sum / total_samples
 
-        self.logger.info(f"  聚合完成: weights={avg_weights:.4f}, clients={len(client_results)}")
+        # 分发全局模型（直接传递tensor，框架会自动序列化）
+        await self._distribute_global_model(aggregated_weights)
 
-        # 分发全局模型
-        await self._distribute_global_model(aggregated_model)
-
-        return aggregated_model
+        return aggregated_weights
 
     async def evaluate_global_model(self) -> Dict[str, Any]:
-        """评估全局模型"""
-        self.logger.info("  评估全局模型...")
+        """评估全局模型（服务器端评估）
+
+        在服务器端使用独立的测试集直接评估全局模型，
+        而不是通过客户端评估，这样更快速、可靠。
+        """
+        self.logger.info("  在服务器端评估全局模型...")
+
+        # 获取全局模型和测试数据
+        model = self.global_model_obj
+        test_loader = self.test_loader
+
+        # 设置为评估模式
+        model.eval()
+
+        test_loss = 0.0
+        correct = 0
+        total = 0
+
+        device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+        model = model.to(device)
+        criterion = nn.CrossEntropyLoss()
+
+        with torch.no_grad():
+            for data, target in test_loader:
+                data, target = data.to(device), target.to(device)
+                output = model(data)
+                test_loss += criterion(output, target).item() * data.size(0)
+                pred = output.argmax(dim=1, keepdim=True)
+                correct += pred.eq(target.view_as(pred)).sum().item()
+                total += data.size(0)
+
+        accuracy = correct / total if total > 0 else 0.0
+        avg_loss = test_loss / total if total > 0 else float('inf')
+
+        self.logger.info(f"  服务器端评估结果: Acc={accuracy:.4f}, Loss={avg_loss:.4f}, Samples={total}")
+
         return {
-            "accuracy": 0.90,
-            "loss": 0.25,
-            "samples_count": 10000
+            "accuracy": accuracy,
+            "loss": avg_loss,
+            "samples_count": total
         }
 
     def should_stop_training(self, round_num: int, round_result: Dict[str, Any]) -> bool:
         """判断是否应该停止训练"""
+
+        # 检查准确率收敛
         round_metrics = round_result.get("round_metrics", {})
         avg_accuracy = round_metrics.get("avg_accuracy", 0.0)
 
-        if avg_accuracy >= 0.95:
-            self.logger.info(f"  达到目标精度: {avg_accuracy:.4f}")
+        if avg_accuracy >= 0.98:
+            self.logger.info(f"  High accuracy achieved: {avg_accuracy:.4f}")
             return True
 
         return False
 
-    async def _distribute_global_model(self, global_model: Dict[str, Any]):
-        """分发全局模型到所有客户端"""
-        model_data = {
-            "model_type": global_model.get("model_type", "simple"),
-            "parameters": {"weights": global_model}
+    async def _distribute_global_model(self, global_weights: Dict[str, torch.Tensor]):
+        """分发全局模型到所有客户端
+
+        注意：直接传递torch.Tensor，框架会自动序列化
+        """
+        global_model_data = {
+            "model_type": "mnist_cnn",
+            "parameters": {"weights": global_weights}
         }
 
         tasks = []
         for client_id in self.get_available_clients():
             proxy = self._proxy_manager.get_proxy(client_id)
             if proxy:
-                task = proxy.set_model(model_data)
+                task = proxy.set_model(global_model_data)
                 tasks.append(task)
 
         if tasks:
             results = await asyncio.gather(*tasks, return_exceptions=True)
             success_count = sum(1 for r in results if not isinstance(r, Exception) and r)
-            self.logger.info(f"  全局模型已分发到 {success_count}/{len(tasks)} 个客户端")
+            self.logger.info(f"  Global model distributed to {success_count}/{len(tasks)} clients")
 
 
 # ==================== 主函数 ====================
 
 async def main():
     """主函数"""
-    parser = argparse.ArgumentParser(description="Network模式 - 独立服务器")
-    parser.add_argument(
-        "--config",
-        type=str,
-        default="configs/network_demo/server.yaml",
-        help="服务器配置文件路径"
-    )
-    parser.add_argument(
-        "--mode",
-        choices=["file", "class"],
-        default="file",
-        help="配置模式: file=从配置文件, class=使用配置类"
-    )
-    parser.add_argument(
-        "--host",
-        type=str,
-        default="0.0.0.0",
-        help="服务器监听地址 (默认: 0.0.0.0)"
-    )
-    parser.add_argument(
-        "--port",
-        type=int,
-        default=8000,
-        help="服务器端口 (默认: 8000)"
-    )
-    parser.add_argument(
-        "--rounds",
-        type=int,
-        default=5,
-        help="训练轮数 (默认: 5)"
-    )
-    parser.add_argument(
-        "--wait",
-        type=int,
-        default=30,
-        help="等待客户端连接的时间（秒） (默认: 30)"
-    )
-
-    args = parser.parse_args()
-
     # 设置日志
     setup_auto_logging()
 
     print("\n" + "="*70)
-    print("Network模式 - 独立服务器（新架构）")
+    print("Network模式 - MNIST联邦学习服务器（真实训练版本）")
     print("="*70)
+
+    # 配置文件路径
+    config_file = "examples/configs/network_demo/server.yaml"
+
+    # 训练参数
+    max_rounds = 5
+    wait_time = 30  # 等待客户端连接的时间（秒）
+    min_clients = 2  # 最少需要的客户端数量
 
     server = None
 
     try:
-        # 创建配置
-        if args.mode == "file":
-            print(f"从配置文件加载: {args.config}\n")
-            comm_config, train_config = ConfigLoader.load(args.config)
-        else:
-            print(f"使用配置类创建配置\n")
-            comm_config = CommunicationConfig(
-                mode="network",
-                role="server",
-                node_id="network_server_main",
-                transport={
-                    "type": "websocket",
-                    "host": args.host,
-                    "port": args.port,
-                    "websocket_port": 9501,
-                    "timeout": 60.0
-                }
-            )
+        print(f"\n从配置文件加载: {config_file}")
+        comm_config, train_config = ConfigLoader.load(config_file)
 
-            train_config = TrainingConfig(
-                trainer={
-                    "name": "SimpleNetworkTrainer",
-                    "params": {
-                        "algorithm": "fedavg",
-                        "local_epochs": 1,
-                        "learning_rate": 0.01
-                    }
-                }
-            )
+        print(f"服务器ID: {comm_config.node_id}")
+        print(f"监听地址: {comm_config.transport.get('host')}:{comm_config.transport.get('port')}")
 
         # 创建服务器
         server = FederationServer(comm_config, train_config)
 
         # 初始化
-        print("初始化服务器...")
+        print("\n初始化服务器...")
         await server.initialize()
 
         # 启动服务器
         print("启动服务器...")
         await server.start_server()
 
-        print(f"\n✅ 服务器已启动")
-        print(f"   服务器ID: {server.server_id}")
-        print(f"   监听地址: {comm_config.transport.get('host')}:{comm_config.transport.get('port')}")
-        print(f"\n等待客户端连接（{args.wait}秒）...\n")
+        print(f"\n[OK] 服务器已启动")
+        print(f"\n等待客户端连接（{wait_time}秒）...\n")
 
         # 等待客户端连接
-        await asyncio.sleep(args.wait)
+        await asyncio.sleep(wait_time)
 
         # 检查已连接的客户端
         available_clients = server.trainer.get_available_clients()
@@ -312,25 +472,25 @@ async def main():
         for client_id in available_clients:
             print(f"  - {client_id}")
 
-        if len(available_clients) < 2:
-            print(f"\n⚠️  警告：期望至少2个客户端，但只有 {len(available_clients)} 个")
-            print("继续等待或按 Ctrl+C 取消...\n")
-            await asyncio.sleep(args.wait)
+        if len(available_clients) < min_clients:
+            print(f"\n[Warning] 期望至少{min_clients}个客户端，但只有 {len(available_clients)} 个")
+            print(f"继续等待{wait_time}秒或按 Ctrl+C 取消...\n")
+            await asyncio.sleep(wait_time)
             available_clients = server.trainer.get_available_clients()
             print(f"当前已注册客户端: {len(available_clients)}")
 
         if len(available_clients) == 0:
-            print("❌ 错误：没有客户端连接，退出")
+            print("[Error] 没有客户端连接，退出")
             return
 
         # 开始训练
         print(f"\n{'='*70}")
-        print(f"开始联邦学习训练 ({args.rounds} 轮)")
+        print(f"开始联邦学习训练 ({max_rounds} 轮)")
         print(f"{'='*70}\n")
 
-        for round_num in range(1, args.rounds + 1):
+        for round_num in range(1, max_rounds + 1):
             # 选择参与的客户端
-            selected_clients = available_clients[:min(2, len(available_clients))]
+            selected_clients = available_clients[:min(min_clients, len(available_clients))]
 
             # 执行训练轮次
             round_result = await server.trainer.train_round(round_num, selected_clients)
@@ -338,11 +498,22 @@ async def main():
             successful = round_result.get('successful_clients', [])
             print(f"\nRound {round_num} 完成: {len(successful)}/{len(selected_clients)} 客户端成功")
 
+            # 评估全局模型
+            if round_num % 1 == 0:  # 每轮都评估
+                eval_result = await server.trainer.evaluate_global_model()
+                print(f"全局模型评估 - Acc: {eval_result['accuracy']:.4f}, Loss: {eval_result['loss']:.4f}")
+
         print(f"\n{'='*70}")
         print("训练完成!")
         print(f"{'='*70}")
-        print(f"完成轮数: {args.rounds}")
-        print(f"最终全局模型: {server.trainer.global_model}")
+        print(f"完成轮数: {max_rounds}")
+
+        # 最终评估
+        final_eval = await server.trainer.evaluate_global_model()
+        print(f"\n最终全局模型评估:")
+        print(f"  准确率: {final_eval['accuracy']:.4f}")
+        print(f"  损失: {final_eval['loss']:.4f}")
+        print(f"  测试样本数: {final_eval['samples_count']}")
 
         # 保持服务器运行
         print("\n服务器将继续运行...")
@@ -351,12 +522,13 @@ async def main():
             await asyncio.sleep(10)
 
     except KeyboardInterrupt:
-        print("\n\n用户中断，停止服务器...")
+        print("\n\n[INFO] 用户中断，停止服务器...")
     except FileNotFoundError as e:
-        print(f"\n❌ 错误：配置文件不存在: {args.config}")
+        print(f"\n[Error] 配置文件不存在: {config_file}")
         print(f"   详细错误: {e}")
+        print("\n请确保配置文件路径正确")
     except Exception as e:
-        print(f"\n❌ 错误: {e}")
+        print(f"\n[Error] {e}")
         import traceback
         traceback.print_exc()
     finally:

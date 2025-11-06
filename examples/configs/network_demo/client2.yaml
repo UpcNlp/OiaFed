@@ -30,7 +30,7 @@ communication:
 training:
   # Learner配置
   learner:
-    name: SimpleNetworkLearner  # Learner名称
+    name: MNISTLearner  # Learner名称
     params:
       local_epochs: 1
       learning_rate: 0.01

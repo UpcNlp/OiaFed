@@ -851,19 +851,9 @@ class LearnerStub:
             # ✅ 智能转换 0.0.0.0 为可连接的地址
             if host == '0.0.0.0' or host == '' or host is None:
                 # 检测通信模式
-                comm_config = getattr(self.communication_manager, 'config', None)
-                mode = getattr(comm_config, 'mode', 'process') if comm_config else 'process'
+                mode = getattr(transport, 'mode', 'process')
 
-                # 将 mode 转换为字符串（兼容枚举类型）
-                mode_str = str(mode).lower() if mode else 'process'
-                if 'network' in mode_str:
-                    mode_str = 'network'
-                elif 'process' in mode_str:
-                    mode_str = 'process'
-                elif 'memory' in mode_str:
-                    mode_str = 'memory'
-
-                if mode_str == 'network':
+                if mode == 'network':
                     # Network 模式：尝试获取实际的网卡 IP
                     try:
                         import socket
@@ -888,7 +878,7 @@ class LearnerStub:
                 else:
                     # Process/Memory 模式：使用本地地址
                     host = '127.0.0.1'
-                    self.logger.debug(f"{mode_str.capitalize()}模式：将监听地址 0.0.0.0 转换为本地地址: {host}")
+                    self.logger.debug(f"{mode}模式：将监听地址 0.0.0.0 转换为本地地址: {host}")
 
             # Process模式和Network模式都使用NetworkTransport
             # 需要获取HTTP服务器的实际端口

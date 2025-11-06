@@ -9,7 +9,7 @@ node_id: network_server_main  # 节点ID
 # ==================== 传输层配置 ====================
 transport:
   type: websocket
-  host: "192.168.31.68"  # 监听所有网络接口（允许外部连接）
+  host: "0.0.0.0"  # 监听所有网络接口（允许外部连接）
   port: 8000  # HTTP端口
   websocket_port: 9501  # WebSocket端口
   timeout: 60.0
@@ -28,7 +28,7 @@ communication:
 training:
   # Trainer配置
   trainer:
-    name: SimpleNetworkTrainer  # Trainer名称
+    name: FedAvgMNIST  # Trainer名称
     params:
       algorithm: fedavg
       local_epochs: 1
