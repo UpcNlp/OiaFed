@@ -10,10 +10,20 @@ from .meta import MetaLearner
 # from .default import DefaultLearner  # Temporarily commented out due to broken import
 # from .test import SimpleLearnerStub  # Temporarily commented out due to broken import
 
+# 自动导入内置学习器以触发装饰器注册
+from .generic import GenericLearner  # noqa: F401
+from .mnist_learner import MNISTLearner  # noqa: F401
+from .moon import MOONLearner  # noqa: F401
+
 __all__ = [
     "ContrastiveLearner",
     "PersonalizedClientLearner",
     "MetaLearner",
     # "DefaultLearner",
     # "SimpleLearnerStub"
+
+    # 内置学习器
+    "GenericLearner",
+    "MNISTLearner",
+    "MOONLearner",
 ]

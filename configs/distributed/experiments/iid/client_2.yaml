@@ -1,0 +1,7 @@
+# IID实验 - 客户端2配置
+# configs/distributed/experiments/iid/client_2.yaml
+
+extends: "../../base/client_base.yaml"
+
+# 节点ID
+node_id: "client_2"

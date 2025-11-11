@@ -192,6 +192,10 @@ class BaseLearner(ABC):
         Returns:
             创建的组件实例
         """
+        # 特殊处理：dataset 需要支持自动划分
+        if component_name == 'dataset':
+            return self._create_dataset()
+
         component_config = self.config.get(component_name)
 
         # 优先使用配置中的类（Builder 通过注册表找到的）
@@ -223,6 +227,234 @@ class BaseLearner(ABC):
         raise ValueError(
             f"组件 '{component_name}' 未在配置中指定，"
             f"且子类未提供 _create_default_{component_name}() 方法"
+        )
+
+    def _create_dataset(self):
+        """
+        创建数据集（支持自动划分）
+
+        优先级:
+        1. 配置中的数据集 + partition配置 → 自动划分
+        2. 配置中的数据集（无partition） → 完整数据集
+        3. 子类的 _create_default_dataset() → 用户自定义
+
+        Returns:
+            Dataset: 数据集实例（可能是完整数据集或划分后的子集）
+        """
+        dataset_config = self.config.get('dataset')
+
+        # 策略1: 使用配置中的数据集
+        if dataset_config:
+            # 如果有 'class' 字段，直接使用（已解析的类）
+            if 'class' in dataset_config:
+                dataset_class = dataset_config['class']
+                params = dataset_config.get('params', {})
+            # 如果有 'name' 字段，从注册表获取类（YAML配置格式）
+            elif 'name' in dataset_config:
+                dataset_name = dataset_config['name']
+                # 从注册表获取数据集类
+                from ..api.registry import registry
+                dataset_class = registry.get_dataset(dataset_name)
+                if not dataset_class:
+                    raise ValueError(f"Dataset '{dataset_name}' not found in registry")
+                params = dataset_config.get('params', {})
+            else:
+                # dataset_config存在但没有class或name字段
+                dataset_class = None
+                params = {}
+
+            if dataset_class:
+                # 注入 client_id（如果数据集需要）
+                import inspect
+                if 'client_id' in inspect.signature(dataset_class.__init__).parameters:
+                    params['client_id'] = self.client_id
+
+                self.logger.debug(
+                    f"Learner {self.client_id}: Creating dataset "
+                    f"from config: {dataset_class.__name__}"
+                )
+
+                # 实例化完整数据集
+                full_dataset = dataset_class(**params)
+
+                # 检查是否有partition配置
+                # partition配置在原始配置中，不在ComponentBuilder解析后的配置中
+                partition_config = dataset_config.get('partition')
+
+                if partition_config:
+                    # 执行自动划分
+                    return self._partition_dataset(full_dataset, partition_config)
+                else:
+                    # 返回完整数据集（向后兼容）
+                    self.logger.debug(
+                        f"Learner {self.client_id}: No partition config, "
+                        f"using full dataset ({len(full_dataset)} samples)"
+                    )
+                    return full_dataset
+
+        # 策略2: 调用子类自定义方法
+        default_method = getattr(self, '_create_default_dataset', None)
+        if default_method and callable(default_method):
+            self.logger.debug(
+                f"Learner {self.client_id}: Creating dataset "
+                f"using default method"
+            )
+            return default_method()
+
+        # 策略3: 无法创建，抛出异常
+        raise ValueError(
+            "数据集未在配置中指定，"
+            "且子类未提供 _create_default_dataset() 方法"
+        )
+
+    def _partition_dataset(self, full_dataset, partition_config: Dict[str, Any]):
+        """
+        对完整数据集进行划分，返回当前客户端的数据子集
+
+        支持三种联邦学习模式（Memory/Process/Network）使用统一的划分策略。
+        通过确定性算法保证相同配置下不同客户端得到相同的划分结果。
+
+        Args:
+            full_dataset: FederatedDataset实例或普通Dataset实例
+            partition_config: 划分配置字典
+                {
+                    'strategy': 'dirichlet',    # 划分策略
+                    'num_clients': 10,          # 总客户端数
+                    'seed': 42,                 # 随机种子
+                    'params': {'alpha': 0.5}    # 策略特定参数
+                }
+
+        Returns:
+            Dataset: 当前客户端的数据子集
+
+        Raises:
+            ValueError: 如果配置无效或数据集不支持划分
+        """
+        strategy = partition_config.get('strategy', 'iid')
+        num_clients = partition_config.get('num_clients')
+        seed = partition_config.get('seed', 42)
+        strategy_params = partition_config.get('params', {})
+
+        if num_clients is None:
+            raise ValueError("partition配置中必须指定 num_clients")
+
+        # 从client_id中提取客户端索引
+        client_idx = self._extract_client_index(self.client_id, num_clients)
+
+        self.logger.info(
+            f"Client {self.client_id}: 开始数据集自动划分 "
+            f"(strategy={strategy}, client_idx={client_idx}/{num_clients}, seed={seed})"
+        )
+
+        # 检查数据集是否支持get_client_partition方法（FederatedDataset）
+        if hasattr(full_dataset, 'get_client_partition'):
+            # 使用FederatedDataset的get_client_partition方法
+            client_dataset = full_dataset.get_client_partition(
+                client_id=client_idx,
+                num_clients=num_clients,
+                strategy=strategy,
+                seed=seed,
+                **strategy_params
+            )
+            self.logger.info(
+                f"Client {self.client_id}: 数据集划分完成 "
+                f"(samples={len(client_dataset)}, strategy={strategy})"
+            )
+            return client_dataset
+
+        else:
+            # 如果不是FederatedDataset，尝试手动创建partitioner
+            self.logger.warning(
+                f"Client {self.client_id}: 数据集不是FederatedDataset类型，"
+                f"尝试使用通用划分器"
+            )
+
+            try:
+                from ..methods.datasets.partition import create_partitioner
+                from torch.utils.data import Subset
+
+                # 创建划分器
+                partitioner = create_partitioner(strategy, seed=seed)
+
+                # 执行划分获取所有客户端的索引
+                all_indices = partitioner.partition(
+                    full_dataset, num_clients, **strategy_params
+                )
+
+                # 获取当前客户端的索引
+                if client_idx not in all_indices:
+                    raise ValueError(
+                        f"client_idx={client_idx} 不在划分结果中 "
+                        f"(有效范围: 0-{num_clients-1})"
+                    )
+
+                client_indices = all_indices[client_idx]
+                client_dataset = Subset(full_dataset, client_indices)
+
+                self.logger.info(
+                    f"Client {self.client_id}: 数据集划分完成（通用方式） "
+                    f"(samples={len(client_dataset)}, strategy={strategy})"
+                )
+                return client_dataset
+
+            except ImportError as e:
+                raise ValueError(
+                    f"数据集不支持自动划分，且无法导入通用划分器: {e}"
+                )
+
+    def _extract_client_index(self, client_id: str, num_clients: int) -> int:
+        """
+        从client_id字符串中提取客户端索引
+
+        支持多种client_id格式：
+        - "client_0", "client_1" → 0, 1
+        - "memory_client_0" → 0
+        - "process_client_123_8001" → 123
+        - 配置中直接指定 client_index
+
+        Args:
+            client_id: 客户端ID字符串
+            num_clients: 总客户端数（用于验证范围）
+
+        Returns:
+            int: 客户端索引 (0-based)
+
+        Raises:
+            ValueError: 如果无法从client_id解析索引
+        """
+        # 方法1: 从配置中获取（最可靠）
+        if 'client_index' in self.config:
+            idx = self.config['client_index']
+            if not isinstance(idx, int):
+                raise ValueError(f"配置中的client_index必须是整数，got {type(idx)}")
+            if 0 <= idx < num_clients:
+                return idx
+            else:
+                raise ValueError(
+                    f"配置中的client_index={idx}超出范围[0, {num_clients})"
+                )
+
+        # 方法2: 从client_id解析（通用模式）
+        import re
+
+        # 尝试匹配 "client_数字" 或 "xxx_client_数字" 模式
+        match = re.search(r'client[_-](\d+)', client_id, re.IGNORECASE)
+        if match:
+            idx = int(match.group(1))
+            if 0 <= idx < num_clients:
+                self.logger.debug(
+                    f"Client {self.client_id}: 从client_id解析得到client_index={idx}"
+                )
+                return idx
+            else:
+                raise ValueError(
+                    f"从client_id='{client_id}'解析得到的索引{idx}超出范围[0, {num_clients})"
+                )
+
+        # 方法3: 无法解析，抛出异常
+        raise ValueError(
+            f"无法从client_id='{client_id}'中提取客户端索引。"
+            f"请在配置中指定'client_index'或使用标准命名格式（如'client_0', 'client_1'）"
         )
 
     # 子类可以覆盖这些方法提供默认实现

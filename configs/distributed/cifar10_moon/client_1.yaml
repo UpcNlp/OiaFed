@@ -1,0 +1,42 @@
+# CIFAR-10 + MOON客户端1配置
+# configs/distributed/cifar10_moon/client_1.yaml
+
+role: client
+node_id: "client_1"
+
+communication:
+  mode: memory
+  server:
+    host: "127.0.0.1"
+    port: 8003
+
+training:
+  learner:
+    name: "MOON"
+    params:
+      model:
+        name: "SimpleCNN"
+        params:
+          num_classes: 10
+      optimizer:
+        type: "SGD"
+        lr: 0.01
+        momentum: 0.9
+        weight_decay: 0.0005
+      loss: "CrossEntropyLoss"
+      learning_rate: 0.01
+      batch_size: 128
+      local_epochs: 5
+      temperature: 0.5  # MOON对比损失温度参数
+      mu: 1.0  # MOON对比损失权重
+  dataset:
+    name: "CIFAR10"
+    params:
+      root: "./data"
+      train: true
+      download: true
+    partition:
+      strategy: "iid"
+      num_clients: 2
+      client_id: 1
+      seed: 42

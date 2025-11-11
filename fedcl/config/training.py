@@ -22,6 +22,10 @@ class TrainingConfig(BaseConfig):
     # ========== 组件导入 ==========
     components: List[str] = field(default_factory=list)  # 要导入的模块列表
 
+    # ========== 训练参数（服务端）==========
+    max_rounds: Optional[int] = None                    # 最大训练轮数
+    min_clients: Optional[int] = None                   # 最少客户端数量
+
     # ========== 服务端组件（Optional）==========
     trainer: Optional[Dict[str, Any]] = None            # 训练器配置
     aggregator: Optional[Dict[str, Any]] = None         # 聚合器配置

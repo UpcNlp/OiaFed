@@ -255,6 +255,72 @@ def get_model_size_mb(model: nn.Module) -> float:
     return (param_size + buffer_size) / (1024 ** 2)
 
 
+def get_weights_as_dict(model: nn.Module) -> Dict[str, torch.Tensor]:
+    """
+    获取模型权重（返回字典格式）- 兼容任何 nn.Module
+
+    Args:
+        model: PyTorch模型（nn.Module或FederatedModel）
+
+    Returns:
+        {param_name: tensor} - 权重在CPU上
+    """
+    # 优先使用模型自带的方法（如果有）
+    if hasattr(model, 'get_weights_as_dict'):
+        return model.get_weights_as_dict()
+
+    # 否则使用标准的state_dict
+    return {k: v.cpu().clone() for k, v in model.state_dict().items()}
+
+
+def set_weights_from_dict(model: nn.Module, weights: Dict[str, torch.Tensor], strict: bool = True):
+    """
+    从字典设置模型权重 - 兼容任何 nn.Module
+
+    Args:
+        model: PyTorch模型（nn.Module或FederatedModel）
+        weights: 权重字典
+        strict: 是否严格匹配所有参数
+    """
+    # 优先使用模型自带的方法（如果有）
+    if hasattr(model, 'set_weights_from_dict'):
+        model.set_weights_from_dict(weights, strict)
+        return
+
+    # 否则使用标准的load_state_dict
+    # 将权重移到正确的设备
+    try:
+        device = next(model.parameters()).device
+    except StopIteration:
+        # 模型没有参数，使用CPU
+        device = torch.device('cpu')
+
+    device_weights = {
+        k: v.to(device) if isinstance(v, torch.Tensor) else v
+        for k, v in weights.items()
+    }
+
+    model.load_state_dict(device_weights, strict=strict)
+
+
+def get_param_count(model: nn.Module) -> int:
+    """
+    获取模型总参数量 - 兼容任何 nn.Module
+
+    Args:
+        model: PyTorch模型（nn.Module或FederatedModel）
+
+    Returns:
+        总参数数量
+    """
+    # 优先使用模型自带的方法（如果有）
+    if hasattr(model, 'get_param_count'):
+        return model.get_param_count()
+
+    # 否则使用标准方法
+    return count_parameters(model)
+
+
 def print_model_summary(model: nn.Module, input_shape: Optional[Tuple[int, ...]] = None):
     """
     打印模型摘要

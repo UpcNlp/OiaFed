@@ -1,0 +1,29 @@
+# CIFAR-10 + FedBN服务器配置
+# configs/distributed/cifar10_fedbn/server.yaml
+
+role: server
+node_id: server_cifar10_fedbn
+
+communication:
+  mode: memory
+  server:
+    host: "127.0.0.1"
+    port: 8002
+
+training:
+  max_rounds: 10
+  min_clients: 2
+  trainer:
+    name: "Generic"
+    params:
+      local_epochs: 5
+      learning_rate: 0.01
+      batch_size: 128
+  global_model:
+    name: "CNN"  # 使用ResNet风格的CNN
+    params:
+      num_classes: 10
+  aggregator:
+    name: "fedbn"
+    params:
+      skip_keywords: ['bn', 'batch_norm', 'batchnorm', 'running_mean', 'running_var', 'num_batches_tracked']

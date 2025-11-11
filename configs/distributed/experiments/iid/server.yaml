@@ -1,0 +1,7 @@
+# IID实验 - 服务器配置
+# configs/distributed/experiments/iid/server.yaml
+
+extends: "../../base/server_base.yaml"
+
+# 实验特定配置
+node_id: "server_iid"

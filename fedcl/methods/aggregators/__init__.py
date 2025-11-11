@@ -12,13 +12,15 @@ from .fednova import FedNovaAggregator
 from .fedadam import FedAdamAggregator
 from .fedyogi import FedYogiAggregator
 from .feddyn import FedDynAggregator
+from .fedbn import FedBNAggregator
 
 __all__ = [
     "FedAvgAggregator",
     "FedProxAggregator",
-    "SCAFFOLDAggregator", 
+    "SCAFFOLDAggregator",
     "FedNovaAggregator",
     "FedAdamAggregator",
     "FedYogiAggregator",
-    "FedDynAggregator"
+    "FedDynAggregator",
+    "FedBNAggregator"
 ]

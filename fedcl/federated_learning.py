@@ -341,12 +341,15 @@ class FederatedLearning:
         try:
             # 如果有1个Server + 多个Client：运行训练
             if len(self.servers) == 1 and len(self.clients) > 0:
-                if not max_rounds:
-                    raise ValueError("max_rounds is required when running training with server and clients")
-
                 server = self.servers[0]
                 if not server.trainer:
                     raise ValueError("Server trainer not initialized")
+
+                # 如果未提供max_rounds，尝试从服务器配置中获取
+                if not max_rounds:
+                    max_rounds = getattr(server.trainer.training_config, 'max_rounds', None)
+                    if not max_rounds:
+                        raise ValueError("max_rounds is required when running training with server and clients")
 
                 # 获取训练器要求的最少客户端数量
                 min_clients = getattr(server.trainer.training_config, 'min_clients', 2)

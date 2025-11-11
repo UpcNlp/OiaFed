@@ -248,12 +248,18 @@ class BusinessInitializer:
             # 标准的 BaseLearner 签名
             self.logger.debug(f"使用标准签名创建 Learner: {learner_name}")
 
-            # 构建完整的配置字典
-            full_config = {
-                'learner': self.train_config.learner,
-                'dataset': self.train_config.dataset,
-                'local_model': self.train_config.local_model,
-            }
+            # 优先使用 parsed_config（统一初始化策略）
+            if hasattr(self.train_config, 'parsed_config') and self.train_config.parsed_config:
+                self.logger.debug(f"使用 parsed_config 创建 Learner")
+                full_config = self.train_config.parsed_config
+            else:
+                # 回退到旧格式配置
+                self.logger.debug(f"使用旧格式配置创建 Learner")
+                full_config = {
+                    'learner': self.train_config.learner,
+                    'dataset': self.train_config.dataset,
+                    'local_model': self.train_config.local_model,
+                }
 
             learner = learner_class(
                 client_id=client_id,

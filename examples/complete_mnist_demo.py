@@ -1,5 +1,5 @@
 """
-完整的MNIST联邦学习演示 - 真实训练版本（统一初始化策略）
+完整的MNIST联邦学习演示 - 真实训练版本（统一初始化策略 + 自动数据划分）
 使用新架构实现真实的MNIST联邦学习训练
 examples/complete_mnist_demo.py
 
@@ -8,6 +8,12 @@ examples/complete_mnist_demo.py
 - 支持延迟加载（lazy_init=True）
 - ComponentBuilder.parse_config() 解析配置，返回类引用和参数
 - 配置格式：training: {trainer: {name: ..., params: ...}}
+
+新增：自动数据划分功能
+- 支持配置驱动的数据集划分（IID/Non-IID）
+- 三种联邦模式（Memory/Process/Network）使用统一的分布式划分策略
+- 无需手动实现数据划分逻辑，在配置文件中指定即可
+- 配置格式：dataset: {partition: {strategy: ..., num_clients: ..., seed: ..., params: ...}}
 """
 
 import asyncio
@@ -22,10 +28,12 @@ import torch.optim as optim
 import torchvision
 import torchvision.transforms as transforms
 from torchvision import datasets
-from torch.utils.data import DataLoader, Subset
+from torch.utils.data import DataLoader
 
+from pathlib import Path
+root = Path(__file__)
 # 添加项目路径
-sys.path.insert(0, str(Path(__file__).parent))
+sys.path.append(str(root.parent.parent))
 
 from fedcl.learner.base_learner import BaseLearner
 from fedcl.trainer.trainer import BaseTrainer
@@ -148,7 +156,7 @@ class MNISTCNNModel(FederatedModel):
          author='MOE-FedCL',
          dataset='MNIST')
 class MNISTLearner(BaseLearner):
-    """MNIST学习器 - 实现真实的训练（使用统一初始化策略）"""
+    """MNIST学习器 - 使用自动数据划分功能"""
 
     def __init__(self, client_id: str, config: Dict[str, Any] = None, lazy_init: bool = True):
         """初始化MNIST学习器
@@ -178,38 +186,8 @@ class MNISTLearner(BaseLearner):
 
         self.logger.info(f"MNISTLearner {client_id} 初始化完成 (lazy_init={lazy_init})")
 
-    def _create_default_dataset(self):
-        """创建默认数据集（按需加载）"""
-        self.logger.info(f"Client {self.client_id}: 加载MNIST数据集...")
-        return self._load_dataset()
-
-    def _load_dataset(self):
-        """加载数据集"""
-        # 从注册表获取MNIST数据集
-        mnist_dataset_cls = registry.get_dataset('MNIST')
-        mnist_dataset = mnist_dataset_cls(root='./data', train=True, download=True)
-
-        # 获取底层的 PyTorch Dataset
-        base_dataset = mnist_dataset.dataset  # torchvision.datasets.MNIST
-
-        # 简单的IID划分（手动划分）
-        num_clients = 3
-        client_idx = int(self.client_id.split('_')[1])
-
-        # 计算每个客户端的数据范围
-        total_size = len(base_dataset)
-        samples_per_client = total_size // num_clients
-        start_idx = client_idx * samples_per_client
-        end_idx = start_idx + samples_per_client if client_idx < num_clients - 1 else total_size
-
-        # 创建索引列表
-        indices = list(range(start_idx, end_idx))
-
-        # 创建 Subset
-        train_dataset = Subset(base_dataset, indices)
-
-        self.logger.info(f"Client {self.client_id}: 数据集加载完成，样本数={len(train_dataset)}")
-        return train_dataset
+    # 删除了 _create_default_dataset() 和 _load_dataset() 方法
+    # 数据集会根据配置文件自动创建和划分
 
     @property
     def model(self):
@@ -238,46 +216,18 @@ class MNISTLearner(BaseLearner):
     def train_loader(self):
         """延迟加载数据加载器"""
         if self._train_loader is None:
-            # 触发数据集加载
+            # 直接使用 self.dataset（已经是划分后的子集）
             dataset = self.dataset
 
-            # 打印数据集类型以验证
-            dataset_type = type(dataset).__name__
-            self.logger.info(f"Client {self.client_id}: 检测到数据集类型 = {dataset_type}")
-
-            # 检查是否是 FederatedDataset（需要进一步处理）
-            if hasattr(dataset, 'dataset'):
-                # 这是一个 FederatedDataset 包装器（如 MNISTFederatedDataset），需要获取实际的数据
-                self.logger.info(f"Client {self.client_id}: 使用 {dataset_type}，从中提取底层数据集")
-
-                # 获取底层的 PyTorch Dataset
-                base_dataset = dataset.dataset  # torchvision.datasets.MNIST
-                self.logger.debug(f"Client {self.client_id}: 底层数据集类型 = {type(base_dataset).__name__}")
-
-                # 简单的IID划分
-                num_clients = 3
-                client_idx = int(self.client_id.split('_')[1])
-
-                total_size = len(base_dataset)
-                samples_per_client = total_size // num_clients
-                start_idx = client_idx * samples_per_client
-                end_idx = start_idx + samples_per_client if client_idx < num_clients - 1 else total_size
-
-                indices = list(range(start_idx, end_idx))
-                actual_dataset = Subset(base_dataset, indices)
-
-                self.logger.info(f"Client {self.client_id}: 从 {dataset_type} 加载数据集，样本数={len(actual_dataset)}")
-            else:
-                # 已经是标准的 PyTorch Dataset（从 _create_default_dataset 返回）
-                self.logger.info(f"Client {self.client_id}: 使用标准 PyTorch Dataset")
-                actual_dataset = dataset
-
             self._train_loader = DataLoader(
-                actual_dataset,
+                dataset,
                 batch_size=self.batch_size,
                 shuffle=True
             )
-            self.logger.debug(f"Client {self.client_id}: 数据加载器创建完成")
+            self.logger.info(
+                f"Client {self.client_id}: 数据加载器创建完成 "
+                f"(samples={len(dataset)}, batch_size={self.batch_size})"
+            )
         return self._train_loader
 
     async def train(self, params: Dict[str, Any]) -> TrainingResponse:
@@ -778,7 +728,7 @@ async def demo_real_mnist_training():
     server_parsed_config = builder.parse_config(server_config_dict)
 
     server_comm_config = CommunicationConfig(
-        mode="process",
+        mode="memory",  # 改为Memory模式以便测试
         role="server",
         node_id="server_1"
     )
@@ -812,12 +762,18 @@ async def demo_real_mnist_training():
                     }
                 },
                 "dataset": {
-                    # 使用注册表中的 MNIST 数据集，对应 MNISTFederatedDataset 类（第49行定义）
-                    "name": "MNIST",  # 这会创建 MNISTFederatedDataset 实例
+                    "name": "MNIST",
                     "params": {
                         "root": "./data",
                         "train": True,
                         "download": True
+                    },
+                    # 新增：自动数据划分配置
+                    "partition": {
+                        "strategy": "iid",  # 使用IID划分（dirichlet有bug）
+                        "num_clients": 3,
+                        "seed": 42,
+                        "params": {}
                     }
                 }
             }
@@ -826,8 +782,12 @@ async def demo_real_mnist_training():
         # 解析客户端配置
         client_parsed_config = builder.parse_config(client_config_dict)
 
+        # 手动添加 partition 配置（ComponentBuilder 不会保留这个字段）
+        if 'dataset' in client_parsed_config and 'partition' in client_config_dict['training']['dataset']:
+            client_parsed_config['dataset']['partition'] = client_config_dict['training']['dataset']['partition']
+
         client_comm_config = CommunicationConfig(
-            mode="process",
+            mode="memory",  # 改为Memory模式以便测试
             role="client",
             node_id=f"client_{i}"
         )

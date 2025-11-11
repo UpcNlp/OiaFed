@@ -81,6 +81,11 @@ from .exceptions import (
 from .utils.serialization import serialize_data, deserialize_data
 from .utils.retry import retry_async, RetryConfig
 
+# ==================== 自动注册内置组件 ====================
+# 导入 methods 模块，自动注册所有内置组件
+# 用户只需要 import fedcl 或 from fedcl import xxx，组件就会自动注册
+from . import methods  # noqa: F401
+
 
 # ==================== 导出API ====================
 

@@ -1,0 +1,25 @@
+# CIFAR-10服务器基础配置
+# configs/distributed/base/cifar10_server_base.yaml
+
+role: server
+node_id: server_cifar10
+
+communication:
+  mode: memory
+  server:
+    host: "127.0.0.1"
+    port: 8000
+
+training:
+  max_rounds: 3  # 快速测试：只训练3轮
+  min_clients: 2
+  trainer:
+    name: "Generic"
+    params:
+      local_epochs: 1  # 减少本地epoch
+      learning_rate: 0.01
+      batch_size: 128
+  global_model:
+    name: "SimpleCNN"
+    params:
+      num_classes: 10
