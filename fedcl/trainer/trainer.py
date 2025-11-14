@@ -247,7 +247,14 @@ class BaseTrainer(ABC):
         # 回调函数
         self.round_callbacks: List[Callable] = []
         self.training_callbacks: List[Callable] = []
-        
+
+        # 回调机制（用于实验记录等扩展功能）
+        self._callbacks: Dict[str, List[Callable]] = {
+            'before_round': [],
+            'after_round': [],
+            'after_evaluation': []
+        }
+
         # 内部状态
         self._lock = asyncio.Lock()
         self._best_model: Optional[ModelData] = None
@@ -945,6 +952,74 @@ class BaseTrainer(ABC):
                     callback(event, data)
             except Exception as e:
                 self.logger.debug(f"Training callback {callback_id} error: {e}")
+
+    # ==================== 回调机制（用于实验记录） ====================
+
+    def add_callback(self, event: str, callback: Callable):
+        """添加回调函数（用于实验记录等扩展功能）
+
+        Args:
+            event: 事件名称（'before_round', 'after_round', 'after_evaluation'）
+            callback: 回调函数
+        """
+        if event in self._callbacks:
+            self._callbacks[event].append(callback)
+        else:
+            self.logger.warning(f"Unknown callback event: {event}")
+
+    def _trigger_callbacks(self, event: str, *args, **kwargs):
+        """触发回调（内部使用）
+
+        Args:
+            event: 事件名称
+            *args, **kwargs: 传递给回调的参数
+        """
+        for callback in self._callbacks.get(event, []):
+            try:
+                if asyncio.iscoroutinefunction(callback):
+                    asyncio.create_task(callback(*args, **kwargs))
+                else:
+                    callback(*args, **kwargs)
+            except Exception as e:
+                self.logger.warning(f"Callback {event} failed: {e}")
+
+    # ==================== 包装方法（用于回调注入） ====================
+
+    async def _train_round(self, round_num: int, client_ids: List[str]) -> RoundResult:
+        """包装方法：负责回调触发，调用用户实现的 train_round
+
+        Args:
+            round_num: 轮次编号
+            client_ids: 客户端ID列表
+
+        Returns:
+            RoundResult: 轮次训练结果
+        """
+        # 触发前置回调
+        self._trigger_callbacks('before_round', round_num)
+
+        # 调用用户实现的训练方法
+        result = await self.train_round(round_num, client_ids)
+
+        # 触发后置回调
+        self._trigger_callbacks('after_round', round_num, result)
+
+        return result
+
+    async def _evaluate_global_model(self) -> EvaluationResult:
+        """包装方法：负责回调触发，调用用户实现的 evaluate_global_model
+
+        Returns:
+            EvaluationResult: 评估结果
+        """
+        # 调用用户实现的评估方法
+        result = await self.evaluate_global_model()
+
+        # 触发回调
+        self._trigger_callbacks('after_evaluation', result)
+
+        return result
+
     # ==================== 训练循环方法 (框架提供) ====================
 
     async def run_training(self, max_rounds: int) -> FederationResult:
@@ -997,8 +1072,8 @@ class BaseTrainer(ABC):
                     self.training_status.selected_clients = selected_clients
                     self.training_status.active_clients = ready_clients
 
-                    # 执行训练轮次
-                    round_result = await self.train_round(round_num, ready_clients)
+                    # 执行训练轮次（使用包装方法触发回调）
+                    round_result = await self._train_round(round_num, ready_clients)
 
                     # 更新全局模型
                     if "aggregated_model" in round_result:

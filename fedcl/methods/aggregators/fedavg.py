@@ -124,7 +124,7 @@ class FedAvgAggregator:
         # 添加聚合的指标
         result.update(aggregated_metrics)
         
-        logger.debug(f"✅ FedAvg聚合完成 - 总样本: {total_samples}")
+        logger.debug(f"FedAvg聚合完成 - 总样本: {total_samples}")
         return result
     
     def _compute_aggregation_weights(self, client_updates: List[Dict[str, Any]]) -> List[float]:

@@ -1,0 +1,22 @@
+# TABLE III 实验 - 客户端0配置
+# configs/distributed/experiments/table3/client_0.yaml
+
+extends: "../../base/client_base.yaml"
+
+# 节点ID（可以自定义任意名称）
+node_id: "client_0"
+
+# 训练配置
+training:
+  learner:
+    name: "Generic"
+    params:
+      client_index: 0  # 明确指定客户端索引，支持自定义node_id
+      batch_size: 64
+      local_epochs: 10
+      learning_rate: 0.01
+      momentum: 0.9
+  dataset:
+    partition:
+      num_clients: 10  # 必须匹配实际客户端总数
+      seed: 42

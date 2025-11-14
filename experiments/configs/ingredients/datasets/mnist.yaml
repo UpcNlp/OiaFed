@@ -1,0 +1,14 @@
+# MNIST 数据集配置（IID分区）
+# experiments/configs/ingredients/datasets/mnist.yaml
+
+dataset:
+  name: "MNIST"
+  params:
+    root: "./data"
+    train: true
+    download: true
+
+  partition:
+    strategy: "iid"
+    num_clients: 10
+    seed: 42

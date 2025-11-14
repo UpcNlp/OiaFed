@@ -61,8 +61,21 @@ class GenericTrainer(BaseTrainer):
         if not hasattr(self, 'batch_size'):
             self.batch_size = 32
 
-        # 测试数据集配置（可选）
+        # 学习率衰减配置
         trainer_params = (self.config or {}).get('trainer', {}).get('params', {})
+        self.lr_decay_enabled = trainer_params.get('lr_decay', False)
+        self.lr_decay_step = trainer_params.get('lr_decay_step', 10)  # 每10轮衰减
+        self.lr_decay_rate = trainer_params.get('lr_decay_rate', 0.95)  # 衰减率0.95
+        self.current_lr = self.learning_rate  # 当前学习率
+
+        # 早停（Early Stopping）配置
+        self.early_stopping_enabled = trainer_params.get('early_stopping', True)  # 默认启用早停
+        self.patience = trainer_params.get('patience', 5)  # 默认连续5轮没有提升就停止
+        self.min_delta = trainer_params.get('min_delta', 0.001)  # 最小提升阈值0.1%
+        self.best_accuracy = 0.0  # 历史最佳准确率
+        self.patience_counter = 0  # 当前计数器
+
+        # 测试数据集配置（可选）
         self.test_dataset_config = trainer_params.get('test_dataset')
 
         # 组件占位符
@@ -70,6 +83,8 @@ class GenericTrainer(BaseTrainer):
         self._test_loader = None
 
         self.logger.info("GenericTrainer初始化完成")
+        if self.lr_decay_enabled:
+            self.logger.info(f"学习率衰减已启用: 每{self.lr_decay_step}轮衰减{self.lr_decay_rate}")
 
     @property
     def test_loader(self):
@@ -82,6 +97,9 @@ class GenericTrainer(BaseTrainer):
 
                 self.logger.info(f"加载服务器端测试数据集: {dataset_name}")
                 dataset_class = registry.get_dataset(dataset_name)
+
+                # 透明访问：registry 返回的工厂类在实例化时直接返回 PyTorch Dataset
+                # Trainer 无需感知 FederatedDataset 包装器的存在
                 test_dataset = dataset_class(**dataset_params)
 
                 self._test_loader = DataLoader(
@@ -151,6 +169,21 @@ class GenericTrainer(BaseTrainer):
             "model_obj": model
         }
 
+    def _create_default_aggregator(self):
+        """创建默认聚合器（FedAvg）"""
+        self.logger.info("未在配置中指定aggregator，使用默认聚合器: FedAvg")
+
+        from fedcl.api.registry import registry
+        aggregator_class = registry.get_aggregator('fedavg')
+
+        # 使用默认的FedAvg参数
+        aggregator_params = {
+            'weighted': True,  # 默认使用加权聚合
+            'config': {}
+        }
+
+        return aggregator_class(**aggregator_params)
+
     @property
     def global_model_obj(self):
         """延迟加载全局模型对象"""
@@ -186,14 +219,22 @@ class GenericTrainer(BaseTrainer):
     async def train_round(self, round_num: int, client_ids: List[str]) -> Dict[str, Any]:
         """执行一轮联邦训练"""
         self.logger.info(f"\n--- Round {round_num} ---")
+
+        # 学习率衰减
+        if self.lr_decay_enabled and round_num > 1:
+            if (round_num - 1) % self.lr_decay_step == 0:
+                self.current_lr *= self.lr_decay_rate
+                self.logger.info(f"  学习率衰减: {self.current_lr:.6f}")
+
         self.logger.info(f"  Selected clients: {client_ids}")
+        self.logger.info(f"  Current learning rate: {self.current_lr:.6f}")
 
         # 创建训练请求
         training_params = {
             "round_number": round_num,
             "num_epochs": self.local_epochs,
             "batch_size": self.batch_size,
-            "learning_rate": self.learning_rate
+            "learning_rate": self.current_lr  # 使用当前学习率
         }
 
         # 并行训练所有客户端
@@ -256,16 +297,12 @@ class GenericTrainer(BaseTrainer):
         }
 
     async def aggregate_models(self, client_results: Dict[str, Any]) -> Dict[str, torch.Tensor]:
-        """聚合客户端模型（FedAvg算法）"""
-        self.logger.info("  Aggregating models using FedAvg...")
-
+        """聚合客户端模型（使用配置的聚合器）"""
         if not client_results:
             return None
 
-        # 获取所有客户端的模型权重
-        client_weights = []
-        client_samples = []
-
+        # 准备聚合器所需的数据格式
+        client_updates = []
         for client_id, result in client_results.items():
             if "model_weights" in result.result:
                 # 智能转换：支持numpy数组和torch.Tensor
@@ -277,28 +314,36 @@ class GenericTrainer(BaseTrainer):
                         torch_weights[k] = v
                     else:
                         torch_weights[k] = torch.tensor(v)
-                client_weights.append(torch_weights)
-                client_samples.append(result.result['samples_used'])
 
-        if not client_weights:
+                # 构建聚合器期望的格式
+                client_update = {
+                    "client_id": client_id,
+                    "model_weights": torch_weights,
+                    "num_samples": result.result.get('samples_used', 1),
+                }
+
+                # 传递额外的数据（如prototypes）
+                if "prototypes" in result.result:
+                    client_update["prototypes"] = result.result["prototypes"]
+
+                client_updates.append(client_update)
+
+        if not client_updates:
             return None
 
-        # 计算加权平均
-        total_samples = sum(client_samples)
-        aggregated_weights = {}
+        # 使用aggregator进行聚合
+        self.logger.info(f"  Aggregating {len(client_updates)} clients using aggregator...")
+        aggregation_result = self.aggregator.aggregate(client_updates)
 
-        # 获取第一个模型的键
-        first_model_keys = client_weights[0].keys()
+        # 提取聚合后的权重
+        if isinstance(aggregation_result, dict) and "aggregated_weights" in aggregation_result:
+            aggregated_weights = aggregation_result["aggregated_weights"]
+        else:
+            # 兼容直接返回权重的情况
+            aggregated_weights = aggregation_result
 
-        for key in first_model_keys:
-            # 加权平均每个参数
-            weighted_sum = torch.zeros_like(client_weights[0][key])
-            for weights, samples in zip(client_weights, client_samples):
-                weighted_sum += weights[key] * samples
-            aggregated_weights[key] = weighted_sum / total_samples
-
-        # 分发全局模型
-        await self._distribute_global_model(aggregated_weights)
+        # 分发全局模型（包括可能的prototypes）
+        await self._distribute_global_model(aggregated_weights, aggregation_result)
 
         return aggregated_weights
 
@@ -344,18 +389,38 @@ class GenericTrainer(BaseTrainer):
         }
 
     def should_stop_training(self, round_num: int, round_result: Dict[str, Any]) -> bool:
-        """判断是否应该停止训练"""
-        round_metrics = round_result.get("round_metrics", {})
-        avg_accuracy = round_metrics.get("avg_accuracy", 0.0)
+        """判断是否应该停止训练（基于Early Stopping）"""
+        if not self.early_stopping_enabled:
+            return False
 
-        # 高准确率提前停止
-        if avg_accuracy >= 0.98:
-            self.logger.info(f"  High accuracy achieved: {avg_accuracy:.4f}")
-            return True
+        round_metrics = round_result.get("round_metrics", {})
+        current_accuracy = round_metrics.get("avg_accuracy", 0.0)
+
+        # 检查是否有改进
+        if current_accuracy > self.best_accuracy + self.min_delta:
+            # 有改进：更新最佳准确率，重置计数器
+            self.best_accuracy = current_accuracy
+            self.patience_counter = 0
+            self.logger.info(f"  准确率提升至: {current_accuracy:.4f} (best={self.best_accuracy:.4f})")
+        else:
+            # 无改进：增加计数器
+            self.patience_counter += 1
+            self.logger.info(
+                f"  准确率未提升: {current_accuracy:.4f} (best={self.best_accuracy:.4f}), "
+                f"patience={self.patience_counter}/{self.patience}"
+            )
+
+            # 检查是否达到耐心上限
+            if self.patience_counter >= self.patience:
+                self.logger.info(
+                    f"  Early stopping triggered: {self.patience} rounds without improvement"
+                )
+                return True
 
         return False
 
-    async def _distribute_global_model(self, global_weights: Dict[str, torch.Tensor]):
+    async def _distribute_global_model(self, global_weights: Dict[str, torch.Tensor],
+                                      aggregation_result: Dict[str, Any] = None):
         """分发全局模型到所有客户端"""
         # 尝试从config中获取模型名称
         global_model_config = self._find_global_model_config()
@@ -365,6 +430,15 @@ class GenericTrainer(BaseTrainer):
             "model_type": model_name,
             "parameters": {"weights": global_weights}
         }
+
+        # 如果aggregation_result包含prototypes（如FedProto），则一并分发
+        if aggregation_result and isinstance(aggregation_result, dict):
+            if "global_prototypes" in aggregation_result:
+                global_model_data["prototypes"] = aggregation_result["global_prototypes"]
+                self.logger.info(
+                    f"  Including {len(aggregation_result['global_prototypes'])} "
+                    f"global prototypes in model distribution"
+                )
 
         tasks = []
         for client_id in self.get_available_clients():

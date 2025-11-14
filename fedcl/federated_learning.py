@@ -321,14 +321,98 @@ class FederatedLearning:
 
             await asyncio.sleep(0.5)
 
+    # ========== 实验记录 ==========
+
+    def setup_experiment_recording(self, exp_config: Optional[Dict[str, Any]] = None):
+        """
+        设置实验记录
+
+        Args:
+            exp_config: 实验配置字典，可选。如果为None，则从配置文件中读取
+                {
+                    'enabled': True,
+                    'name': 'my_experiment',  # 可选，默认自动生成
+                    'base_dir': 'experiments/results',  # 可选
+                    'record_server': True,  # 可选，默认True
+                    'record_clients': True  # 可选，默认True
+                }
+
+        Returns:
+            Tuple[Optional[Recorder], List[Recorder]]: (server_recorder, client_recorders)
+        """
+        try:
+            from .experiment import Recorder, create_callbacks
+        except ImportError:
+            self.logger.warning("Experiment module not available")
+            return None, []
+
+        # 如果未提供配置，尝试从配置文件读取
+        if exp_config is None:
+            # 尝试从第一个配置中获取experiment配置
+            if self.config_list:
+                _, train_cfg = self.config_list[0]
+                exp_config = getattr(train_cfg, 'experiment', None)
+                if isinstance(exp_config, dict):
+                    pass
+                else:
+                    exp_config = None
+
+        if not exp_config or not exp_config.get('enabled', False):
+            self.logger.debug("Experiment recording not enabled")
+            return None, []
+
+        # 提取配置
+        exp_name = exp_config.get('name')
+        if not exp_name:
+            # 自动生成实验名称
+            import time
+            exp_name = f"exp_{int(time.time())}"
+
+        base_dir = exp_config.get('base_dir', 'experiments/results')
+        record_server = exp_config.get('record_server', True)
+        record_clients = exp_config.get('record_clients', True)
+
+        self.logger.info(f"[实验记录] 设置实验记录: {exp_name}")
+
+        server_recorder = None
+        client_recorders = []
+
+        # 为Server设置
+        if record_server and self.servers:
+            server = self.servers[0]
+            server_recorder = Recorder.initialize(exp_name, "server", server.server_id, base_dir)
+            server_recorder.start_run({"mode": str(server.comm_config.mode), "role": "server"})
+
+            callbacks = create_callbacks(server_recorder)
+            server.trainer.add_callback('after_round', callbacks['round_callback'])
+            server.trainer.add_callback('after_evaluation', callbacks['eval_callback'])
+            self.logger.info(f"  ✓ Server实验记录已启用")
+
+        # 为Clients设置
+        if record_clients and self.clients:
+            for client in self.clients:
+                Recorder.reset()
+                client_recorder = Recorder.initialize(exp_name, "client", client.client_id, base_dir)
+                client_recorder.start_run({"mode": str(client.comm_config.mode), "role": "client"})
+
+                client_callbacks = create_callbacks(client_recorder)
+                if hasattr(client, 'learner') and client.learner:
+                    client.learner.add_callback('after_train', client_callbacks['client_train_callback'])
+
+                client_recorders.append(client_recorder)
+            self.logger.info(f"  ✓ {len(client_recorders)} Client实验记录已启用")
+
+        return server_recorder, client_recorders
+
     # ========== 运行和清理 ==========
 
-    async def run(self, max_rounds: Optional[int] = None) -> Optional[FederationResult]:
+    async def run(self, max_rounds: Optional[int] = None, exp_config: Optional[Dict[str, Any]] = None) -> Optional[FederationResult]:
         """
-        运行联邦学习
+        运行联邦学习（自动处理实验记录）
 
         Args:
             max_rounds: 最大训练轮数
+            exp_config: 实验记录配置（可选）。如果为None，会从配置文件中读取
 
         Returns:
             FederationResult（如果有Server + Clients）或 None
@@ -338,7 +422,23 @@ class FederatedLearning:
 
         self._is_running = True
 
+        # 自动设置实验记录
+        server_recorder = None
+        client_recorders = []
+
         try:
+            # 尝试从配置文件读取实验配置（如果用户未提供）
+            if exp_config is None and self.config_list:
+                _, train_cfg = self.config_list[0]
+                exp_config = getattr(train_cfg, 'experiment', None)
+                if isinstance(exp_config, dict) and exp_config.get('enabled', False):
+                    self.logger.info("[实验记录] 从配置文件检测到实验记录配置，自动启用")
+
+            # 如果有有效的实验配置，自动设置
+            if exp_config and exp_config.get('enabled', False):
+                server_recorder, client_recorders = self.setup_experiment_recording(exp_config)
+                self.logger.info(f"[实验记录] 实验记录已自动启用: {exp_config.get('name', 'auto')}")
+
             # 如果有1个Server + 多个Client：运行训练
             if len(self.servers) == 1 and len(self.clients) > 0:
                 server = self.servers[0]
@@ -360,6 +460,21 @@ class FederatedLearning:
 
                 self.logger.info(f"Starting federation training for {max_rounds} rounds...")
                 result = await server.trainer.run_training(max_rounds=max_rounds)
+
+                # 自动记录最终结果
+                if server_recorder and result:
+                    server_recorder.log_info("final_accuracy", result.final_accuracy)
+                    server_recorder.log_info("final_loss", result.final_loss)
+                    server_recorder.log_info("completed_rounds", result.completed_rounds)
+                    server_recorder.log_info("total_time", result.total_time)
+                    server_recorder.finish(status="COMPLETED")
+                    self.logger.info("[实验记录] Server实验记录已自动保存")
+
+                for client_rec in client_recorders:
+                    client_rec.finish(status="COMPLETED")
+                if client_recorders:
+                    self.logger.info(f"[实验记录] {len(client_recorders)} Client实验记录已自动保存")
+
                 return result
 
             else:
@@ -368,11 +483,23 @@ class FederatedLearning:
                 # 保持运行（由外部控制停止）
                 return None
 
+        except Exception as e:
+            # 异常时也要保存记录
+            if server_recorder:
+                server_recorder.log_info("error", str(e))
+                server_recorder.finish(status="FAILED")
+            for client_rec in client_recorders:
+                client_rec.finish(status="FAILED")
+            raise
         finally:
             self._is_running = False
 
-    async def cleanup(self):
-        """清理资源"""
+    async def cleanup(self, force_clear_global_state: bool = False):
+        """清理资源
+
+        Args:
+            force_clear_global_state: 是否强制清理全局状态（适用于批量实验场景）
+        """
         self.logger.debug("Cleaning up resources...")
 
         # 停止所有Client
@@ -389,7 +516,33 @@ class FederatedLearning:
             except Exception as e:
                 self.logger.error(f"Error stopping server {server.server_id}: {e}")
 
+        # 如果使用 Memory 模式，清理全局状态（适用于批量实验）
+        if force_clear_global_state or self._should_clear_global_state():
+            try:
+                from .transport.memory import MemoryTransport
+                MemoryTransport.clear_global_state()
+                self.logger.debug("✓ Global state cleared (Memory mode)")
+            except Exception as e:
+                self.logger.debug(f"Skip global state cleanup: {e}")
+
+        # 清理实验记录器的单例状态（适用于批量实验）
+        if force_clear_global_state:
+            try:
+                from .experiment import Recorder
+                Recorder.reset()
+                self.logger.debug("✓ Recorder singleton reset")
+            except Exception as e:
+                self.logger.debug(f"Skip recorder cleanup: {e}")
+
         self.logger.debug("Cleanup completed")
+
+    def _should_clear_global_state(self) -> bool:
+        """判断是否应该清理全局状态（检测是否为 Memory 模式）"""
+        # 检查是否所有配置都是 Memory 模式
+        for comm_cfg, _ in self.config_list:
+            if comm_cfg.mode == "memory":
+                return True
+        return False
 
     # ========== 状态查询 ==========
 

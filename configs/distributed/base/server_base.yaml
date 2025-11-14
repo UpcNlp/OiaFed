@@ -23,6 +23,6 @@ training:
       learning_rate: 0.01
       batch_size: 32
   global_model:
-    name: "MNIST_CNN"
+    name: "MNIST_LeNet"
     params:
       num_classes: 10

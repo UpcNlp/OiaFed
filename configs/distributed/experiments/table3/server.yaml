@@ -1,0 +1,31 @@
+# TABLE III 实验 - 服务器配置
+# configs/distributed/experiments/table3/server.yaml
+
+extends: "../../base/server_base.yaml"
+
+# 节点ID（可以自定义任意名称）
+node_id: "server_1"
+
+# 训练配置
+training:
+  max_rounds: 50
+  min_clients: 10  # 等待10个客户端注册
+  trainer:
+    name: "Generic"
+    params:
+      local_epochs: 10
+      learning_rate: 0.01
+      batch_size: 64
+      momentum: 0.9
+      # 学习率衰减配置
+      lr_decay: true  # 启用学习率衰减
+      lr_decay_step: 10  # 每10轮衰减一次
+      lr_decay_rate: 0.95  # 衰减率95%（即每10轮降低5%）
+      # 服务器端测试数据集配置（用于最终评估）
+      test_dataset:
+        name: "MNIST"
+        params:
+          root: "./data"
+          train: false  # 使用测试集
+          download: true
+        batch_size: 1000  # 测试时使用较大的batch size

@@ -1,0 +1,24 @@
+# IID实验 - 服务器配置（带实验记录）
+# configs/distributed/experiments/iid/server.yaml
+
+extends: "../../base/server_base.yaml"
+
+# 实验特定配置
+node_id: "server_iid"
+
+# 快速批量实验配置（1轮训练）
+training:
+  max_rounds: 1
+  min_clients: 2
+  trainer:
+    params:
+      local_epochs: 1
+      batch_size: 128  # 增大batch_size以减少训练时间
+
+# ===== 实验记录配置（新增）=====
+experiment:
+  enabled: true  # 启用实验记录
+  name: "mnist_iid_auto"  # 实验名称（可选，默认自动生成）
+  base_dir: "experiments/results"  # 结果保存目录
+  record_server: true  # 记录server指标
+  record_clients: true  # 记录client指标

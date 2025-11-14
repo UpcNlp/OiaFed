@@ -5,3 +5,12 @@ extends: "../../base/server_base.yaml"
 
 # 实验特定配置
 node_id: "server_iid"
+
+# 快速批量实验配置（1轮训练）
+training:
+  max_rounds: 1
+  min_clients: 2
+  trainer:
+    params:
+      local_epochs: 1
+      batch_size: 128  # 增大batch_size以减少训练时间

@@ -285,10 +285,25 @@ class MemoryCommunicationManager(CommunicationManagerBase):
     async def start(self) -> None:
         """启动Memory通信管理器"""
         await super().start()
-        
+
         # 设置消息处理
         await self.setup_message_handling()
-    
+
+    async def stop(self) -> None:
+        """停止Memory通信管理器 - 清理全局共享状态"""
+        self.logger.debug(f"[MemoryCommunicationManager] 开始停止: {self.node_id}, 角色: {self.node_role}")
+
+        # 调用基类的stop方法
+        await super().stop()
+
+        # 🎯 关键修复：Memory模式下，清理全局共享注册表
+        if self.node_role == "server":
+            self.logger.debug(f"[MemoryCommunicationManager] 清理全局客户端注册表，当前数量: {len(self._global_client_registry)}")
+            self._global_client_registry.clear()
+            self.logger.info("✓ Global client registry cleared (Memory mode)")
+
+        self.logger.debug(f"[MemoryCommunicationManager] 停止完成: {self.node_id}")
+
     async def get_debug_info(self) -> Dict[str, Any]:
         """获取调试信息"""
         base_info = await self.get_node_status()

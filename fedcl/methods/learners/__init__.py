@@ -14,6 +14,15 @@ from .meta import MetaLearner
 from .generic import GenericLearner  # noqa: F401
 from .mnist_learner import MNISTLearner  # noqa: F401
 from .moon import MOONLearner  # noqa: F401
+from .fedper import FedPerLearner  # noqa: F401
+from .fedrep import FedRepLearner  # noqa: F401
+from .fedrod import FedRoDLearner  # noqa: F401
+from .fedbabu import FedBABULearner  # noqa: F401
+from .fedproto import FedProtoLearner  # noqa: F401
+from .feddistill import FedDistillLearner  # noqa: F401
+from .fedcp import FedCPLearner  # noqa: F401
+from .gpfl import GPFLLearner  # noqa: F401
+from .feddbe import FedDBELearner  # noqa: F401
 
 __all__ = [
     "ContrastiveLearner",
@@ -26,4 +35,13 @@ __all__ = [
     "GenericLearner",
     "MNISTLearner",
     "MOONLearner",
+    "FedPerLearner",
+    "FedRepLearner",
+    "FedRoDLearner",
+    "FedBABULearner",
+    "FedProtoLearner",
+    "FedDistillLearner",
+    "FedCPLearner",
+    "GPFLLearner",
+    "FedDBELearner",
 ]

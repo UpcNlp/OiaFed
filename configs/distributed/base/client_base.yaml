@@ -17,7 +17,7 @@ training:
     name: "Generic"
     params:
       model:
-        name: "MNIST_CNN"
+        name: "MNIST_LeNet"
         params:
           num_classes: 10
       optimizer:

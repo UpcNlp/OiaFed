@@ -267,6 +267,9 @@ def dataset(name: Optional[str] = None,
     class MNISTFederated(FederatedDataset):
         pass
 
+    注意：装饰后，registry.get_dataset(name) 返回的是透明工厂类，
+    实例化后直接得到 PyTorch Dataset，无需调用 get_pytorch_dataset()
+
     Args:
         name: 数据集名称，如果为None则使用类名
         description: 数据集描述
@@ -301,10 +304,49 @@ def dataset(name: Optional[str] = None,
             **metadata
         }
 
-        # 注册到全局注册表
-        registry.register_dataset(dataset_name, cls)
+        # 创建透明工厂类
+        # 该工厂类在实例化时返回 PyTorch Dataset，而非 FederatedDataset
+        class DatasetFactory:
+            """
+            透明数据集工厂类
 
-        logger.info(f"已注册数据集: {dataset_name} (版本: {version}, 类型: {dataset_type})")
+            用途：使 Trainer/Learner 无需感知 FederatedDataset 包装器
+            实例化时自动返回底层 PyTorch Dataset
+            """
+
+            # 保留原始 FederatedDataset 类的引用（用于需要联邦功能的场景）
+            _federated_class = cls
+            _component_metadata = cls._component_metadata
+
+            def __new__(cls_factory, *args, **kwargs):
+                """
+                重写 __new__ 实现透明数据集访问
+
+                当实例化时：
+                1. 创建 FederatedDataset 实例
+                2. 调用 get_pytorch_dataset() 获取底层数据集
+                3. 直接返回 PyTorch Dataset（上层无感知）
+                """
+                # 实例化 FederatedDataset 包装器
+                federated_dataset = cls_factory._federated_class(*args, **kwargs)
+
+                # 获取底层 PyTorch Dataset
+                pytorch_dataset = federated_dataset.get_pytorch_dataset()
+
+                # 将联邦功能方法附加到 PyTorch Dataset（可选，用于需要时）
+                # 这样上层如果需要联邦划分功能，仍可以通过 dataset.partition() 等访问
+                pytorch_dataset._federated_dataset = federated_dataset
+                pytorch_dataset.partition = federated_dataset.partition
+                pytorch_dataset.get_client_partition = federated_dataset.get_client_partition
+                pytorch_dataset.get_statistics = federated_dataset.get_statistics
+                pytorch_dataset.get_class_distribution = federated_dataset.get_class_distribution
+
+                return pytorch_dataset
+
+        # 注册工厂类到全局注册表（而非原始类）
+        registry.register_dataset(dataset_name, DatasetFactory)
+
+        logger.info(f"已注册数据集: {dataset_name} (版本: {version}, 类型: {dataset_type}, 透明访问模式)")
 
         return cls
 

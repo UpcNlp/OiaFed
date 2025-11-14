@@ -187,6 +187,10 @@ class FederationClient:
                 await self.comm_components.connection_manager.start()
                 self.system_logger.debug("✓ Connection manager started")
 
+            # 注册 SHUTDOWN 消息处理器（统一停止协议）
+            self._register_shutdown_handler()
+            self.system_logger.debug("✓ SHUTDOWN handler registered")
+
             # 启动 LearnerStub（会自动注册到服务端）
             self.system_logger.debug("Starting LearnerStub...")
             await self.learner_stub.start_listening()
@@ -260,6 +264,52 @@ class FederationClient:
         except Exception as e:
             self.system_logger.error(f"Failed to stop client: {e}")
             return False
+
+    def _register_shutdown_handler(self):
+        """注册 SHUTDOWN 消息处理器（统一停止协议）"""
+        if not self.comm_components or not self.comm_components.communication_manager:
+            return
+
+        # 注册到 CommunicationManager 的消息处理器
+        comm_manager = self.comm_components.communication_manager
+        if hasattr(comm_manager, 'register_message_handler'):
+            comm_manager.register_message_handler("SHUTDOWN", self._handle_shutdown_message)
+            self.system_logger.debug(f"[{self.client_id}] Registered SHUTDOWN handler")
+
+    def _handle_shutdown_message(self, source: str, data: Dict[str, Any]) -> Dict[str, Any]:
+        """
+        处理来自服务端的 SHUTDOWN 消息
+
+        Args:
+            source: 消息来源（通常是服务端）
+            data: SHUTDOWN 消息数据
+
+        Returns:
+            Dict[str, Any]: 响应数据
+        """
+        import asyncio
+
+        self.system_logger.info(f"[{self.client_id}] Received SHUTDOWN from {source}")
+
+        # 创建异步任务来停止客户端（不阻塞消息处理）
+        async def shutdown_task():
+            try:
+                # 等待一小段时间，让响应先发出去
+                await asyncio.sleep(0.1)
+                await self.stop_client()
+                self.system_logger.info(f"[{self.client_id}] Shutdown completed")
+            except Exception as e:
+                self.system_logger.error(f"[{self.client_id}] Shutdown error: {e}")
+
+        # 在后台执行 shutdown
+        asyncio.create_task(shutdown_task())
+
+        # 立即返回确认响应
+        return {
+            "success": True,
+            "message": f"Client {self.client_id} is shutting down",
+            "timestamp": str(__import__('datetime').datetime.now())
+        }
 
     # ========== 便捷访问属性 ==========
 

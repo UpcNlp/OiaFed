@@ -1,0 +1,33 @@
+# 实验2：MNIST + Generic(FedProx) + IID - Client 配置
+# experiments/test_configs/iid_comparison/exp2_fedprox_client.yaml
+
+extends: "../../../configs/distributed/base/client_base.yaml"
+
+node_id: "exp2_client"
+
+training:
+  learner:
+    name: "Generic"
+    params:
+      model:
+        name: "MNIST_CNN"
+        params:
+          num_classes: 10
+      optimizer:
+        type: "SGD"
+        lr: 0.01
+        momentum: 0.9
+      loss: "CrossEntropyLoss"
+      learning_rate: 0.01
+      batch_size: 32
+      local_epochs: 1
+  dataset:
+    name: "MNIST"
+    params:
+      root: "./data"
+      train: true
+      download: true
+    partition:
+      strategy: "iid"
+      num_clients: 3
+      seed: 42

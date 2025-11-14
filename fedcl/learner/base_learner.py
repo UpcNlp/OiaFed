@@ -66,6 +66,12 @@ class BaseLearner(ABC):
         self.last_training_time: Optional[datetime] = None
         self.last_evaluation_time: Optional[datetime] = None
 
+        # 回调机制（用于实验记录等扩展功能）
+        self._callbacks: Dict[str, List] = {
+            'after_train': [],
+            'after_evaluate': []
+        }
+
         # 如果不延迟初始化，立即创建所有组件
         if not self.lazy_init:
             self._initialize_all_components()
@@ -690,7 +696,73 @@ class BaseLearner(ABC):
             "training_config": self.training_config,
             "has_local_model": self._local_model is not None
         }
-    
+
+    # ==================== 回调机制（用于实验记录） ====================
+
+    def add_callback(self, event: str, callback):
+        """添加回调函数（用于实验记录等扩展功能）
+
+        Args:
+            event: 事件名称（'after_train', 'after_evaluate'）
+            callback: 回调函数
+        """
+        if event in self._callbacks:
+            self._callbacks[event].append(callback)
+        else:
+            self.logger.warning(f"Unknown callback event: {event}")
+
+    def _trigger_callbacks(self, event: str, *args, **kwargs):
+        """触发回调（内部使用）
+
+        Args:
+            event: 事件名称
+            *args, **kwargs: 传递给回调的参数
+        """
+        for callback in self._callbacks.get(event, []):
+            try:
+                if asyncio.iscoroutinefunction(callback):
+                    asyncio.create_task(callback(*args, **kwargs))
+                else:
+                    callback(*args, **kwargs)
+            except Exception as e:
+                self.logger.warning(f"Callback {event} failed: {e}")
+
+    # ==================== 包装方法（用于回调注入） ====================
+
+    async def _train(self, training_params: Dict[str, Any]) -> TrainingResult:
+        """包装方法：负责回调触发，调用用户实现的 train
+
+        Args:
+            training_params: 训练参数
+
+        Returns:
+            TrainingResult: 训练结果
+        """
+        # 调用用户实现的训练方法
+        result = await self.train(training_params)
+
+        # 触发回调
+        self._trigger_callbacks('after_train', training_params, result)
+
+        return result
+
+    async def _evaluate(self, evaluation_params: Dict[str, Any]) -> EvaluationResult:
+        """包装方法：负责回调触发，调用用户实现的 evaluate
+
+        Args:
+            evaluation_params: 评估参数
+
+        Returns:
+            EvaluationResult: 评估结果
+        """
+        # 调用用户实现的评估方法
+        result = await self.evaluate(evaluation_params)
+
+        # 触发回调
+        self._trigger_callbacks('after_evaluate', result)
+
+        return result
+
     # ==================== 内部工具方法 ====================
     
     async def _record_training(self, training_params: Dict[str, Any], result: TrainingResult):

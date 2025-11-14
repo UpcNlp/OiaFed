@@ -5,3 +5,10 @@ extends: "../../base/client_base.yaml"
 
 # 节点ID
 node_id: "client_0"
+
+# 快速批量实验配置
+training:
+  learner:
+    params:
+      batch_size: 128
+      local_epochs: 1

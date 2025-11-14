@@ -453,13 +453,18 @@ class CommunicationManagerBase(ABC):
     async def stop(self) -> None:
         """停止通信管理器"""
         self._running = False
-        
+
         # 停止心跳机制
         await self.stop_heartbeat()
-        
+
         # 停止服务组件
         await self.stop_services()
-        
+
+        # 清理客户端注册表（适用于批量实验场景）
+        if self.registry_service is not None and hasattr(self.registry_service, 'clients'):
+            self.registry_service.clients.clear()
+            self.logger.debug("✓ Client registry cleared")
+
         # 停止传输层
         await self.transport.stop()
     

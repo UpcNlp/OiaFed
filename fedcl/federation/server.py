@@ -3,7 +3,7 @@
 fedcl/federation/server.py
 """
 
-from typing import Dict, Any, Optional
+from typing import Dict, Any, Optional, List
 
 from ..config import CommunicationConfig, TrainingConfig
 from ..exceptions import FederationError
@@ -246,7 +246,13 @@ class FederationServer:
 
     async def stop_server(self) -> bool:
         """
-        停止服务端
+        停止服务端（使用统一的 SHUTDOWN 消息协议）
+
+        流程：
+            1. 向所有活跃客户端广播 SHUTDOWN 消息
+            2. 等待客户端响应（短暂延迟）
+            3. 停止 Trainer
+            4. 停止通信层（逐层向下）
 
         Returns:
             bool: 停止是否成功
@@ -258,9 +264,19 @@ class FederationServer:
         self.logger.info("Stopping FederationServer...")
 
         try:
-            # 按相反顺序停止组件
+            # 步骤1: 广播 SHUTDOWN 消息给所有活跃客户端（统一停止协议）
+            if self.trainer:
+                available_clients = self.trainer.get_available_clients()
+                if available_clients:
+                    self.logger.info(f"Broadcasting SHUTDOWN to {len(available_clients)} clients...")
+                    await self._broadcast_shutdown(available_clients)
 
-            # 停止 trainer
+                    # 等待客户端处理 SHUTDOWN 消息（给予足够时间）
+                    import asyncio
+                    await asyncio.sleep(0.5)
+                    self.logger.info("✓ SHUTDOWN broadcast completed")
+
+            # 步骤2: 停止 trainer
             if self.business_components and self.business_components.trainer:
                 await self.business_components.trainer.cleanup()
                 self.logger.info("✓ Trainer stopped")
@@ -287,6 +303,39 @@ class FederationServer:
         except Exception as e:
             self.logger.error(f"Failed to stop server: {e}")
             return False
+
+    async def _broadcast_shutdown(self, client_ids: List[str]):
+        """
+        广播 SHUTDOWN 消息给指定的客户端列表
+
+        Args:
+            client_ids: 客户端ID列表
+        """
+        if not self.comm_components or not self.comm_components.communication_manager:
+            self.logger.warning("Communication manager not available for SHUTDOWN broadcast")
+            return
+
+        shutdown_message = {
+            "reason": "server_shutdown",
+            "timestamp": str(__import__('datetime').datetime.now())
+        }
+
+        # 使用 RPC 消息机制广播 SHUTDOWN（与客户端的 register_message_handler 匹配）
+        try:
+            for client_id in client_ids:
+                try:
+                    # 使用 send_business_message 而不是 send_control_message
+                    # 因为客户端使用 register_message_handler 注册处理器
+                    await self.comm_components.communication_manager.send_business_message(
+                        client_id,
+                        "SHUTDOWN",
+                        shutdown_message
+                    )
+                    self.logger.debug(f"  → Sent SHUTDOWN to {client_id}")
+                except Exception as e:
+                    self.logger.warning(f"  ✗ Failed to send SHUTDOWN to {client_id}: {e}")
+        except Exception as e:
+            self.logger.error(f"SHUTDOWN broadcast error: {e}")
 
     # ========== 便捷访问属性 ==========
 

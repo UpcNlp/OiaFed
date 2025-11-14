@@ -14,18 +14,22 @@ import torch
 from torch.utils.data import Dataset
 
 
-class FederatedDataset(ABC):
+class FederatedDataset(Dataset, ABC):
     """
     联邦数据集抽象基类
+
+    继承自torch.utils.data.Dataset，可直接用于DataLoader，对上层透明。
 
     设计原则：
     - 模式无关：同时支持集中式和分布式划分
     - 确定性：相同参数保证相同划分结果
     - 灵活性：支持多种划分策略（IID/Non-IID）
+    - 透明性：对Trainer/Learner表现为标准PyTorch Dataset
 
     使用场景：
     1. Memory/Process模式：Server端调用 partition() 集中划分
     2. Network模式：Client端调用 get_client_partition() 独立加载
+    3. 直接使用：可作为标准Dataset传给DataLoader
     """
 
     def __init__(self, root: str, train: bool = True, download: bool = False, **kwargs):
@@ -38,6 +42,7 @@ class FederatedDataset(ABC):
             download: 是否自动下载
             **kwargs: 其他参数
         """
+        super().__init__()
         self.root = root
         self.train = train
         self.download = download
@@ -183,6 +188,32 @@ class FederatedDataset(ABC):
             class_counts[label] = class_counts.get(label, 0) + 1
 
         return class_counts
+
+    # ==================== PyTorch数据集访问接口 ====================
+
+    def get_pytorch_dataset(self) -> Dataset:
+        """
+        获取底层PyTorch数据集
+
+        该方法用于直接访问底层的PyTorch Dataset对象，适用于：
+        1. 服务器端测试集评估（不需要联邦划分功能）
+        2. 与标准PyTorch DataLoader配合使用
+        3. 需要访问原始数据集的场景
+
+        Returns:
+            Dataset: 底层PyTorch数据集对象
+
+        Raises:
+            ValueError: 如果数据集未初始化
+
+        Examples:
+            >>> fed_dataset = MNISTFederatedDataset(root='./data', train=False)
+            >>> pytorch_dataset = fed_dataset.get_pytorch_dataset()
+            >>> test_loader = DataLoader(pytorch_dataset, batch_size=1000)
+        """
+        if self.dataset is None:
+            raise ValueError("数据集未初始化，请在子类中设置 self.dataset")
+        return self.dataset
 
     # ==================== 辅助方法 ====================
 

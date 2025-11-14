@@ -255,8 +255,8 @@ class LearnerStub:
             if not self.learner._is_initialized:
                 await self.learner.initialize()
 
-            # 执行训练
-            result = await self.learner.train(request.parameters)
+            # 执行训练（使用包装方法触发回调）
+            result = await self.learner._train(request.parameters)
             self.train_logger.debug(f"[STUB] 接收到learner {result.client_id} 的训练结果")
 
             # 记录训练历史
@@ -312,9 +312,9 @@ class LearnerStub:
             # 确保学习器已初始化
             if not self.learner._is_initialized:
                 await self.learner.initialize()
-            
-            # 执行评估
-            result = await self.learner.evaluate(request.parameters)
+
+            # 执行评估（使用包装方法触发回调）
+            result = await self.learner._evaluate(request.parameters)
             
             # 记录评估历史
             await self.learner._record_evaluation(request.parameters, result)

@@ -17,6 +17,7 @@ from .base import (
 
 # 自动导入内置模型以触发装饰器注册
 from .mnist_cnn import MNISTCNNModel  # noqa: F401
+from .mnist_lenet import MNISTLeNetModel  # noqa: F401
 from .cifar10_cnn import CNNModel, SimpleCNNModel  # noqa: F401
 
 __all__ = [
@@ -30,6 +31,7 @@ __all__ = [
 
     # 内置模型
     'MNISTCNNModel',
+    'MNISTLeNetModel',
     'CNNModel',
     'SimpleCNNModel',
 ]
