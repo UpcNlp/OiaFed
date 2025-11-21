@@ -8,6 +8,7 @@ fedcl/experiment/mlflow_recorder.py
 - 提供强大的可视化和实验管理能力
 """
 
+import os
 import threading
 from pathlib import Path
 from typing import Optional, Dict, Any
@@ -19,7 +20,20 @@ try:
     MLFLOW_AVAILABLE = True
 except ImportError:
     MLFLOW_AVAILABLE = False
-    print("[Warning] MLflow not installed. Please run: pip install mlflow")
+    _log_message("[Warning] MLflow not installed. Please run: pip install mlflow")
+
+# 静默模式控制（通过环境变量）
+_VERBOSE = os.getenv('FEDCL_MLFLOW_VERBOSE', 'false').lower() in ('true', '1', 'yes')
+
+
+def _log_message(message: str):
+    """
+    条件日志输出
+
+    只在 FEDCL_MLFLOW_VERBOSE=true 时输出
+    """
+    if _VERBOSE:
+        print(message)
 
 
 class MLflowRecorder:
@@ -67,12 +81,12 @@ class MLflowRecorder:
         if not current_uri or current_uri in ["", "file:///mlruns", "mlruns"]:
             tracking_uri = f"file:{Path(base_dir).absolute()}"
             mlflow.set_tracking_uri(tracking_uri)
-            print(f"[MLflowRecorder] 使用默认tracking URI: {tracking_uri}")
+            _log_message(f"[MLflowRecorder] 使用默认tracking URI: {tracking_uri}")
         else:
             # 已经设置了tracking URI（比如 reproduce_table3_experiments.py 中设置的）
             # 不覆盖，直接使用
             tracking_uri = current_uri
-            print(f"[MLflowRecorder] 使用已设置的tracking URI: {tracking_uri}")
+            _log_message(f"[MLflowRecorder] 使用已设置的tracking URI: {tracking_uri}")
 
         # 创建或获取实验
         try:
@@ -82,7 +96,7 @@ class MLflowRecorder:
             else:
                 experiment_id = experiment.experiment_id
         except Exception as e:
-            print(f"[MLflowRecorder] Warning: {e}")
+            _log_message(f"[MLflowRecorder] Warning: {e}")
             experiment_id = None
 
         mlflow.set_experiment(experiment_name)
@@ -106,7 +120,7 @@ class MLflowRecorder:
         self.start_time = None
         self.is_finished = False
 
-        print(f"[MLflowRecorder] {role}_{node_id}: Run started (run_id={self.run_id})")
+        _log_message(f"[MLflowRecorder] {role}_{node_id}: Run started (run_id={self.run_id})")
 
     @classmethod
     def get_instance(cls) -> Optional['MLflowRecorder']:
@@ -153,13 +167,13 @@ class MLflowRecorder:
                     else:
                         mlflow.log_param(f"config_{key}", str(value))
                 except Exception as e:
-                    print(f"[MLflowRecorder] Warning: Failed to log param {key}: {e}")
+                    _log_message(f"[MLflowRecorder] Warning: Failed to log param {key}: {e}")
 
             # 记录开始时间
             mlflow.set_tag("start_time", self.start_time.isoformat())
 
         except Exception as e:
-            print(f"[MLflowRecorder] Failed to start run: {e}")
+            _log_message(f"[MLflowRecorder] Failed to start run: {e}")
 
     def log_scalar(self, name: str, value: float, step: int = None):
         """
@@ -177,7 +191,7 @@ class MLflowRecorder:
             else:
                 mlflow.log_metric(name, float(value))
         except Exception as e:
-            print(f"[MLflowRecorder] Failed to log scalar {name}: {e}")
+            _log_message(f"[MLflowRecorder] Failed to log scalar {name}: {e}")
 
     def log_info(self, key: str, value):
         """
@@ -196,7 +210,7 @@ class MLflowRecorder:
                 # 复杂类型转字符串用 tag
                 mlflow.set_tag(f"info_{key}", str(value))
         except Exception as e:
-            print(f"[MLflowRecorder] Failed to log info {key}: {e}")
+            _log_message(f"[MLflowRecorder] Failed to log info {key}: {e}")
 
     def add_artifact(self, filepath: str, name: str = None):
         """
@@ -211,9 +225,9 @@ class MLflowRecorder:
             if file_path.exists():
                 mlflow.log_artifact(str(file_path))
             else:
-                print(f"[MLflowRecorder] Warning: Artifact file not found: {filepath}")
+                _log_message(f"[MLflowRecorder] Warning: Artifact file not found: {filepath}")
         except Exception as e:
-            print(f"[MLflowRecorder] Failed to add artifact {filepath}: {e}")
+            _log_message(f"[MLflowRecorder] Failed to add artifact {filepath}: {e}")
 
     def finish(self, status: str = "COMPLETED"):
         """
@@ -241,11 +255,11 @@ class MLflowRecorder:
 
             self.is_finished = True
 
-            print(f"[MLflowRecorder] {self.role}_{self.node_id}: Results saved (status={status})")
-            print(f"[MLflowRecorder] View results: mlflow ui --backend-store-uri {self.base_dir}")
+            _log_message(f"[MLflowRecorder] {self.role}_{self.node_id}: Results saved (status={status})")
+            _log_message(f"[MLflowRecorder] View results: mlflow ui --backend-store-uri {self.base_dir}")
 
         except Exception as e:
-            print(f"[MLflowRecorder] Failed to finish run: {e}")
+            _log_message(f"[MLflowRecorder] Failed to finish run: {e}")
             try:
                 mlflow.end_run(status="FAILED")
             except:

@@ -59,7 +59,8 @@ class FederatedLearning:
             Tuple[CommunicationConfig, TrainingConfig],  # 单个配置对象元组
             List[Tuple[CommunicationConfig, TrainingConfig]]  # 多个配置对象元组
         ],
-        auto_setup_logging: bool = True
+        auto_setup_logging: bool = True,
+        logging_config: Optional[Dict[str, Any]] = None
     ):
         """
         初始化联邦学习系统
@@ -73,14 +74,18 @@ class FederatedLearning:
                 - Tuple[CommunicationConfig, TrainingConfig]: 单个配置对象元组
                 - List[Tuple[...]]: 多个配置对象元组列表
             auto_setup_logging: 是否自动设置日志
+            logging_config: 日志配置字典，支持以下键：
+                - console_enabled: 是否启用控制台输出（默认True）
+                - level: 日志级别（默认DEBUG）
+                - format: 日志格式
+                - rotation: 日志轮转大小
+                - retention: 日志保留时间
+                - compression: 压缩格式
         """
-        # 自动设置日志
-        if auto_setup_logging:
-            setup_auto_logging()
+        # 存储从YAML提取的日志配置（用于自动提取）
+        self._extracted_logging_config: Optional[Dict[str, Any]] = None
 
-        self.logger = get_sys_logger()
-
-        # 解析配置，得到配置列表
+        # 解析配置，得到配置列表（在解析过程中会提取日志配置）
         self.config_list: List[Tuple[CommunicationConfig, TrainingConfig]] = self._parse_config(config)
 
         if not self.config_list:
@@ -103,6 +108,72 @@ class FederatedLearning:
                 self.client_configs.append((comm_cfg, train_cfg))
             else:
                 raise ValueError(f"Invalid role: {role}. Must be 'server' or 'client'")
+
+        # 如果用户未提供logging_config，但YAML文件中有logging配置，则使用提取的配置
+        if logging_config is None and self._extracted_logging_config is not None:
+            logging_config = self._extracted_logging_config
+
+        # 提取实验配置（从server配置中提取）
+        experiment_config = None
+        if self.server_configs:
+            comm_cfg, train_cfg = self.server_configs[0]
+
+            # 从 TrainingConfig 中提取扁平化配置
+            experiment_config = {}
+
+            # 数据集配置（从客户端配置中获取）
+            if self.client_configs:
+                _, client_train_cfg = self.client_configs[0]
+
+                # 安全地提取数据集配置
+                if client_train_cfg.dataset and isinstance(client_train_cfg.dataset, dict):
+                    experiment_config['dataset'] = client_train_cfg.dataset.get('name', 'UNKNOWN')
+                    experiment_config['data_dir'] = client_train_cfg.dataset.get('data_dir', '')
+
+                    # 数据划分配置
+                    partition_cfg = client_train_cfg.dataset.get('partition', {})
+                    if isinstance(partition_cfg, dict):
+                        experiment_config['noniid_type'] = partition_cfg.get('type', 'iid')
+                        experiment_config['alpha'] = partition_cfg.get('alpha')
+                        experiment_config['num_clients'] = partition_cfg.get('num_clients', len(self.client_configs))
+                        experiment_config['samples_per_client'] = partition_cfg.get('samples_per_client')
+
+                # 模型配置
+                if client_train_cfg.local_model and isinstance(client_train_cfg.local_model, dict):
+                    experiment_config['model_name'] = client_train_cfg.local_model.get('name')
+                    experiment_config['model_config'] = client_train_cfg.local_model
+
+                # 学习器配置（训练参数）
+                if client_train_cfg.learner and isinstance(client_train_cfg.learner, dict):
+                    learner_cfg = client_train_cfg.learner
+                    experiment_config['learning_rate'] = learner_cfg.get('learning_rate')
+                    experiment_config['batch_size'] = learner_cfg.get('batch_size')
+                    experiment_config['local_epochs'] = learner_cfg.get('epochs')
+                    experiment_config['optimizer'] = learner_cfg.get('optimizer', 'SGD')
+                    experiment_config['loss_fn'] = learner_cfg.get('loss_fn', 'CrossEntropyLoss')
+
+            # 服务端配置
+            experiment_config['num_rounds'] = train_cfg.max_rounds
+            experiment_config['clients_per_round'] = train_cfg.min_clients
+
+            # 聚合器配置
+            if train_cfg.aggregator and isinstance(train_cfg.aggregator, dict):
+                experiment_config['aggregator'] = train_cfg.aggregator.get('name', 'FedAvgAggregator')
+                experiment_config['algorithm'] = train_cfg.aggregator.get('name', 'FedAvg').replace('Aggregator', '')
+
+            # 通信配置
+            experiment_config['comm_mode'] = comm_cfg.mode if hasattr(comm_cfg, 'mode') else 'ProcessAndNetwork'
+            experiment_config['backend'] = comm_cfg.backend if hasattr(comm_cfg, 'backend') else None
+
+            # 其他配置
+            experiment_config['device'] = 'cuda'  # 默认
+            experiment_config['seed'] = None
+
+        # 自动设置日志（传递实验配置）
+        if auto_setup_logging:
+            setup_auto_logging(config=logging_config, experiment_config=experiment_config)
+
+        self.logger = get_sys_logger()
 
         # 组件实例（延迟创建）
         self.servers: List[FederationServer] = []
@@ -172,6 +243,31 @@ class FederatedLearning:
                 "Tuple[CommunicationConfig, TrainingConfig], or List[Tuple[...]]"
             )
 
+    def _extract_logging_config_from_file(self, file_path: str):
+        """
+        从YAML文件中提取日志配置
+
+        如果已经提取过日志配置，则跳过（使用第一个找到的）
+
+        Args:
+            file_path: 配置文件路径
+        """
+        # 如果已经提取过日志配置，则跳过（使用第一个找到的）
+        if self._extracted_logging_config is not None:
+            return
+
+        try:
+            # 直接加载YAML文件以提取logging配置
+            config_dict = ConfigLoader.load_with_inheritance(file_path)
+
+            if 'logging' in config_dict:
+                self._extracted_logging_config = config_dict['logging']
+                # 此时logger还未创建，不能使用logger.info
+                # print(f"  Extracted logging config from {os.path.basename(file_path)}")
+        except Exception:
+            # 提取失败不影响主流程
+            pass
+
     def _load_from_path(self, path: str) -> List[Tuple[CommunicationConfig, TrainingConfig]]:
         """
         从路径加载配置（支持文件或文件夹）
@@ -187,12 +283,17 @@ class FederatedLearning:
 
         # 情况1: 路径是文件
         if os.path.isfile(path):
-            self.logger.info(f"Loading config from file: {path}")
-            return [ConfigLoader.load(path)]
+            # 注意：此时logger还未初始化
+            config_tuple = ConfigLoader.load(path)
+
+            # 提取日志配置（如果存在）
+            self._extract_logging_config_from_file(path)
+
+            return [config_tuple]
 
         # 情况2: 路径是文件夹
         elif os.path.isdir(path):
-            self.logger.info(f"Loading configs from folder: {path}")
+            # 注意：此时logger还未初始化
 
             # 查找文件夹下所有 YAML 配置文件
             config_files = []
@@ -212,16 +313,18 @@ class FederatedLearning:
                 try:
                     config_tuple = ConfigLoader.load(config_file)
                     result.append(config_tuple)
-                    comm_cfg, _ = config_tuple
-                    self.logger.info(
-                        f"  ✓ Loaded: {os.path.basename(config_file)} "
-                        f"(role={comm_cfg.role}, mode={comm_cfg.mode})"
-                    )
+                    # Note: logger not initialized yet
+                    # comm_cfg, _ = config_tuple
+
+                    # 提取日志配置（如果存在）
+                    # 优先使用第一个包含logging配置的文件，或server配置文件
+                    self._extract_logging_config_from_file(config_file)
+
                 except Exception as e:
-                    self.logger.error(f"  ✗ Failed to load {os.path.basename(config_file)}: {e}")
+                    # Note: logger not initialized yet
                     raise ValueError(f"Failed to load config file: {config_file}") from e
 
-            self.logger.info(f"✅ Loaded {len(result)} config(s) from folder")
+            # Note: logger not initialized yet
             return result
 
         else:

@@ -1,0 +1,57 @@
+# 持续学习实验 - 客户端1配置 (TARGET方法)
+# configs/distributed/experiments/continual_learning/client_1.yaml
+
+extends: "../../base/client_base.yaml"
+
+node_id: "cl_client_1"
+
+training:
+  learner:
+    name: "TARGET"
+    params:
+      client_index: 1
+      batch_size: 32
+      local_epochs: 1  # 快速测试
+      learning_rate: 0.01
+      momentum: 0.9
+
+      # 模型配置
+      model:
+        name: "MNIST_LeNet"
+        params:
+          num_classes: 10
+
+      # 优化器配置
+      optimizer:
+        type: "SGD"
+        lr: 0.01
+        momentum: 0.9
+
+      # 损失函数
+      loss: "CrossEntropyLoss"
+
+      # TARGET特定参数
+      num_tasks: 5
+      classes_per_task: 2
+      scenario: "class_incremental"
+
+      # 知识蒸馏参数
+      use_distillation: true
+      distill_temperature: 2.0
+      distill_weight: 1.0
+
+      # 生成器参数
+      generator_lr: 0.001
+      num_pseudo_samples: 100
+
+  dataset:
+    name: "MNIST"
+    params:
+      root: "./data"
+      train: true
+      download: true
+    partition:
+      type: "iid"
+      num_clients: 3
+      client_id: 1
+      seed: 42

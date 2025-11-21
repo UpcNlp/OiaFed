@@ -1,0 +1,4 @@
+Experiment_Name,Dataset,Model,NonIID_Type,Partition_Detail,Algorithm,Num_Clients,Max_Rounds,Completed_Rounds,Local_Epochs,Batch_Size,Learning_Rate,Final_Accuracy,Final_Loss,Duration_sec,Early_Stopping,Patience,Status,Error
+MNIST_IID_FedAvg,MNIST,MNIST_PaperCNN,IID,iid,FedAvg,10,50,12,10,64,0.01,0.9823,0.0543,234.56,True,5,success,
+CIFAR10_pk~Dir(0.5)_FedProx,CIFAR10,CIFAR10_PaperCNN,pk~Dir(0.5),Dirichlet(α=0.5),FedProx,10,50,25,10,64,0.01,0.7234,0.8765,1234.78,True,5,success,
+FMNIST_#C=2_SCAFFOLD,FMNIST,MNIST_PaperCNN,#C=2,Pathological(#C=2),SCAFFOLD,10,50,18,10,64,0.01,0.8567,0.4321,567.89,True,5,success,

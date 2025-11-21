@@ -5,6 +5,27 @@ moe_fedcl/__init__.py
 提供统一的API接口，用户只需要导入这个包就能使用所有功能。
 """
 
+# ==================== 配置全局日志（必须在最前面） ====================
+# 移除loguru的默认handler，设置控制台为INFO级别
+# 这样其他模块import loguru时就已经是正确的配置了
+from loguru import logger
+import sys
+import os
+
+# 移除默认的stderr handler
+logger.remove()
+
+# 从环境变量读取console日志级别（支持批量实验时设置为ERROR）
+console_level = os.getenv("FEDCL_CONSOLE_LOG_LEVEL", "INFO")
+
+# 添加配置好的控制台handler
+logger.add(
+    sys.stderr,
+    format="{time:YYYY-MM-DD HH:mm:ss.SSS} | {level: <8} | {name}:{function}:{line} - {message}",
+    level=console_level,  # 从环境变量读取，默认INFO
+    colorize=True
+)
+
 # 版本信息
 __version__ = "0.1.0"
 __author__ = "MOE-FedCL Team"

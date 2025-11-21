@@ -1,0 +1,43 @@
+algorithm: FedAvg
+dataset:
+  name: CIFAR10
+extends: ../../base/client_base.yaml
+node_id: client_9
+partition:
+  name: IID
+  type: iid
+test_dataset:
+  batch_size: 1000
+  name: CIFAR10
+  params:
+    download: true
+    root: ./data
+    train: false
+training:
+  batch_size: 64
+  dataset:
+    partition:
+      num_clients: 10
+      seed: 42
+  learner:
+    name: Generic
+    params:
+      batch_size: 64
+      client_index: 9
+      learning_rate: 0.01
+      local_epochs: 10
+      momentum: 0.9
+  learning_rate: 0.01
+  local_epochs: 10
+  max_rounds: 50
+  momentum: 0.9
+  num_clients: 10
+  trainer:
+    params:
+      test_dataset:
+        batch_size: 1000
+        name: CIFAR10
+        params:
+          download: true
+          root: ./data
+          train: false

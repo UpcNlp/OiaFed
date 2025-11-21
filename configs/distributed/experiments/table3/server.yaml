@@ -6,6 +6,15 @@ extends: "../../base/server_base.yaml"
 # 节点ID（可以自定义任意名称）
 node_id: "server_1"
 
+# 日志配置
+logging:
+  console_enabled: false  # 是否启用控制台输出（并发模式建议设为false）
+  level: "INFO"           # 日志级别：DEBUG, INFO, WARNING, ERROR
+  # format: "{time} | {level} | {name}:{function}:{line} - {message}"
+  # rotation: "10 MB"    # 日志轮转大小
+  # retention: "30 days" # 日志保留时间
+  # compression: "zip"   # 压缩格式
+
 # 训练配置
 training:
   max_rounds: 50
@@ -21,6 +30,10 @@ training:
       lr_decay: true  # 启用学习率衰减
       lr_decay_step: 10  # 每10轮衰减一次
       lr_decay_rate: 0.95  # 衰减率95%（即每10轮降低5%）
+      # 早停配置（加速实验）
+      early_stopping: false  # 禁用早停以获得完整的50轮训练结果
+      patience: 5  # 连续5轮无提升则停止
+      min_delta: 0.001  # 最小提升阈值0.1%
       # 服务器端测试数据集配置（用于最终评估）
       test_dataset:
         name: "MNIST"

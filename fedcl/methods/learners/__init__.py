@@ -24,6 +24,15 @@ from .fedcp import FedCPLearner  # noqa: F401
 from .gpfl import GPFLLearner  # noqa: F401
 from .feddbe import FedDBELearner  # noqa: F401
 
+# 持续学习方法 (Continual Learning)
+from .continual_base import ContinualLearner  # noqa: F401
+from .target import TARGETLearner  # noqa: F401
+from .fedknow import FedKNOWLearner  # noqa: F401
+from .glfc import GLFCLearner  # noqa: F401
+from .fedweit import FedWeITLearner  # noqa: F401
+from .fed_cprompt import FedCPromptLearner  # noqa: F401
+from .lga import LGALearner  # noqa: F401
+
 __all__ = [
     "ContrastiveLearner",
     "PersonalizedClientLearner",
@@ -44,4 +53,13 @@ __all__ = [
     "FedCPLearner",
     "GPFLLearner",
     "FedDBELearner",
+
+    # 持续学习方法
+    "ContinualLearner",
+    "TARGETLearner",
+    "FedKNOWLearner",
+    "GLFCLearner",
+    "FedWeITLearner",
+    "FedCPromptLearner",
+    "LGALearner",
 ]

@@ -10,11 +10,14 @@ fedcl/experiment/batch_runner.py
 
 import asyncio
 import time
+import yaml
+import tempfile
 from pathlib import Path
 from typing import List, Dict, Any, Optional, Callable
 from datetime import datetime
 
 from ..federated_learning import FederatedLearning
+from ..config.loader import ConfigLoader
 
 
 class BatchExperimentRunner:
@@ -24,7 +27,12 @@ class BatchExperimentRunner:
     支持串行或并行运行多组实验
     """
 
-    def __init__(self, base_config: str, experiment_variants: List[Dict[str, Any]]):
+    def __init__(
+        self,
+        base_config: str,
+        experiment_variants: List[Dict[str, Any]],
+        logging_config: Optional[Dict[str, Any]] = None
+    ):
         """
         Args:
             base_config: 基础配置文件路径
@@ -39,9 +47,17 @@ class BatchExperimentRunner:
                         'overrides': {'trainer.name': 'FedProx', ...}
                     }
                 ]
+            logging_config: 日志配置字典，支持以下键：
+                - console_enabled: 是否启用控制台输出（默认True）
+                - level: 日志级别（默认DEBUG）
+                - format: 日志格式
+                - rotation: 日志轮转大小
+                - retention: 日志保留时间
+                - compression: 压缩格式
         """
         self.base_config = base_config
         self.experiment_variants = experiment_variants
+        self.logging_config = logging_config
         self.results = []
 
     async def run_all(self,
@@ -128,19 +144,76 @@ class BatchExperimentRunner:
         results = await asyncio.gather(*tasks)
         return list(results)
 
+    def _create_merged_config(self, variant: Dict[str, Any]) -> List[str]:
+        """
+        创建合并后的配置文件
+
+        Args:
+            variant: 实验变体，包含overrides
+
+        Returns:
+            临时配置文件路径列表
+        """
+        base_path = Path(self.base_config)
+        overrides = variant.get('overrides', {})
+
+        # 如果base_config是目录，加载所有yaml文件
+        if base_path.is_dir():
+            config_files = list(base_path.glob('*.yaml')) + list(base_path.glob('*.yml'))
+            # 创建临时目录（与原配置目录在同一级，以保持相对路径有效）
+            temp_dir = base_path.parent / f"_temp_{variant['name']}_{int(time.time())}"
+            temp_dir.mkdir(parents=True, exist_ok=True)
+        else:
+            config_files = [base_path]
+            # 创建临时目录（与原配置文件在同一目录）
+            temp_dir = base_path.parent / f"_temp_{variant['name']}_{int(time.time())}"
+            temp_dir.mkdir(parents=True, exist_ok=True)
+
+        # 为每个配置文件创建临时覆盖版本
+        temp_files = []
+        for config_file in config_files:
+            # 加载原始配置
+            with open(config_file, 'r', encoding='utf-8') as f:
+                base_config = yaml.safe_load(f)
+
+            # 应用覆盖
+            merged_config = ConfigLoader.deep_merge(base_config, overrides)
+
+            # 在临时目录中创建同名文件（保持相对路径引用有效）
+            temp_file = temp_dir / config_file.name
+            with open(temp_file, 'w', encoding='utf-8') as f:
+                yaml.dump(merged_config, f, allow_unicode=True, default_flow_style=False)
+            temp_files.append(str(temp_file))
+
+        return temp_files
+
     async def _run_single_experiment(self, variant: Dict[str, Any]) -> Dict[str, Any]:
         """运行单个实验"""
         exp_name = variant['name']
-
-        # 创建 FederatedLearning 实例
-        fl = FederatedLearning(self.base_config)
+        temp_files = []
+        temp_dir = None
+        fl = None
 
         try:
+            # 应用配置覆盖，创建临时配置文件
+            if 'overrides' in variant and variant['overrides']:
+                temp_files = self._create_merged_config(variant)
+                # 从第一个临时文件获取临时目录
+                if temp_files:
+                    temp_dir = Path(temp_files[0]).parent
+                # 如果有多个文件，传递目录；否则传递单个文件
+                config_to_use = str(temp_dir) if len(temp_files) > 1 else temp_files[0]
+            else:
+                config_to_use = self.base_config
+
+            # 创建 FederatedLearning 实例（传入日志配置）
+            fl = FederatedLearning(
+                config_to_use,
+                logging_config=self.logging_config
+            )
+
             # 初始化
             await fl.initialize()
-
-            # 应用配置覆盖（如果有）
-            # TODO: 实现配置覆盖逻辑
 
             # 准备实验记录配置
             exp_config = {
@@ -163,7 +236,16 @@ class BatchExperimentRunner:
 
         finally:
             # 清理资源（包括全局状态）
-            await fl.cleanup(force_clear_global_state=True)
+            if fl is not None:
+                await fl.cleanup(force_clear_global_state=True)
+
+            # 删除临时目录及其所有文件
+            if temp_dir and temp_dir.exists():
+                try:
+                    import shutil
+                    shutil.rmtree(temp_dir)
+                except:
+                    pass
 
 
 def create_grid_search_experiments(

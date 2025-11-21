@@ -19,6 +19,17 @@ from .base import (
 from .mnist_cnn import MNISTCNNModel  # noqa: F401
 from .mnist_lenet import MNISTLeNetModel  # noqa: F401
 from .cifar10_cnn import CNNModel, SimpleCNNModel  # noqa: F401
+from .paper_cnn import (  # noqa: F401
+    PaperCNN,
+    CIFAR10_PaperCNN,
+    MNIST_PaperCNN,
+    FedISIC2019_PaperCNN
+)
+from .paper_mlp import (  # noqa: F401
+    PaperMLP,
+    Adult_PaperMLP,
+    FCUBE_PaperMLP
+)
 
 __all__ = [
     # 基类
@@ -34,4 +45,13 @@ __all__ = [
     'MNISTLeNetModel',
     'CNNModel',
     'SimpleCNNModel',
+
+    # 论文标准模型（TPAMI 2025）
+    'PaperCNN',
+    'CIFAR10_PaperCNN',
+    'MNIST_PaperCNN',
+    'FedISIC2019_PaperCNN',
+    'PaperMLP',
+    'Adult_PaperMLP',
+    'FCUBE_PaperMLP',
 ]

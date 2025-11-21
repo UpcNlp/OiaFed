@@ -1,0 +1,66 @@
+algorithm: FedProx
+dataset:
+  name: FMNIST
+extends: ../../base/client_base.yaml
+fedprox_mu: 0.01
+global_model: &id001
+  name: MNIST_PaperCNN
+  params:
+    num_classes: 10
+local_model: *id001
+node_id: client_4
+partition:
+  alpha: 0.5
+  classes_per_client: 1
+  name: '#C=1'
+  type: pathological
+test_dataset:
+  batch_size: 1000
+  name: FMNIST
+  params:
+    download: true
+    root: ./data
+    train: false
+training:
+  batch_size: 64
+  dataset:
+    name: FMNIST
+    params:
+      download: true
+      root: ./data
+      train: true
+    partition:
+      alpha: 0.5
+      classes_per_client: 1
+      name: '#C=1'
+      num_clients: 10
+      seed: 42
+      type: pathological
+  global_model: *id001
+  learner:
+    name: Generic
+    params:
+      batch_size: 64
+      client_index: 4
+      learning_rate: 0.01
+      local_epochs: 10
+      model: *id001
+      momentum: 0.9
+  learning_rate: 0.01
+  local_epochs: 10
+  max_rounds: 50
+  momentum: 0.9
+  num_clients: 10
+  trainer:
+    params:
+      early_stopping: true
+      min_delta: 0.001
+      monitor: accuracy
+      patience: 5
+      test_dataset:
+        batch_size: 1000
+        name: FMNIST
+        params:
+          download: true
+          root: ./data
+          train: false

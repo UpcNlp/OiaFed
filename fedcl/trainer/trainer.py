@@ -702,31 +702,40 @@ class BaseTrainer(ABC):
         return selected_clients
     
     async def check_client_readiness(self, client_ids: List[str]) -> Dict[str, bool]:
-        """检查客户端就绪状态
-        
+        """检查客户端就绪状态（真正的并发版本）
+
         Args:
             client_ids: 要检查的客户端ID列表
-            
+
         Returns:
             Dict[str, bool]: 客户端就绪状态映射
         """
         readiness = {}
-        
-        ping_tasks = []
+
+        # 创建所有ping任务（带超时）
+        ping_tasks = {}
         for client_id in client_ids:
             if client_id in self.learner_proxies:
-                task = self.learner_proxies[client_id].ping()
-                ping_tasks.append((client_id, task))
-        
-        # 并发ping所有客户端
-        for client_id, task in ping_tasks:
-            try:
-                await asyncio.wait_for(task, timeout=5.0)
-                readiness[client_id] = True
-            except Exception as e:
-                self.logger.exception(f"Ping failed for {client_id}: {type(e).__name__}: {e}")
+                # 在创建时包装超时
+                ping_tasks[client_id] = asyncio.wait_for(
+                    self.learner_proxies[client_id].ping(),
+                    timeout=5.0
+                )
+
+        # 真正的并发等待所有任务
+        results = await asyncio.gather(
+            *ping_tasks.values(),
+            return_exceptions=True  # 捕获异常而不是中断其他任务
+        )
+
+        # 处理结果
+        for client_id, result in zip(ping_tasks.keys(), results):
+            if isinstance(result, Exception):
+                self.logger.exception(f"Ping failed for {client_id}: {type(result).__name__}: {result}")
                 readiness[client_id] = False
-        
+            else:
+                readiness[client_id] = True
+
         return readiness
     
     def get_available_clients(self) -> List[str]:

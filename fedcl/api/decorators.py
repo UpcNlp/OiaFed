@@ -7,10 +7,35 @@ fedcl/api/decorators.py
 
 import functools
 import inspect
+import os
 from typing import Any, Callable, Optional, Type, Dict
-from loguru import logger
 
 from .registry import registry
+
+# 检查是否启用注册日志（默认禁用，避免批量实验时输出过多日志）
+_ENABLE_REGISTRATION_LOGS = os.getenv('FEDCL_VERBOSE_REGISTRATION', 'false').lower() in ('true', '1', 'yes')
+
+
+def _log_registration(message: str, level: str = 'info'):
+    """
+    记录注册日志（可通过环境变量控制）
+
+    环境变量：FEDCL_VERBOSE_REGISTRATION=true 启用注册日志
+
+    注意：这里直接使用 loguru，因为在模块导入阶段，fedcl 的日志系统可能还未初始化
+    """
+    if not _ENABLE_REGISTRATION_LOGS:
+        return
+
+    # 延迟导入 loguru，只在需要时导入
+    from loguru import logger
+
+    if level == 'info':
+        logger.info(message)
+    elif level == 'warning':
+        logger.warning(message)
+    elif level == 'error':
+        logger.error(message)
 
 
 def learner(name: Optional[str] = None, 
@@ -40,8 +65,8 @@ def learner(name: Optional[str] = None,
         # 验证类是否继承了正确的基类
         from ..learner.base_learner import BaseLearner
         if not issubclass(cls, BaseLearner):
-            logger.warning(f"学习器 {learner_name} 未继承 BaseLearner，可能导致兼容性问题")
-        
+            _log_registration(f"学习器 {learner_name} 未继承 BaseLearner，可能导致兼容性问题", level='warning')
+
         # 添加元数据到类
         cls._component_metadata = {
             'type': 'learner',
@@ -52,12 +77,12 @@ def learner(name: Optional[str] = None,
             'registered_at': str(id(cls)),
             **metadata
         }
-        
+
         # 注册到全局注册表
         registry.register_learner(learner_name, cls)
-        
-        logger.info(f"已注册学习器: {learner_name} (版本: {version})")
-        
+
+        _log_registration(f"已注册学习器: {learner_name} (版本: {version})")
+
         return cls
     
     return decorator
@@ -92,7 +117,7 @@ def trainer(name: Optional[str] = None,
         # 验证类是否继承了正确的基类
         from ..trainer.trainer import BaseTrainer
         if not issubclass(cls, BaseTrainer):
-            logger.warning(f"训练器 {trainer_name} 未继承 BaseTrainer，可能导致兼容性问题")
+            _log_registration(f"训练器 {trainer_name} 未继承 BaseTrainer，可能导致兼容性问题")
         
         # 添加元数据到类
         cls._component_metadata = {
@@ -109,7 +134,7 @@ def trainer(name: Optional[str] = None,
         # 注册到全局注册表
         registry.register_trainer(trainer_name, cls)
         
-        logger.info(f"已注册训练器: {trainer_name} (版本: {version}, 算法: {algorithms or []})")
+        _log_registration(f"已注册训练器: {trainer_name} (版本: {version}, 算法: {algorithms or []})")
         
         return cls
     
@@ -157,7 +182,7 @@ def aggregator(name: Optional[str] = None,
         # 注册到全局注册表
         registry.register_aggregator(aggregator_name, cls)
         
-        logger.info(f"已注册聚合器: {aggregator_name} (版本: {version}, 算法: {algorithm})")
+        _log_registration(f"已注册聚合器: {aggregator_name} (版本: {version}, 算法: {algorithm})")
         
         return cls
     
@@ -205,7 +230,7 @@ def evaluator(name: Optional[str] = None,
         # 注册到全局注册表
         registry.register_evaluator(evaluator_name, cls)
         
-        logger.info(f"已注册评估器: {evaluator_name} (版本: {version}, 指标: {metrics or []})")
+        _log_registration(f"已注册评估器: {evaluator_name} (版本: {version}, 指标: {metrics or []})")
         
         return cls
     
@@ -287,9 +312,9 @@ def dataset(name: Optional[str] = None,
         try:
             from ..methods.datasets.base import FederatedDataset
             if not issubclass(cls, FederatedDataset):
-                logger.warning(f"数据集 {dataset_name} 未继承 FederatedDataset，可能导致兼容性问题")
+                _log_registration(f"数据集 {dataset_name} 未继承 FederatedDataset，可能导致兼容性问题")
         except ImportError:
-            logger.warning("无法导入 FederatedDataset 进行类型检查")
+            _log_registration("无法导入 FederatedDataset 进行类型检查")
 
         # 添加元数据到类
         cls._component_metadata = {
@@ -346,7 +371,7 @@ def dataset(name: Optional[str] = None,
         # 注册工厂类到全局注册表（而非原始类）
         registry.register_dataset(dataset_name, DatasetFactory)
 
-        logger.info(f"已注册数据集: {dataset_name} (版本: {version}, 类型: {dataset_type}, 透明访问模式)")
+        _log_registration(f"已注册数据集: {dataset_name} (版本: {version}, 类型: {dataset_type}, 透明访问模式)")
 
         return cls
 
@@ -387,9 +412,9 @@ def model(name: Optional[str] = None,
         try:
             import torch.nn as nn
             if not issubclass(cls, nn.Module):
-                logger.warning(f"模型 {model_name} 未继承 torch.nn.Module，可能导致兼容性问题")
+                _log_registration(f"模型 {model_name} 未继承 torch.nn.Module，可能导致兼容性问题")
         except ImportError:
-            logger.warning("无法导入 torch.nn.Module 进行类型检查")
+            _log_registration("无法导入 torch.nn.Module 进行类型检查")
 
         # 添加元数据到类
         cls._component_metadata = {
@@ -408,7 +433,7 @@ def model(name: Optional[str] = None,
         # 注册到全局注册表
         registry.register_model(model_name, cls)
 
-        logger.info(f"已注册模型: {model_name} (版本: {version}, 任务: {task})")
+        _log_registration(f"已注册模型: {model_name} (版本: {version}, 任务: {task})")
 
         return cls
 

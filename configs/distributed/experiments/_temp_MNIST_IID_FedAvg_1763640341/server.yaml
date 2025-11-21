@@ -1,0 +1,65 @@
+algorithm: FedAvg
+dataset:
+  name: MNIST
+extends: ../../base/server_base.yaml
+global_model: &id001
+  name: MNIST_PaperCNN
+  params:
+    num_classes: 10
+local_model: *id001
+logging:
+  console_enabled: false
+  level: INFO
+node_id: server_1
+partition:
+  name: IID
+  type: iid
+test_dataset:
+  batch_size: 1000
+  name: MNIST
+  params:
+    download: true
+    root: ./data
+    train: false
+training:
+  batch_size: 64
+  dataset:
+    name: MNIST
+    params:
+      download: true
+      root: ./data
+      train: true
+    partition:
+      name: IID
+      type: iid
+  global_model: *id001
+  learner:
+    params:
+      model: *id001
+  learning_rate: 0.01
+  local_epochs: 1
+  max_rounds: 1
+  min_clients: 10
+  momentum: 0.9
+  num_clients: 10
+  trainer:
+    name: Generic
+    params:
+      batch_size: 64
+      early_stopping: true
+      learning_rate: 0.01
+      local_epochs: 10
+      lr_decay: true
+      lr_decay_rate: 0.95
+      lr_decay_step: 10
+      min_delta: 0.001
+      momentum: 0.9
+      monitor: accuracy
+      patience: 5
+      test_dataset:
+        batch_size: 1000
+        name: MNIST
+        params:
+          download: true
+          root: ./data
+          train: false
