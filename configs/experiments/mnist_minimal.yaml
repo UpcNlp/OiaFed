@@ -1,9 +1,0 @@
-# MNIST 最简配置 - 继承基础配置，不做任何修改
-# configs/experiments/mnist_minimal.yaml
-# 完全继承base配置，只需要一行extends
-
-extends: "../base/mnist_base.yaml"
-
-# 可以选择性地覆盖实验名称
-experiment_name: "MNIST_Minimal_Inherited"
-description: "MNIST 最简配置 - 完全继承自base配置"

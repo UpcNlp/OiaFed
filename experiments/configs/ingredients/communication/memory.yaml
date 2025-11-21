@@ -1,7 +1,0 @@
-# Memory 模式通信配置（单机模拟）
-# experiments/configs/ingredients/communication/memory.yaml
-
-communication:
-  mode: "memory"
-  role: "server"
-  node_id: "memory_server"
