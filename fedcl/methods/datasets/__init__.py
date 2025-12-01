@@ -27,6 +27,7 @@ from .cinic10 import CINIC10FederatedDataset  # noqa: F401
 from .adult import AdultFederatedDataset  # noqa: F401
 from .fedisic2019 import FedISIC2019Dataset  # noqa: F401
 from .fcube import FCUBEWrapper  # noqa: F401
+from .cifar100 import CIFAR100FederatedDataset  # noqa: F401
 
 __all__ = [
     # 基类
@@ -49,4 +50,5 @@ __all__ = [
     'AdultFederatedDataset',
     'FedISIC2019Dataset',
     'FCUBEWrapper',
+    'CIFAR100FederatedDataset',
 ]

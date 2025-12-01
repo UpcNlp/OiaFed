@@ -137,14 +137,17 @@ class GenericTrainer(BaseTrainer):
                 self.logger.debug(f"找到global_model配置: config['trainer']['params']['global_model']")
                 return params['global_model']
 
+        # 方式4: 在config['model']中（新的标准位置）
+        if 'model' in self.config:
+            self.logger.info(f"找到global_model配置: config['model'] = {self.config['model']}")
+            return self.config['model']
+
         self.logger.warning(f"未找到global_model配置，config keys: {list(self.config.keys())}")
         return None
 
     def _create_default_global_model(self):
         """创建默认全局模型"""
         global_model_config = self._find_global_model_config()
-
-        self.logger.debug(f"_create_default_global_model: global_model_config = {global_model_config}")
 
         if not global_model_config:
             raise ValueError(

@@ -31,3 +31,15 @@ mlruns/
 tablle3.md
 TPAMI-2025-08-2415_Proof_hi.pdf
 experiments/
+papers/
+run/
+CSV_OUTPUT_GUIDE.md
+fedcl_learner_cli.py
+fix_hash_mismatch.py
+import_successful_experiments.py
+*.log
+rerun_failed_experiments.py
+run_failed_batsh.sh
+run_*.py
+table3.md
+view_table3_results.pys

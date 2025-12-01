@@ -639,6 +639,24 @@ async def run_table3_experiments_with_smart_runner(
     mlflow.set_tracking_uri(mlflow_uri)
     print(f"\nMLflow tracking URI: {mlflow_uri}")
 
+    # 数据集并发限制配置（基于数据集大小和显存需求）
+    # 按照每进程4000MB显存计算，24GB可支持5-6个并发
+    dataset_concurrent_limits = {
+        # 小数据集：高并发 (每进程~1.5GB)
+        'MNIST': 15,
+        'FMNIST': 15,
+        'Adult': 12,
+        'FCUBE': 12,
+
+        # 中等数据集：中并发 (每进程~3GB)
+        'SVHN': 8,
+        'CIFAR10': 6,
+
+        # 大数据集：提升到5并发 (每进程~4GB)
+        'CINIC10': 5,
+        'FedISIC2019': 5,
+    }
+
     # 创建智能批量调度器
     runner = SmartBatchRunner(
         config_base_dir="configs/distributed/experiments/table3/",
@@ -647,7 +665,8 @@ async def run_table3_experiments_with_smart_runner(
         db_path=db_path,
         log_dir="logs/smart_batch",
         enable_gpu_scheduling=enable_gpu_scheduling,
-        max_concurrent_experiments=max_concurrent
+        max_concurrent_experiments=max_concurrent,  # 作为默认fallback
+        dataset_concurrent_limits=dataset_concurrent_limits  # 数据集特定限制
     )
 
     # 运行实验

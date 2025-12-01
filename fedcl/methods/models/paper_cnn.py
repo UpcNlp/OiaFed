@@ -185,17 +185,17 @@ class MNIST_PaperCNN(PaperCNN):
 
 @model(
     name='FedISIC2019_PaperCNN',
-    description='FED-ISIC2019论文标准CNN（3×32×32输入，8分类）',
+    description='FED-ISIC2019论文标准CNN（3×224×224输入，9分类）',
     task='classification',
-    input_shape=(3, 32, 32),
-    output_shape=(8,)
+    input_shape=(3, 224, 224),
+    output_shape=(9,)
 )
 class FedISIC2019_PaperCNN(PaperCNN):
     """FED-ISIC2019数据集的论文标准CNN"""
-    def __init__(self, num_classes: int = 8):
+    def __init__(self, num_classes: int = 9):
         super().__init__(
             num_classes=num_classes,
             in_channels=3,
-            input_height=32,
-            input_width=32
+            input_height=224,
+            input_width=224
         )

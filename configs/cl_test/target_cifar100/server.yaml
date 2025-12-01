@@ -1,0 +1,78 @@
+# CL Test - TARGET CIFAR-100 - Server Config (论文复现)
+# configs/cl_test/target_cifar100/server.yaml
+
+extends: "../../distributed/base/server_base.yaml"
+
+node_id: "cl_target_cifar100_server"
+
+logging:
+  console_enabled: true
+  level: "INFO"
+
+training:
+  max_rounds: 50  # 5任务 × 10轮/任务
+  min_clients: 5
+
+  trainer:
+    name: "TARGET"
+    params:
+      local_epochs: 1
+      learning_rate: 0.01
+      batch_size: 64
+      momentum: 0.9
+      weight_decay: 0.0005
+      early_stopping: false
+
+      # CL特定参数 (论文设置)
+      num_tasks: 5  # 5个任务
+      rounds_per_task: 10  # 每任务10轮
+      evaluate_all_tasks: true
+      compute_forgetting: true
+
+      # TARGET数据生成配置 (CIFAR-100优化)
+      enable_data_generation: true
+      save_dir: "run/target_cifar100_synthetic"
+      data_generation:
+        nz: 256  # CIFAR-100 latent size
+        img_size: 32  # CIFAR-100 32x32 RGB
+        classes_per_task: 20  # 100/5=20 classes per task
+        synthesis_batch_size: 256
+        sample_batch_size: 256
+        g_steps: 10
+        is_maml: 1
+        kd_steps: 400  # More KD steps for CIFAR-100
+        warmup: 20
+        lr_g: 0.002
+        lr_z: 0.01
+        oh: 0.5
+        T: 20.0  # Higher temperature for CIFAR-100
+        act: 0.0
+        adv: 1.0
+        bn: 10.0  # Higher BN loss weight for CIFAR-100
+        reset_l0: 1
+        reset_bn: 0
+        bn_mmt: 0.9
+        syn_round: 10  # More synthesis rounds
+        tau: 1
+
+      # 服务器端测试数据集
+      test_dataset:
+        name: "CIFAR100"
+        params:
+          root: "./data"
+          train: false
+          download: true
+        batch_size: 256
+
+  aggregator:
+    name: "fedavg"
+    params: {}
+
+  global_model:
+    name: "ResNet18_CIFAR"
+    params:
+      num_classes: 100
+
+network:
+  host: "127.0.0.1"
+  port: 8766

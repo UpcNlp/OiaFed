@@ -56,7 +56,8 @@ class SmartBatchRunner:
         log_dir: str = "logs/smart_batch",
         safety_margin_mb: int = 1000,
         enable_gpu_scheduling: bool = True,
-        max_concurrent_experiments: int = 5
+        max_concurrent_experiments: int = 5,
+        dataset_concurrent_limits: Dict[str, int] = None
     ):
         """
         Args:
@@ -67,7 +68,8 @@ class SmartBatchRunner:
             log_dir: 日志文件目录
             safety_margin_mb: GPU显存安全边际（MB）
             enable_gpu_scheduling: 是否启用GPU显存调度
-            max_concurrent_experiments: 最大并发实验数（默认5）
+            max_concurrent_experiments: 最大并发实验数（默认5，作为fallback）
+            dataset_concurrent_limits: 每个数据集的并发限制字典 {'MNIST': 15, 'CINIC10': 3, ...}
         """
         self.config_base_dir = config_base_dir
         self.experiments = experiments
@@ -78,6 +80,9 @@ class SmartBatchRunner:
         self.enable_gpu_scheduling = enable_gpu_scheduling
         self.max_concurrent_experiments = max_concurrent_experiments
 
+        # 数据集特定的并发限制
+        self.dataset_concurrent_limits = dataset_concurrent_limits or {}
+
         # 初始化追踪器和监控器
         self.tracker = ExperimentTracker(db_path)
         self.gpu_monitor = GPUMonitor()
@@ -87,6 +92,10 @@ class SmartBatchRunner:
         self.completed_experiments = 0
         self.failed_experiments = 0
         self.skipped_experiments = 0
+
+    def get_concurrent_limit_for_dataset(self, dataset: str) -> int:
+        """获取特定数据集的并发限制"""
+        return self.dataset_concurrent_limits.get(dataset, self.max_concurrent_experiments)
 
     def _create_log_file_path(self, exp_config: ExperimentConfig, run_number: int) -> str:
         """
@@ -455,7 +464,18 @@ class SmartBatchRunner:
                         })
 
             # 2. 尝试启动新任务（如果条件允许）
-            while pending_tasks and len(running_tasks) < self.max_concurrent_experiments:
+            while pending_tasks:
+                # 获取当前任务队列中第一个任务的数据集
+                next_exp_config, next_run_num, next_config_hash = pending_tasks[0]
+                current_dataset = next_exp_config.dataset
+
+                # 获取该数据集的并发限制
+                dataset_concurrent_limit = self.get_concurrent_limit_for_dataset(current_dataset)
+
+                # 检查是否已达到并发限制
+                if len(running_tasks) >= dataset_concurrent_limit:
+                    break
+
                 # GPU显存检查
                 can_launch = True
                 if self.enable_gpu_scheduling:
@@ -470,7 +490,7 @@ class SmartBatchRunner:
                 # 启动新任务
                 exp_config, run_num, config_hash = pending_tasks.pop(0)
 
-                print(f"→ [{exp_config.name} Run{run_num}] 启动 (当前并发: {len(running_tasks)+1}/{self.max_concurrent_experiments})")
+                print(f"→ [{exp_config.name} Run{run_num}] 启动 (当前并发: {len(running_tasks)+1}/{dataset_concurrent_limit})")
 
                 if self.enable_gpu_scheduling:
                     max_free = self.gpu_monitor.get_max_free_memory()
@@ -628,7 +648,18 @@ class SmartBatchRunner:
                             del running_processes[process]
 
             # 2. 尝试启动新进程（如果条件允许）
-            while pending_tasks and len(running_processes) < self.max_concurrent_experiments:
+            while pending_tasks:
+                # 获取当前任务队列中第一个任务的数据集
+                next_exp_config, next_run_num, next_config_hash = pending_tasks[0]
+                current_dataset = next_exp_config.dataset
+
+                # 获取该数据集的并发限制
+                dataset_concurrent_limit = self.get_concurrent_limit_for_dataset(current_dataset)
+
+                # 检查是否已达到并发限制
+                if len(running_processes) >= dataset_concurrent_limit:
+                    break
+
                 # GPU显存检查
                 can_launch = True
                 if self.enable_gpu_scheduling:
@@ -643,7 +674,7 @@ class SmartBatchRunner:
                 # 启动新进程
                 exp_config, run_num, config_hash = pending_tasks.pop(0)
 
-                print(f"→ [{exp_config.name} Run{run_num}] 启动进程 (当前并发: {len(running_processes)+1}/{self.max_concurrent_experiments})")
+                print(f"→ [{exp_config.name} Run{run_num}] 启动进程 (当前并发: {len(running_processes)+1}/{dataset_concurrent_limit})")
 
                 if self.enable_gpu_scheduling:
                     max_free = self.gpu_monitor.get_max_free_memory()

@@ -30,6 +30,7 @@ from .paper_mlp import (  # noqa: F401
     Adult_PaperMLP,
     FCUBE_PaperMLP
 )
+from .resnet import ResNet18_CIFAR, ResNet34_CIFAR  # noqa: F401
 
 __all__ = [
     # 基类
@@ -54,4 +55,8 @@ __all__ = [
     'PaperMLP',
     'Adult_PaperMLP',
     'FCUBE_PaperMLP',
+
+    # ResNet models
+    'ResNet18_CIFAR',
+    'ResNet34_CIFAR',
 ]

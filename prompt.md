@@ -4,3 +4,9 @@
 现在请你先了解我的项目。
 
 目前项目还有一个需求，我需要进行多次批量实验，我需要一个依据配置文件启动实验的脚本。给出你的设计思路
+ # 完整数据集 (~6.7GB，包含train/valid/test)
+  wget https://datashare.ed.ac.uk/bitstream/handle/10283/3192/CINIC-10.tar.gz
+
+  # 下载后解压
+  tar -xzf CINIC-10.tar.gz -C ./data/
+  mv ./data/CINIC-10 ./data/cinic10

@@ -7,8 +7,12 @@
 
 # 自动导入内置训练器以触发装饰器注册
 from .generic import GenericTrainer  # noqa: F401
+from .continual import ContinualTrainer  # noqa: F401
+from .target_trainer import TARGETTrainer  # noqa: F401
 
 __all__ = [
     # 内置训练器
     "GenericTrainer",
+    "ContinualTrainer",
+    "TARGETTrainer",
 ]

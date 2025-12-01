@@ -26,7 +26,7 @@ training:
         momentum: 0.9
       loss: "CrossEntropyLoss"
       learning_rate: 0.01
-      batch_size: 32
+      batch_size: 512
       local_epochs: 1
   dataset:
     name: "MNIST"

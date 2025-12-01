@@ -392,7 +392,7 @@ class BusinessInitializer:
         从装饰器注册表获取组件类
 
         Args:
-            component_name: 组件名称（例如 "FedAvgTrainer"）
+            component_name: 组件名称（例如 "FedAvgTrainer", "cl.TARGET", "fl.MOON"）
             component_type: 组件类型（例如 "trainer", "learner", "aggregator"）
 
         Returns:
@@ -403,13 +403,37 @@ class BusinessInitializer:
         """
         from ..api.registry import registry
 
+        # 特殊处理: 如果是learner且名称包含命名空间(如 "cl.TARGET", "fl.MOON")
+        # 则使用新的learner registry
+        if component_type == "learner" and '.' in component_name:
+            try:
+                from ..methods.learners import get_learner
+                component_class = get_learner(component_name)
+                self.logger.debug(f"从新learner registry获取: {component_name}")
+                return component_class
+            except ValueError as e:
+                # 如果新registry也找不到，继续尝试旧registry
+                self.logger.warning(f"新learner registry未找到 {component_name}: {e}")
+
+        # 使用旧registry
         component_class = registry.get(component_name, component_type)
 
         if component_class is None:
             available = registry.list_all_components()
-            raise ValueError(
-                f"{component_type.capitalize()} '{component_name}' not found in registry. "
-                f"Available components: {available}"
-            )
+
+            # 如果是learner，提示可能使用新命名空间格式
+            if component_type == "learner":
+                error_msg = (
+                    f"Learner '{component_name}' not found in registry. "
+                    f"Available components: {available}\n"
+                    f"Hint: If using new learner methods, use namespace format like 'fl.MOON', 'cl.TARGET'"
+                )
+            else:
+                error_msg = (
+                    f"{component_type.capitalize()} '{component_name}' not found in registry. "
+                    f"Available components: {available}"
+                )
+
+            raise ValueError(error_msg)
 
         return component_class

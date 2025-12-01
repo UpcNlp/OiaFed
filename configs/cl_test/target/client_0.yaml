@@ -1,0 +1,55 @@
+# CL Test - TARGET - Client 0
+# configs/cl_test/target/client_0.yaml
+
+extends: "../../distributed/base/client_base.yaml"
+
+node_id: "cl_target_client_0"
+
+logging:
+  console_enabled: true
+  level: "INFO"
+
+training:
+  learner:
+    name: "cl.TARGET"  # 使用新命名空间格式
+    params:
+      learning_rate: 0.01
+      batch_size: 64
+      local_epochs: 1
+
+      # 持续学习参数
+      num_tasks: 2  # 快速测试: 2个任务
+      classes_per_task: 5  # MNIST 10类 / 2任务 = 5类/任务
+      scenario: "class_incremental"
+
+      # TARGET特定参数
+      use_distillation: true
+      distill_temperature: 2.0
+      distill_weight: 1.0
+
+      # 模型配置
+      model:
+        name: "MNIST_LeNet"
+        params:
+          num_classes: 10
+
+      optimizer:
+        type: "SGD"
+        lr: 0.01
+        momentum: 0.9
+
+      loss: "CrossEntropyLoss"
+
+  dataset:
+    name: "MNIST"
+    params:
+      root: "./data"
+      train: true
+      download: true
+    partition:
+      method: "iid"
+      num_clients: 3
+      client_id: 0
+
+network:
+  server_address: "127.0.0.1:8765"

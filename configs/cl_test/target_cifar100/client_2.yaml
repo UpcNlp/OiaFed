@@ -1,0 +1,58 @@
+# CL Test - TARGET CIFAR-100 - Client 2 (论文复现)
+# configs/cl_test/target_cifar100/client_2.yaml
+
+extends: "../../distributed/base/client_base.yaml"
+
+node_id: "cl_target_cifar100_client_2"
+
+logging:
+  console_enabled: true
+  level: "INFO"
+
+training:
+  learner:
+    name: "cl.TARGET"
+    params:
+      learning_rate: 0.01
+      batch_size: 64
+      local_epochs: 1
+
+      # 持续学习参数 (论文设置)
+      num_tasks: 5  # 5个任务
+      classes_per_task: 20  # CIFAR-100: 100类/5任务
+      scenario: "class_incremental"
+
+      # TARGET特定参数
+      use_distillation: true
+      distill_temperature: 20.0  # CIFAR-100 temperature
+      distill_weight: 1.0
+      save_dir: "run/target_cifar100_synthetic"  # synthetic data location
+
+      # 模型配置
+      model:
+        name: "ResNet18_CIFAR"
+        params:
+          num_classes: 100
+
+      optimizer:
+        type: "SGD"
+        lr: 0.01
+        momentum: 0.9
+        weight_decay: 0.0005
+
+      loss: "CrossEntropyLoss"
+
+  dataset:
+    name: "CIFAR100"
+    params:
+      root: "./data"
+      train: true
+      download: true
+    partition:
+      method: "noniid"  # 论文使用non-iid
+      num_clients: 5
+      client_id: 2
+      alpha: 0.5  # Dirichlet参数
+
+network:
+  server_address: "127.0.0.1:8766"
