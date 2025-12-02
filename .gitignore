@@ -43,3 +43,7 @@ run_failed_batsh.sh
 run_*.py
 table3.md
 view_table3_results.pys
+CINIC-10.tar.gz
+run_failed_simple.sh
+table3.md
+view_table3_results.py
