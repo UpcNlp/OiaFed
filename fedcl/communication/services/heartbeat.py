@@ -19,16 +19,22 @@ class HeartbeatService:
     负责管理客户端心跳检测和连接保活
     """
     
-    def __init__(self, interval: float = 30.0, timeout: float = 90.0):
+    def __init__(self, interval: float = 30.0, timeout: float = 90.0, node_id: Optional[str] = None):
         """初始化心跳服务
-        
+
         Args:
             interval: 心跳间隔（秒）
             timeout: 心跳超时（秒）
+            node_id: 节点ID（用于日志归属）
         """
         self.interval = interval
         self.timeout = timeout
-        self.logger = get_logger("sys", "heartbeat_service")
+        # 使用节点ID的运行日志，让心跳日志合并到节点日志中
+        if node_id:
+            self.logger = get_logger("runtime", node_id)
+        else:
+            # 向后兼容：如果没有node_id，使用旧的方式
+            self.logger = get_logger("sys", "heartbeat_service")
         
         # 心跳状态跟踪
         self.heartbeat_status: Dict[str, datetime] = {}

@@ -39,11 +39,14 @@ fix_hash_mismatch.py
 import_successful_experiments.py
 *.log
 rerun_failed_experiments.py
-run_failed_batsh.sh
+run_failed_batch.sh
 run_*.py
 table3.md
-view_table3_results.pys
+view_table3_results.py
 CINIC-10.tar.gz
 run_failed_simple.sh
 table3.md
 view_table3_results.py
+.vscode/
+analyze_results.py
+run_failed_batch.sh

@@ -37,16 +37,22 @@ class AutoLogger:
         self,
         experiment_date: Optional[str] = None,
         base_path: str = "logs",
+        experiment_name: Optional[str] = None,
+        node_role: Optional[str] = None,
+        node_id: Optional[str] = None,
         config: Optional[Dict[str, Any]] = None,
         experiment_config: Optional[Dict[str, Any]] = None
     ):
         """
         Args:
-            experiment_date: 实验日期标识
-            base_path: 日志基础路径
+            experiment_date: 实验日期标识（自动生成时间戳）
+            base_path: 日志基础路径（默认 "logs"）
+            experiment_name: 实验名称（用于目录名）
+            node_role: 节点角色（"server" 或 "client"）
+            node_id: 节点ID
             config: 日志配置字典，支持以下键：
                 - console_enabled: 是否启用控制台输出（默认True）
-                - level: 日志级别（默认INFO，应用于控制台）
+                - console_level: 控制台日志级别（默认INFO）
                 - file_level: 文件日志级别（默认DEBUG）
                 - format: 日志格式
                 - rotation: 日志轮转大小
@@ -55,13 +61,16 @@ class AutoLogger:
             experiment_config: 实验配置字典（数据集、算法、模型等配置信息）
         """
         self.base_path = Path(base_path)
-        self.experiment_date = experiment_date or datetime.now().strftime("%Y%m%d-%H-%M-%S")
+        self.experiment_name = experiment_name or "experiment"
+        self.node_role = node_role  # "server" or "client"
+        self.node_id = node_id
+        self.timestamp = experiment_date or datetime.now().strftime("%Y%m%d_%H%M%S")
 
         # 合并默认配置
         default_config = {
             'console_enabled': True,
-            'level': 'INFO',          # 控制台日志级别
-            'file_level': 'DEBUG',    # 文件日志级别
+            'console_level': 'INFO',     # 控制台日志级别
+            'file_level': 'DEBUG',       # 文件日志级别
             'format': '{time} | {level} | {name}:{function}:{line} - {message}',
             'rotation': '10 MB',
             'retention': '30 days',
@@ -69,14 +78,21 @@ class AutoLogger:
         }
         self.config = {**default_config, **(config or {})}
 
-        # 创建目录结构
-        self.exp_dir = self.base_path / f"exp_{self.experiment_date}"
-        self.comm_dir = self.exp_dir / "comm"
-        self.train_dir = self.exp_dir / "train"
-        self.sys_dir = self.exp_dir / "sys"
+        # 创建新的三文件夹结构: runtime/, training/, configs/
+        self.run_dir = self.base_path / self.experiment_name / f"run_{self.timestamp}"
+        self.exp_dir = self.run_dir  # 保持兼容性
 
-        for dir_path in [self.comm_dir, self.train_dir, self.sys_dir]:
-            dir_path.mkdir(parents=True, exist_ok=True)
+        self.runtime_dir = self.run_dir / "runtime"
+        self.training_dir = self.run_dir / "training"
+        self.configs_dir = self.run_dir / "configs"
+
+        # 创建目录
+        self.runtime_dir.mkdir(parents=True, exist_ok=True)
+        self.training_dir.mkdir(parents=True, exist_ok=True)
+        self.configs_dir.mkdir(parents=True, exist_ok=True)
+
+        # 用于存储每个节点的 handler
+        self._node_handlers: Dict[str, Dict[str, int]] = {}  # {node_id: {runtime: id, training: id}}
 
         # 记录已设置的处理器
         self._handlers: Dict[str, int] = {}
@@ -87,102 +103,93 @@ class AutoLogger:
 
         self._setup_handlers()
 
-        logger.info(f"自动分流日志系统已初始化: {self.exp_dir} (控制台: {self.config['console_enabled']}, 控制台级别: {self.config['level']}, 文件级别: {self.config['file_level']})")
-
-        # 如果提供了实验配置，自动保存
-        if experiment_config:
-            self.save_experiment_config(experiment_config)
+        logger.info(f"日志系统已初始化: {self.exp_dir} (控制台: {self.config['console_enabled']}, 控制台级别: {self.config['console_level']}, 文件级别: {self.config['file_level']})")
     
     def _setup_handlers(self):
-        """设置所有日志处理器"""
-        # 通信日志处理器 - 统一到sys.log，稍后按节点过滤
-        comm_handler = logger.add(
-            self.comm_dir / "sys.log",
-            format=self.config['format'],
-            level=self.config['file_level'],  # 文件使用file_level（DEBUG）
-            rotation=self.config['rotation'],
-            retention=self.config['retention'],
-            compression=self.config['compression'],
-            filter=lambda record: record.get("extra", {}).get("log_type") == "comm"
-        )
-        self._handlers['comm'] = comm_handler
+        """设置日志处理器 - 不再自动添加，改为按需添加"""
+        # 不再自动添加全局 handler，改为在 get_logger() 中按节点添加
+        pass
 
-        # 训练日志处理器 - 统一到sys.log，稍后按节点过滤
-        train_handler = logger.add(
-            self.train_dir / "sys.log",
-            format=self.config['format'],
-            level=self.config['file_level'],  # 文件使用file_level（DEBUG）
-            rotation=self.config['rotation'],
-            retention=self.config['retention'],
-            compression=self.config['compression'],
-            filter=lambda record: record.get("extra", {}).get("log_type") == "train"
-        )
-        self._handlers['train'] = train_handler
+    def get_logger(self, log_type: str = "sys", node_id: Optional[str] = None):
+        """获取 logger，支持节点分离和日志类型分离
 
-        # 系统日志处理器 - 统一文件
-        sys_handler = logger.add(
-            self.sys_dir / "system.log",
-            format=self.config['format'],
-            level=self.config['file_level'],  # 文件使用file_level（DEBUG）
-            rotation=self.config['rotation'],
-            retention=self.config['retention'],
-            compression=self.config['compression'],
-            filter=lambda record: record.get("extra", {}).get("log_type") == "sys"
-        )
-        self._handlers['sys'] = sys_handler
-    
-    def get_logger(self, log_type: str, node_id: str):
-        """获取带标记的logger"""
-        # 为新节点创建专用的日志文件处理器
-        handler_key = f"{log_type}_{node_id}"
-        if handler_key not in self._handlers:
-            if log_type == "comm":
-                log_file = self.comm_dir / f"{node_id}.log"
-            elif log_type == "train":
-                log_file = self.train_dir / f"{node_id}.log"
-            else:
-                log_file = self.sys_dir / f"{node_id}.log"
+        Args:
+            log_type: 日志类型 ("sys"/"runtime" 或 "train"/"training")
+            node_id: 节点ID，如果提供则为该节点创建独立日志文件
 
-            # 为该节点创建专用的文件处理器
+        Returns:
+            logger 实例（带有 node_id 和 log_type 上下文）
+        """
+        # 如果没有提供 node_id，返回全局 logger
+        if not node_id:
+            return logger
+
+        # 标准化 log_type
+        if log_type in ("sys", "comm", "runtime"):
+            log_type = "runtime"
+        elif log_type in ("train", "training"):
+            log_type = "training"
+        else:
+            log_type = "runtime"  # 默认为 runtime
+
+        # 如果该节点的该类型日志还没有 handler，创建一个
+        if node_id not in self._node_handlers:
+            self._node_handlers[node_id] = {}
+
+        if log_type not in self._node_handlers[node_id]:
+            # 确定日志文件路径
+            if log_type == "runtime":
+                log_file = self.runtime_dir / f"{node_id}.log"
+            else:  # training
+                log_file = self.training_dir / f"{node_id}.log"
+
+            # 添加该节点的 handler（带 filter）
             handler_id = logger.add(
                 log_file,
-                format="{time} | {level} | {name}:{function}:{line} - {message}",
-                level=self.config['file_level'],  # 文件使用file_level（DEBUG）
-                rotation="10 MB",
-                retention="30 days",
-                compression="zip",
-                filter=lambda record: (
-                    record.get("extra", {}).get("log_type") == log_type and
-                    record.get("extra", {}).get("node_id") == node_id
-                )
+                format=self.config['format'],
+                level=self.config['file_level'],
+                filter=lambda record, nid=node_id, lt=log_type: (
+                    record["extra"].get("node_id") == nid and
+                    record["extra"].get("log_type") == lt
+                ),
+                rotation=self.config['rotation'],
+                retention=self.config['retention'],
+                compression=self.config['compression']
             )
-            self._handlers[handler_key] = handler_id
+            self._node_handlers[node_id][log_type] = handler_id
 
-        return logger.bind(log_type=log_type, node_id=node_id)
+        # 返回绑定了 node_id 和 log_type 的 logger
+        return logger.bind(node_id=node_id, log_type=log_type)
     
     def cleanup(self):
         """清理日志处理器"""
+        # 清理所有 handler
         for handler_id in self._handlers.values():
             logger.remove(handler_id)
         self._handlers.clear()
 
-    def save_experiment_config(self, config: Dict[str, Any]):
-        """
-        保存实验配置到日志目录
+        # 清理节点 handler
+        for node_handlers in self._node_handlers.values():
+            for handler_id in node_handlers.values():
+                logger.remove(handler_id)
+        self._node_handlers.clear()
+
+    def save_config_snapshot(self, node_id: str, config_dict: dict):
+        """保存配置快照到 configs/ 目录
 
         Args:
-            config: 实验配置字典（包含数据集、算法、模型等配置信息）
+            node_id: 节点ID（如 "server", "client_0"）
+            config_dict: 配置字典
         """
-        try:
-            from fedcl.utils.experiment_config_logger import ExperimentConfigLogger
+        import yaml
+        config_file = self.configs_dir / f"{node_id}.yaml"
 
-            ExperimentConfigLogger.save_experiment_config(
-                log_dir=self.exp_dir,
-                config=config
-            )
-            logger.info(f"实验配置已保存到: {self.exp_dir}")
+        try:
+            with open(config_file, 'w', encoding='utf-8') as f:
+                yaml.dump(config_dict, f, default_flow_style=False, allow_unicode=True)
+            logger.info(f"配置快照已保存: {config_file}")
         except Exception as e:
-            logger.warning(f"保存实验配置失败: {e}")
+            logger.error(f"保存配置快照失败: {e}")
 
 
 # 全局日志管理器实例
@@ -192,46 +199,61 @@ _auto_logger: Optional[AutoLogger] = None
 def setup_auto_logging(
     experiment_date: Optional[str] = None,
     config: Optional[Dict[str, Any]] = None,
-    experiment_config: Optional[Dict[str, Any]] = None
+    experiment_config: Optional[Dict[str, Any]] = None,
+    experiment_name: Optional[str] = None,
+    node_role: Optional[str] = None,
+    node_id: Optional[str] = None
 ) -> AutoLogger:
     """
-    设置自动分流日志系统
+    设置自动日志系统
 
     Args:
         experiment_date: 实验日期标识
         config: 日志配置字典，支持以下键：
             - console_enabled: 是否启用控制台输出（默认True）
-            - level: 控制台日志级别（默认INFO）
+            - console_level: 控制台日志级别（默认INFO）
             - file_level: 文件日志级别（默认DEBUG）
             - format: 日志格式
             - rotation: 日志轮转大小
             - retention: 日志保留时间
             - compression: 压缩格式
         experiment_config: 实验配置字典（数据集、算法、模型等配置信息）
+        experiment_name: 实验名称
+        node_role: 节点角色（"server" 或 "client"）
+        node_id: 节点ID
     """
     global _auto_logger
     if _auto_logger is None:
+        # 从 config 中提取 base_dir
+        base_dir = "logs"
+        if config and 'base_dir' in config:
+            base_dir = config['base_dir']
+
         _auto_logger = AutoLogger(
             experiment_date,
+            base_path=base_dir,
+            experiment_name=experiment_name,
+            node_role=node_role,
+            node_id=node_id,
             config=config,
             experiment_config=experiment_config
         )
     return _auto_logger
 
 
-def get_logger(log_type: str, node_id: str):
-    """获取指定类型和节点的logger
-    
+def get_logger(log_type: str = "sys", node_id: Optional[str] = None):
+    """获取 logger（简化版）
+
     Args:
-        log_type: 日志类型 ('comm', 'train', 'sys')
-        node_id: 节点ID
-    
+        log_type: 日志类型（为了兼容性保留）
+        node_id: 节点ID（为了兼容性保留）
+
     Returns:
-        绑定了标记的logger实例
+        logger 实例
     """
     if _auto_logger is None:
         raise RuntimeError("请先调用 setup_auto_logging() 初始化日志系统")
-    
+
     return _auto_logger.get_logger(log_type, node_id)
 
 
@@ -243,17 +265,31 @@ def cleanup_logging():
         _auto_logger = None
 
 
-# 便捷函数
-def get_comm_logger(node_id: str):
-    """获取通信日志记录器"""
+# 便捷函数（简化版，为了兼容性保留）
+def get_comm_logger(node_id: Optional[str] = None):
+    """获取通信日志记录器（简化版，实际上都写入 runtime.log）"""
     return get_logger("comm", node_id)
 
 
-def get_train_logger(node_id: str):
-    """获取训练日志记录器"""
+def get_train_logger(node_id: Optional[str] = None):
+    """获取训练日志记录器（简化版，实际上都写入 runtime.log）"""
     return get_logger("train", node_id)
 
 
 def get_sys_logger():
-    """获取系统日志记录器"""
+    """获取系统日志记录器（简化版，实际上都写入 runtime.log）"""
     return get_logger("sys", "system")
+
+
+def save_config_snapshot(node_id: str, config_dict: dict):
+    """保存配置快照
+
+    Args:
+        node_id: 节点ID（如 "server", "client_0"）
+        config_dict: 配置字典
+    """
+    global _auto_logger
+    if _auto_logger:
+        _auto_logger.save_config_snapshot(node_id, config_dict)
+    else:
+        raise RuntimeError("请先调用 setup_auto_logging() 初始化日志系统")

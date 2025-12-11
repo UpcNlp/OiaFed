@@ -47,16 +47,22 @@ class SecurityService:
     负责身份验证、授权和安全策略管理
     """
     
-    def __init__(self, secret_key: str, policy: SecurityPolicy = None):
+    def __init__(self, secret_key: str, policy: SecurityPolicy = None, node_id: Optional[str] = None):
         """初始化安全认证服务
-        
+
         Args:
             secret_key: 用于生成和验证令牌的密钥
             policy: 安全策略
+            node_id: 节点ID（用于日志归属）
         """
         self.secret_key = secret_key.encode() if isinstance(secret_key, str) else secret_key
         self.policy = policy or SecurityPolicy()
-        self.logger = get_logger("sys", "security_service")
+        # 使用节点ID的运行日志，让安全日志合并到节点日志中
+        if node_id:
+            self.logger = get_logger("runtime", node_id)
+        else:
+            # 向后兼容：如果没有node_id，使用旧的方式
+            self.logger = get_logger("sys", "security_service")
         
         # 令牌存储
         self.active_tokens: Dict[str, AuthToken] = {}

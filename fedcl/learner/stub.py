@@ -13,7 +13,7 @@ from ..connection.manager import ConnectionManager
 from ..exceptions import RegistrationError, ValidationError
 from ..types import (
     RegistrationRequest, RegistrationResponse, RegistrationStatus,
-    TrainingRequest, TrainingResponse
+    TrainingRequest, TrainingResponse, TrackerContext
 )
 from ..utils.auto_logger import get_sys_logger, get_train_logger
 
@@ -61,6 +61,7 @@ class LearnerStub:
         # 注册状态
         self._registration_status = RegistrationStatus.UNREGISTERED
         self._server_info: Optional[Dict[str, Any]] = None
+        self._tracker_context: Optional[TrackerContext] = None  # 从服务端接收的 TrackerContext
         
         # 请求处理
         self._request_handlers: Dict[str, Callable] = {}
@@ -133,13 +134,28 @@ class LearnerStub:
         # 尝试注册
         for attempt in range(self.config.registration_retry_attempts):
             try:
+                self.logger.info(f"[DEBUG] 开始注册尝试 {attempt + 1}/{self.config.registration_retry_attempts}")
                 response = await self.communication_manager.register_client(registration_request)
-                
+
+                self.logger.info(f"[DEBUG] 收到注册响应: success={response.success}")
+                self.logger.info(f"[DEBUG] 响应中的 tracker_context: {response.tracker_context}")
+
                 if response.success:
                     async with self._lock:
                         self._registration_status = RegistrationStatus.REGISTERED
                         self._server_info = response.server_info
-                    
+
+                        # 提取 TrackerContext（如果服务端提供）
+                        if response.tracker_context:
+                            self._tracker_context = response.tracker_context
+                            self.logger.info(
+                                f"[TrackerContext] 接收到共享 run 配置: "
+                                f"type={response.tracker_context.tracker_type}, "
+                                f"run_id={response.tracker_context.shared_run_id}"
+                            )
+                        else:
+                            self.logger.warning(f"[TrackerContext] 响应中没有 TrackerContext 数据")
+
                     self.logger.debug(f"Client {self.learner.client_id} registered successfully")
                     return response
                 else:
@@ -204,7 +220,15 @@ class LearnerStub:
     def get_registration_status(self) -> RegistrationStatus:
         """获取注册状态"""
         return self._registration_status
-    
+
+    def get_tracker_context(self) -> Optional[TrackerContext]:
+        """获取从服务端接收的 TrackerContext
+
+        Returns:
+            Optional[TrackerContext]: TrackerContext 对象，如果未收到则返回 None
+        """
+        return self._tracker_context
+
     async def handle_registration_failure(self):
         """处理注册失败"""
         async with self._lock:

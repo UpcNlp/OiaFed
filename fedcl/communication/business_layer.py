@@ -13,17 +13,27 @@ from ..utils.auto_logger import get_comm_logger
 class BusinessCommunicationLayer(LayerEventHandler):
     """第2层：业务通信层 - 负责创建LearnerProxy"""
     
-    def __init__(self, upper_layer: Optional[LayerEventHandler] = None):
+    def __init__(self, upper_layer: Optional[LayerEventHandler] = None, node_id: Optional[str] = None):
         super().__init__(upper_layer)
         self.created_proxies: Dict[str, LearnerProxy] = {}
         self.communication_manager = None
         self.connection_manager = None
-        self.logger = get_comm_logger("business_layer")
+        # 如果提供了node_id，使用节点日志；否则延迟初始化
+        self.node_id = node_id
+        if node_id:
+            self.logger = get_comm_logger(node_id)
+        else:
+            # 向后兼容：如果没有node_id，使用旧的方式（稍后通过set_dependencies更新）
+            self.logger = get_comm_logger("business_layer")
     
     def set_dependencies(self, communication_manager, connection_manager):
         """设置依赖的下层组件"""
         self.communication_manager = communication_manager
         self.connection_manager = connection_manager
+        # 如果初始化时没有提供node_id，现在使用communication_manager的node_id更新logger
+        if not self.node_id and communication_manager:
+            self.node_id = communication_manager.node_id
+            self.logger = get_comm_logger(self.node_id)
     
     def handle_layer_event(self, event_type: str, event_data: Dict[str, Any]):
         """处理层间事件 - 严格按照层次分离原则"""

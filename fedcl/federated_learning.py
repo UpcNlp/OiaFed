@@ -86,16 +86,17 @@ class FederatedLearning:
         self._extracted_logging_config: Optional[Dict[str, Any]] = None
 
         # 解析配置，得到配置列表（在解析过程中会提取日志配置）
-        self.config_list: List[Tuple[CommunicationConfig, TrainingConfig]] = self._parse_config(config)
+        # 返回格式: List[Tuple[CommunicationConfig, TrainingConfig, LoggingConfig]]
+        self.config_list: List[Tuple[CommunicationConfig, TrainingConfig, 'LoggingConfig']] = self._parse_config(config)
 
         if not self.config_list:
             raise ValueError("No valid configuration found")
 
-        # 分类配置（按role分类）
-        self.server_configs: List[Tuple[CommunicationConfig, TrainingConfig]] = []
-        self.client_configs: List[Tuple[CommunicationConfig, TrainingConfig]] = []
+        # 分类配置（按role分类，包含logging_config）
+        self.server_configs: List[Tuple[CommunicationConfig, TrainingConfig, 'LoggingConfig']] = []
+        self.client_configs: List[Tuple[CommunicationConfig, TrainingConfig, 'LoggingConfig']] = []
 
-        for comm_cfg, train_cfg in self.config_list:
+        for comm_cfg, train_cfg, log_cfg in self.config_list:
             role = comm_cfg.role
             if not role:
                 raise ValueError(
@@ -103,9 +104,9 @@ class FederatedLearning:
                 )
 
             if role == "server":
-                self.server_configs.append((comm_cfg, train_cfg))
+                self.server_configs.append((comm_cfg, train_cfg, log_cfg))
             elif role == "client":
-                self.client_configs.append((comm_cfg, train_cfg))
+                self.client_configs.append((comm_cfg, train_cfg, log_cfg))
             else:
                 raise ValueError(f"Invalid role: {role}. Must be 'server' or 'client'")
 
@@ -116,14 +117,14 @@ class FederatedLearning:
         # 提取实验配置（从server配置中提取）
         experiment_config = None
         if self.server_configs:
-            comm_cfg, train_cfg = self.server_configs[0]
+            comm_cfg, train_cfg, log_cfg = self.server_configs[0]
 
             # 从 TrainingConfig 中提取扁平化配置
             experiment_config = {}
 
             # 数据集配置（从客户端配置中获取）
             if self.client_configs:
-                _, client_train_cfg = self.client_configs[0]
+                _, client_train_cfg, _ = self.client_configs[0]
 
                 # 安全地提取数据集配置
                 if client_train_cfg.dataset and isinstance(client_train_cfg.dataset, dict):
@@ -196,15 +197,15 @@ class FederatedLearning:
             Tuple[CommunicationConfig, TrainingConfig],
             List[Tuple[CommunicationConfig, TrainingConfig]]
         ]
-    ) -> List[Tuple[CommunicationConfig, TrainingConfig]]:
+    ) -> List[Tuple[CommunicationConfig, TrainingConfig, 'LoggingConfig']]:
         """
-        解析配置，返回配置列表
+        解析配置，返回配置列表（包含 LoggingConfig）
 
         Args:
             config: 配置输入
 
         Returns:
-            List[Tuple[CommunicationConfig, TrainingConfig]]
+            List[Tuple[CommunicationConfig, TrainingConfig, LoggingConfig]]
         """
         if isinstance(config, str):
             # 单个路径（文件或文件夹）
@@ -229,13 +230,16 @@ class FederatedLearning:
                 raise TypeError(f"Unsupported config list element type: {type(config[0])}")
 
         elif isinstance(config, tuple) and len(config) == 2:
-            # Single Tuple[CommunicationConfig, TrainingConfig]
+            # Single Tuple[CommunicationConfig, TrainingConfig] (backwards compat)
             comm_config, train_config = config
             if not isinstance(comm_config, CommunicationConfig):
                 raise TypeError("First element must be CommunicationConfig")
             if not isinstance(train_config, TrainingConfig):
                 raise TypeError("Second element must be TrainingConfig")
-            return [config]
+            # Create empty LoggingConfig for backwards compatibility
+            from .config.logging_config import LoggingConfig
+            log_config = LoggingConfig()
+            return [(comm_config, train_config, log_config)]
 
         else:
             raise TypeError(
@@ -268,7 +272,7 @@ class FederatedLearning:
             # 提取失败不影响主流程
             pass
 
-    def _load_from_path(self, path: str) -> List[Tuple[CommunicationConfig, TrainingConfig]]:
+    def _load_from_path(self, path: str) -> List[Tuple[CommunicationConfig, TrainingConfig, 'LoggingConfig']]:
         """
         从路径加载配置（支持文件或文件夹）
 
@@ -276,20 +280,28 @@ class FederatedLearning:
             path: 配置文件或文件夹路径
 
         Returns:
-            配置列表
+            配置列表（包含 LoggingConfig）
         """
+        from .config.logging_config import LoggingConfig
+
         if not os.path.exists(path):
             raise FileNotFoundError(f"Config path not found: {path}")
 
         # 情况1: 路径是文件
         if os.path.isfile(path):
             # 注意：此时logger还未初始化
-            config_tuple = ConfigLoader.load(path)
+            comm_cfg, train_cfg = ConfigLoader.load(path)
 
             # 提取日志配置（如果存在）
             self._extract_logging_config_from_file(path)
 
-            return [config_tuple]
+            # 从提取的logging字典创建LoggingConfig对象
+            if self._extracted_logging_config:
+                log_cfg = LoggingConfig(**self._extracted_logging_config)
+            else:
+                log_cfg = LoggingConfig()
+
+            return [(comm_cfg, train_cfg, log_cfg)]
 
         # 情况2: 路径是文件夹
         elif os.path.isdir(path):
@@ -311,14 +323,19 @@ class FederatedLearning:
             result = []
             for config_file in config_files:
                 try:
-                    config_tuple = ConfigLoader.load(config_file)
-                    result.append(config_tuple)
-                    # Note: logger not initialized yet
-                    # comm_cfg, _ = config_tuple
+                    comm_cfg, train_cfg = ConfigLoader.load(config_file)
 
                     # 提取日志配置（如果存在）
                     # 优先使用第一个包含logging配置的文件，或server配置文件
                     self._extract_logging_config_from_file(config_file)
+
+                    # 为每个配置创建LoggingConfig（共享同一个配置）
+                    if self._extracted_logging_config:
+                        log_cfg = LoggingConfig(**self._extracted_logging_config)
+                    else:
+                        log_cfg = LoggingConfig()
+
+                    result.append((comm_cfg, train_cfg, log_cfg))
 
                 except Exception as e:
                     # Note: logger not initialized yet
@@ -345,8 +362,8 @@ class FederatedLearning:
         # 1. 初始化所有Server
         if self.server_configs:
             self.logger.info(f"Initializing {len(self.server_configs)} server(s)...")
-            for i, (comm_cfg, train_cfg) in enumerate(self.server_configs):
-                server = FederationServer(comm_cfg, train_cfg)
+            for i, (comm_cfg, train_cfg, log_cfg) in enumerate(self.server_configs):
+                server = FederationServer(comm_cfg, train_cfg, logging_config=log_cfg)
                 await server.initialize()
                 await server.start_server()
                 self.servers.append(server)
@@ -359,8 +376,8 @@ class FederatedLearning:
         # 3. 初始化所有Client
         if self.client_configs:
             self.logger.info(f"Initializing {len(self.client_configs)} client(s)...")
-            for i, (comm_cfg, train_cfg) in enumerate(self.client_configs):
-                client = FederationClient(comm_cfg, train_cfg)
+            for i, (comm_cfg, train_cfg, log_cfg) in enumerate(self.client_configs):
+                client = FederationClient(comm_cfg, train_cfg, logging_config=log_cfg)
                 await client.initialize()
                 await client.start_client()
                 self.clients.append(client)
@@ -453,7 +470,7 @@ class FederatedLearning:
         if exp_config is None:
             # 尝试从第一个配置中获取experiment配置
             if self.config_list:
-                _, train_cfg = self.config_list[0]
+                _, train_cfg, _ = self.config_list[0]
                 exp_config = getattr(train_cfg, 'experiment', None)
                 if isinstance(exp_config, dict):
                     pass
@@ -532,7 +549,7 @@ class FederatedLearning:
         try:
             # 尝试从配置文件读取实验配置（如果用户未提供）
             if exp_config is None and self.config_list:
-                _, train_cfg = self.config_list[0]
+                _, train_cfg, _ = self.config_list[0]
                 exp_config = getattr(train_cfg, 'experiment', None)
                 if isinstance(exp_config, dict) and exp_config.get('enabled', False):
                     self.logger.info("[实验记录] 从配置文件检测到实验记录配置，自动启用")
@@ -642,7 +659,7 @@ class FederatedLearning:
     def _should_clear_global_state(self) -> bool:
         """判断是否应该清理全局状态（检测是否为 Memory 模式）"""
         # 检查是否所有配置都是 Memory 模式
-        for comm_cfg, _ in self.config_list:
+        for comm_cfg, _, _ in self.config_list:
             if comm_cfg.mode == "memory":
                 return True
         return False

@@ -60,6 +60,9 @@ class TrainingConfig(BaseConfig):
         "keep_last_n": 5
     })
 
+    # ========== 日志配置 ==========
+    logging: Optional[Dict[str, Any]] = None  # 统一日志配置（Loguru + Experiment Loggers）
+
     def infer_role(self) -> str:
         """
         自动推断配置角色

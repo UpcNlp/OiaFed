@@ -25,14 +25,20 @@ class StatusManagementService:
     负责系统状态监控、查询和同步
     """
     
-    def __init__(self, collection_interval: float = 60.0):
+    def __init__(self, collection_interval: float = 60.0, node_id: Optional[str] = None):
         """初始化状态管理服务
-        
+
         Args:
             collection_interval: 状态收集间隔（秒）
+            node_id: 节点ID（用于日志归属）
         """
         self.collection_interval = collection_interval
-        self.logger = get_logger("sys", "status_service")
+        # 使用节点ID的运行日志，让状态日志合并到节点日志中
+        if node_id:
+            self.logger = get_logger("runtime", node_id)
+        else:
+            # 向后兼容：如果没有node_id，使用旧的方式
+            self.logger = get_logger("sys", "status_service")
         
         # 状态数据存储
         self.node_status: Dict[str, Any] = {}

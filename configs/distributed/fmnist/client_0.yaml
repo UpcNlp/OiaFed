@@ -1,18 +1,21 @@
 # Fashion-MNIST客户端0配置 - FedAvg
 # configs/distributed/fmnist/client_0.yaml
 
+# 继承共享的日志配置
+extends: ../logging.yaml
+
 role: client
 node_id: "client_0"
 
 communication:
-  mode: memory
+  mode: process
   server:
     host: "127.0.0.1"
     port: 8001
 
 training:
   learner:
-    name: "Generic"
+    name: "fl.Generic"
     params:
       model:
         name: "MNIST_CNN"

@@ -1,0 +1,38 @@
+# 共享的日志配置
+# configs/distributed/logging.yaml
+
+logging:
+  # 基础配置
+  base_dir: "logs"
+  experiment_name: "test_fmnist_fedavg"
+
+  # Layer 1: Runtime Logs (Loguru)
+  runtime:
+    console_enabled: true
+    console_level: "INFO"
+    file_level: "DEBUG"
+    format: "{time} | {level} | {name}:{function}:{line} - {message}"
+    rotation: "10 MB"
+    retention: "30 days"
+    compression: "zip"
+
+  # Layer 2: Progress (Rich)
+  progress:
+    enabled: true
+    style: "rich"
+    refresh_rate: 0.5
+
+  # Layer 3: Experiment Tracking (MLflow)
+  tracker:
+    enabled: true
+    type: "mlflow"
+    config:
+      uri: "http://172.19.138.200:5000"  # 远程 MLflow 服务器
+      auto_local_backup: true
+      tags:
+        project: "federated_learning"
+        dataset: "fmnist"
+        algorithm: "fedavg"
+
+  # 全局选项
+  collect_loguru_artifacts: true

@@ -5,7 +5,7 @@ fedcl/methods/trainers/generic.py
 完全通过配置文件驱动，无需为每个数据集编写专门的Trainer。
 """
 import asyncio
-from typing import Dict, Any, List
+from typing import Dict, Any, List, Optional
 import numpy as np
 import torch
 import torch.nn as nn
@@ -50,8 +50,8 @@ class GenericTrainer(BaseTrainer):
     }
     """
 
-    def __init__(self, config: Dict[str, Any] = None, lazy_init: bool = True, logger=None):
-        super().__init__(config, lazy_init, logger)
+    def __init__(self, config: Dict[str, Any] = None, lazy_init: bool = True, logger=None, server_id: Optional[str] = None):
+        super().__init__(config, lazy_init, logger, server_id)
 
         # 提取训练参数
         if not hasattr(self, 'local_epochs'):

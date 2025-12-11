@@ -21,14 +21,22 @@ class ClientRegistryService:
     负责处理客户端的注册、注销和状态管理
     """
     
-    def __init__(self, max_clients: int = 100):
+    def __init__(self, max_clients: int = 100, node_id: Optional[str] = None):
         """初始化注册服务
-        
+
         Args:
             max_clients: 最大客户端数量
+            node_id: 节点ID（用于日志归属）
         """
         self.max_clients = max_clients
-        self.logger = get_comm_logger("sys")
+        # ClientRegistryService 是 Server 端组件，使用节点ID或默认 "server"
+        if node_id:
+            from ...utils.auto_logger import get_logger
+            self.logger = get_logger("runtime", node_id)
+        else:
+            # 向后兼容：如果没有node_id，使用 "server" 作为默认值
+            from ...utils.auto_logger import get_logger
+            self.logger = get_logger("runtime", "server")
         
         # 客户端注册表
         self.clients: Dict[str, ClientInfo] = {}

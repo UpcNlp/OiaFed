@@ -251,6 +251,11 @@ class ConfigLoader:
 
         train_dict = config_dict.get('training', {})
 
+        # 将顶层的 logging 字段添加到 train_dict（如果存在）
+        if 'logging' in config_dict:
+            train_dict = train_dict.copy()  # 确保不修改原始字典
+            train_dict['logging'] = config_dict['logging']
+
         # 创建配置对象
         comm_config = ConfigLoader.dict_to_config(comm_dict, CommunicationConfig)
         train_config = ConfigLoader.dict_to_config(train_dict, TrainingConfig)
@@ -283,7 +288,7 @@ class ConfigLoader:
         comm_fields = {'mode', 'role', 'node_id', 'transport'}  # 不包含 'communication'，避免误判
         train_fields = {'trainer', 'learner', 'aggregator', 'evaluator',
                        'global_model', 'local_model', 'dataset',
-                       'max_rounds', 'min_clients', 'components'}  # 不包含 'training'
+                       'max_rounds', 'min_clients', 'components', 'logging'}  # 添加 logging 字段
         has_comm_fields_toplevel = any(f in config_dict for f in comm_fields)
         has_train_fields_toplevel = any(f in config_dict for f in train_fields)
 
@@ -318,7 +323,10 @@ class ConfigLoader:
             train_dict = {}
             if has_training_section:
                 # 如果有 training section，使用其内容
-                train_dict = config_dict['training']
+                train_dict = config_dict['training'].copy()
+                # 如果顶层有 logging 字段，将其添加到 train_dict
+                if 'logging' in config_dict:
+                    train_dict['logging'] = config_dict['logging']
             elif has_train_fields_toplevel:
                 # 从顶层提取训练字段
                 for key in train_fields:

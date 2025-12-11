@@ -95,11 +95,33 @@ class RegistrationRequest:
 
 
 @dataclass
+class TrackerContext:
+    """实验跟踪上下文（用于共享 run）
+
+    支持联邦学习场景下 Server 和多个 Clients 共享同一个实验 run。
+    适用于 MLflow、WandB、TensorBoard 等多种跟踪系统。
+
+    Attributes:
+        enabled: 是否启用实验跟踪
+        tracker_type: 跟踪器类型 (mlflow/wandb/tensorboard/none)
+        shared_run_id: 共享的 run ID（用于多进程/多机写入同一 run）
+        config: 跟踪器配置（如 tracking_uri, experiment_id 等）
+        metadata: 额外的元数据
+    """
+    enabled: bool = False
+    tracker_type: str = "none"
+    shared_run_id: Optional[str] = None
+    config: Dict[str, Any] = field(default_factory=dict)
+    metadata: Dict[str, Any] = field(default_factory=dict)
+
+
+@dataclass
 class RegistrationResponse:
     """注册响应消息"""
     success: bool
     client_id: str
     server_info: Dict[str, Any] = field(default_factory=dict)
+    tracker_context: Optional[TrackerContext] = None
     error_message: Optional[str] = None
     timestamp: datetime = field(default_factory=datetime.now)
 

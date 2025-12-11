@@ -287,14 +287,15 @@ class MessageRouter:
 class ConnectionManager(LayerEventHandler):
     """连接管理器 - 第3层：连接管理层"""
     
-    def __init__(self, 
+    def __init__(self,
                  communication_manager: CommunicationManagerBase,
                  config: CommunicationConfig,
                  upper_layer: Optional[LayerEventHandler] = None):
         super().__init__(upper_layer)
         self.communication_manager = communication_manager
         self.config = config
-        self.logger = get_comm_logger("connection_manager")
+        # 使用节点ID的运行日志，让连接管理日志合并到节点日志中
+        self.logger = get_comm_logger(communication_manager.node_id)
         
         # 初始化组件
         self.pool = ConnectionPool(

@@ -38,7 +38,8 @@ class FederationClient:
         self,
         communication_config: CommunicationConfig,
         training_config: TrainingConfig,
-        client_id: Optional[str] = None
+        client_id: Optional[str] = None,
+        logging_config: Optional['LoggingConfig'] = None
     ):
         """
         初始化客户端管理器
@@ -47,9 +48,11 @@ class FederationClient:
             communication_config: 通信配置对象
             training_config: 训练配置对象
             client_id: 客户端ID（如果为 None，从配置中读取或自动生成）
+            logging_config: 日志配置对象（用于配置实验跟踪器）
         """
         self.comm_config = communication_config
         self.train_config = training_config
+        self.logging_config = logging_config
 
         # 先设置 mode（_generate_client_id 需要使用）
         self.mode = CommunicationMode(communication_config.mode)
@@ -62,12 +65,17 @@ class FederationClient:
         self.business_components: Optional[ClientBusinessComponents] = None
         self.learner_stub: Optional[LearnerStub] = None
 
+        # 实验跟踪器（根据logging_config动态创建）
+        self.tracker = None
+
         # 状态管理
         self.is_initialized = False
         self.is_running = False
         self.is_registered = False
 
-        self.system_logger = get_sys_logger()
+        # 使用节点特定的运行日志
+        from fedcl.utils.auto_logger import get_logger
+        self.system_logger = get_logger("runtime", self.client_id)
         self.system_logger.info(
             f"FederationClient created: client_id={self.client_id}, mode={self.mode}"
         )
@@ -153,6 +161,83 @@ class FederationClient:
 
         self.system_logger.debug("LearnerStub created successfully")
 
+    async def _setup_tracker_from_context(self):
+        """
+        根据 TrackerContext 配置实验跟踪器（使用共享 run）
+
+        流程：
+            1. 从 stub 获取 TrackerContext
+            2. 根据 logging_config.tracker.type 创建对应的 tracker
+            3. 使用 TrackerContext 中的 shared_run_id 配置 tracker
+            4. 将 tracker 传递给 learner（用于训练时记录指标）
+        """
+        # 1. 获取 TrackerContext
+        tracker_context = self.learner_stub.get_tracker_context()
+
+        if not tracker_context or not tracker_context.enabled:
+            self.system_logger.info("TrackerContext not available or disabled, skipping tracker setup")
+            return
+
+        # 2. 检查本地是否有 logging_config
+        if not self.logging_config or not self.logging_config.tracker.enabled:
+            self.system_logger.warning(
+                "Local logging_config disabled, but server sent TrackerContext. "
+                "Client will NOT log metrics."
+            )
+            return
+
+        try:
+            tracker_type = self.logging_config.tracker.type
+            shared_run_id = tracker_context.shared_run_id
+
+            self.system_logger.info(
+                f"[TrackerContext] 配置 {tracker_type} tracker, 使用共享 run: {shared_run_id}"
+            )
+
+            # 3. 根据 tracker_type 创建对应的 tracker
+            if tracker_type == "mlflow":
+                from ..loggers.mlflow_tracker import MLflowTracker
+
+                # 创建 MLflowTracker（使用共享 run_id）
+                self.tracker = MLflowTracker(
+                    experiment_name=tracker_context.config.get('experiment_name'),
+                    run_name=f"client_{self.client_id}",
+                    role="client",
+                    tracking_uri=tracker_context.config.get('tracking_uri'),
+                    config=self.logging_config.tracker.config,
+                    shared_run_id=shared_run_id  # 关键：使用服务端传来的 run_id
+                )
+
+                # 不需要调用 start()，因为 shared_run_id 已经是激活的 run
+                self.system_logger.info(
+                    f"[TrackerContext] MLflowTracker 已配置, 共享 run_id: {shared_run_id}"
+                )
+
+            elif tracker_type == "wandb":
+                # TODO: 实现 WandB shared run
+                self.system_logger.warning(f"WandB shared run not implemented yet")
+                return
+
+            elif tracker_type == "tensorboard":
+                # TODO: 实现 TensorBoard shared run
+                self.system_logger.warning(f"TensorBoard shared run not implemented yet")
+                return
+
+            else:
+                self.system_logger.warning(f"Unknown tracker type: {tracker_type}")
+                return
+
+            # 4. 将 tracker 传递给 learner（用于训练时记录指标）
+            if self.business_components and self.business_components.learner:
+                self.business_components.learner.tracker = self.tracker
+                self.system_logger.info(
+                    f"[TrackerContext] Tracker 已传递给 learner: {self.client_id}"
+                )
+
+        except Exception as e:
+            self.system_logger.error(f"Failed to setup tracker from context: {e}")
+            # 不抛出异常，允许客户端继续运行（只是不记录指标）
+
     async def start_client(self) -> bool:
         """
         启动客户端
@@ -203,6 +288,9 @@ class FederationClient:
 
             if self.is_registered:
                 self.system_logger.info(f"✓ Client {self.client_id} registered successfully")
+
+                # 配置实验跟踪器（使用从服务端接收的TrackerContext）
+                await self._setup_tracker_from_context()
             else:
                 self.system_logger.warning(
                     f"✗ Client {self.client_id} registration may have failed"

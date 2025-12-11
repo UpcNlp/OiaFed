@@ -38,20 +38,22 @@ class CommunicationManagerBase(ABC):
         # 初始化服务组件 - 根据角色决定
         if self.node_role == "server":
             # 只有 Server 端需要 registry_service（管理所有客户端）
-            self.registry_service = ClientRegistryService(max_clients=config.max_clients)
+            self.registry_service = ClientRegistryService(max_clients=config.max_clients, node_id=node_id)
         else:
             # Client 端不需要 registry_service
             self.registry_service = None
 
-        # 所有节点都需要的服务
+        # 所有节点都需要的服务（传递node_id以合并日志）
         self.heartbeat_service = HeartbeatService(
             interval=config.heartbeat_interval,
-            timeout=config.heartbeat_timeout
+            timeout=config.heartbeat_timeout,
+            node_id=node_id
         )
-        self.status_service = StatusManagementService()
+        self.status_service = StatusManagementService(node_id=node_id)
         self.security_service = SecurityService(
             secret_key=f"moe_fedcl_{node_id}",  # 简单的密钥生成
-            policy=None  # 使用默认安全策略
+            policy=None,  # 使用默认安全策略
+            node_id=node_id
         )
 
         # 客户端注册表（只有 Server 需要）

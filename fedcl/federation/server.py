@@ -37,7 +37,8 @@ class FederationServer:
         self,
         communication_config: CommunicationConfig,
         training_config: TrainingConfig,
-        server_id: Optional[str] = None
+        server_id: Optional[str] = None,
+        logging_config: Optional['LoggingConfig'] = None
     ):
         """
         初始化服务端管理器
@@ -46,9 +47,11 @@ class FederationServer:
             communication_config: 通信配置对象
             training_config: 训练配置对象
             server_id: 服务端ID（如果为 None，从配置中读取或自动生成）
+            logging_config: 日志配置对象（用于初始化实验跟踪器）
         """
         self.comm_config = communication_config
         self.train_config = training_config
+        self.logging_config = logging_config
 
         # 先设置 mode（_generate_server_id 需要使用）
         self.mode = CommunicationMode(communication_config.mode)
@@ -60,11 +63,16 @@ class FederationServer:
         self.comm_components: Optional[CommunicationComponents] = None
         self.business_components: Optional[ServerBusinessComponents] = None
 
+        # 实验跟踪器（在initialize中创建）
+        self.tracker = None
+
         # 状态管理
         self.is_initialized = False
         self.is_running = False
 
-        self.logger = get_sys_logger()
+        # 使用节点特定的运行日志
+        from fedcl.utils.auto_logger import get_logger
+        self.logger = get_logger("runtime", self.server_id)
         self.logger.info(
             f"FederationServer created: server_id={self.server_id}, mode={self.mode}"
         )
@@ -116,6 +124,14 @@ class FederationServer:
             self.logger.info("3.Establishing layer relationships...")
             self._establish_layer_relationships()
             self.logger.info("✓Layer relationships established")
+
+            # Phase 4: 初始化实验跟踪器并创建TrackerContext
+            if self.logging_config and self.logging_config.tracker.enabled:
+                self.logger.info("4.Initializing experiment tracker...")
+                await self._initialize_tracker_and_set_context()
+                self.logger.info("✓Experiment tracker ready, TrackerContext propagated")
+            else:
+                self.logger.info("4.Experiment tracker disabled, skipping")
 
             self.is_initialized = True
             self.logger.info("FederationServer initialized successfully")
@@ -192,7 +208,73 @@ class FederationServer:
             handle_client_registration_event
         )
 
-        self.logger.info("🔗 Layer relationships established, event bridges activated")
+
+        self.logger.info("Layer relationships established, event bridges activated")
+
+    async def _initialize_tracker_and_set_context(self):
+        """
+        初始化实验跟踪器并创建 TrackerContext 传递给客户端
+
+        流程：
+            1. 根据 logging_config 创建 MLflowTracker（自动创建run）
+            2. 提取 run_id 和跟踪器配置
+            3. 创建 TrackerContext 对象
+            4. 调用 communication_manager.set_tracker_context()
+
+        Raises:
+            FederationError: 如果跟踪器初始化失败
+        """
+        try:
+            from ..loggers.mlflow_tracker import MLflowTracker
+            from ..types import TrackerContext
+
+            tracker_cfg = self.logging_config.tracker
+
+            # 1. 创建 MLflowTracker（自动创建run）
+            self.tracker = MLflowTracker(
+                experiment_name=self.logging_config.experiment_name,
+                run_name=f"federated_{self.server_id}",
+                role="aggregator",  # Server角色是聚合器
+                tracking_uri=tracker_cfg.config.get('uri'),
+                config=tracker_cfg.config
+            )
+
+            # 启动tracker（创建run）
+            self.tracker.start()
+
+            # 2. 获取run_id
+            run_id = self.tracker._run_id
+            self.logger.info(f"[TrackerContext] Server创建MLflow run: {run_id}")
+
+            # 3. 创建TrackerContext
+            tracker_context = TrackerContext(
+                enabled=True,
+                tracker_type=tracker_cfg.type,
+                shared_run_id=run_id,  # 关键：这是共享的run_id
+                config={
+                    'tracking_uri': tracker_cfg.config.get('uri'),
+                    'experiment_name': self.logging_config.experiment_name,
+                    'experiment_id': self.tracker.experiment_id,
+                },
+                metadata={
+                    'server_id': self.server_id,
+                    'created_at': str(__import__('datetime').datetime.now())
+                }
+            )
+
+            # 4. 设置到communication_manager（会在注册响应中发送给客户端）
+            if hasattr(self.comm_components.communication_manager, 'set_tracker_context'):
+                self.comm_components.communication_manager.set_tracker_context(tracker_context)
+                self.logger.info(f"[TrackerContext] 已设置到communication_manager，将在客户端注册时传递")
+            else:
+                self.logger.warning(
+                    f"Communication manager does not support set_tracker_context, "
+                    f"clients will not receive TrackerContext"
+                )
+
+        except Exception as e:
+            self.logger.error(f"Failed to initialize tracker and set context: {e}")
+            raise FederationError(f"Tracker initialization failed: {str(e)}")
 
     async def start_server(self) -> bool:
         """

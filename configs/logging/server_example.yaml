@@ -1,0 +1,23 @@
+# Server 配置示例
+# 继承 logging 配置，并覆盖部分设置
+
+extends: "../logging/logging.yaml"
+
+role: server
+node_id: server_fmnist
+
+# Server 的 logging 配置（覆盖）
+logging:
+  runtime:
+    console_enabled: true    # Server 显示控制台
+  progress:
+    enabled: true            # Server 显示进度条
+  tracker:
+    enabled: true            # Server 启用追踪
+
+training:
+  max_rounds: 3
+  min_clients: 2
+
+aggregator:
+  name: "FedAvgAggregator"

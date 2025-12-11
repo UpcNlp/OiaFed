@@ -1,0 +1,48 @@
+# 统一日志配置示例（重构版）
+# configs/examples/unified_logging_example.yaml
+
+role: server
+node_id: server_unified_example
+
+# ===== 统一日志配置 =====
+logging:
+  # --- Loguru 运行时日志配置 ---
+  console_enabled: true          # 是否在控制台输出
+  console_level: "INFO"          # 控制台日志级别
+  file_level: "DEBUG"            # 文件日志级别（更详细）
+  format: "{time} | {level} | {name}:{function}:{line} - {message}"
+  rotation: "10 MB"              # 日志文件大小轮转
+  retention: "30 days"           # 日志保留时间
+  compression: "zip"             # 压缩格式
+
+  # --- Experiment Logging 配置 ---
+  experiment_name: "unified_logging_demo"  # 实验名称（使用 MLflow 等外部追踪系统时必填）
+  save_dir: "experiments/results"          # 保存目录
+
+  # 外部追踪系统（可选，可同时使用多个）
+  # 可选值：mlflow, wandb, tensorboard
+  # 注意：不需要指定 "json"，JSON 记录是默认的本地备份
+  trackers:
+    - mlflow                     # MLflow 追踪服务器
+
+  record_server: true            # 记录 server 指标
+  record_clients: true           # 记录 client 指标
+  collect_loguru_artifacts: true # 将 Loguru 日志上传到外部追踪系统
+
+# ===== 通信配置 =====
+communication:
+  mode: memory
+  server:
+    host: "127.0.0.1"
+    port: 8000
+
+# ===== 训练配置 =====
+training:
+  max_rounds: 5
+  min_clients: 2
+  trainer:
+    name: "Generic"
+  global_model:
+    name: "MNIST_CNN"
+    params:
+      num_classes: 10

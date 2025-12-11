@@ -41,12 +41,23 @@ class LayerEventHandler(ABC):
 class ProxyManagerEventHandler(LayerEventHandler):
     """代理管理器事件处理器 - BaseTrainer的代理管理组件"""
     
-    def __init__(self, proxy_manager):
+    def __init__(self, proxy_manager, server_id: Optional[str] = None):
+        """初始化代理管理器事件处理器
+
+        Args:
+            proxy_manager: ProxyManager 实例
+            server_id: 服务器节点ID（用于日志归属）
+        """
         super().__init__()
         self.proxy_manager = proxy_manager
         # 导入日志记录器
-        from ..utils.auto_logger import get_comm_logger
-        self.logger = get_comm_logger("proxy_manager_handler")
+        from ..utils.auto_logger import get_logger
+        # ProxyManagerEventHandler 是 Server 端组件，使用 server_id 的运行日志
+        if server_id:
+            self.logger = get_logger("runtime", server_id)
+        else:
+            # 向后兼容：如果没有 server_id，使用通用的 server
+            self.logger = get_logger("runtime", "server")
     
     def handle_layer_event(self, event_type: str, event_data: Dict[str, Any]):
         """处理代理相关事件"""

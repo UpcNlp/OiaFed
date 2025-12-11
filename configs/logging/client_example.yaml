@@ -1,0 +1,28 @@
+# Client 配置示例 (本地模式 - 不显示进度条)
+# 继承 logging 配置
+
+extends: "../logging/logging.yaml"
+
+role: client
+node_id: client_0
+
+# Client 的 logging 配置（覆盖）
+logging:
+  runtime:
+    console_enabled: false   # Client 不显示控制台（避免混乱）
+  progress:
+    enabled: false           # Client 不显示进度条
+  tracker:
+    enabled: true            # Client 启用追踪
+
+learner:
+  name: "fl.Generic"
+  epochs: 1
+  batch_size: 32
+  learning_rate: 0.01
+
+dataset:
+  name: "FMNIST"
+  partition:
+    type: "iid"
+    num_clients: 2

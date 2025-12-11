@@ -109,14 +109,25 @@ class ClientStatistics:
 class ProxyManager:
     """代理管理器 - 负责LearnerProxy的生命周期管理"""
     
-    def __init__(self, trainer: 'BaseTrainer'):
+    def __init__(self, trainer: 'BaseTrainer', server_id: Optional[str] = None):
+        """初始化代理管理器
+
+        Args:
+            trainer: BaseTrainer 实例
+            server_id: 服务器节点ID（用于日志归属）
+        """
         self.trainer = trainer
         self.proxies: Dict[str, LearnerProxy] = {}
         self._lock = asyncio.Lock()
-        
+
         # 导入日志记录器
-        from ..utils.auto_logger import get_comm_logger
-        self.logger = get_comm_logger("proxy_manager")
+        from ..utils.auto_logger import get_logger
+        # ProxyManager 是 Server 端组件，使用 server_id 的运行日志
+        if server_id:
+            self.logger = get_logger("runtime", server_id)
+        else:
+            # 向后兼容：如果没有 server_id，使用通用的 server
+            self.logger = get_logger("runtime", "server")
     
     async def on_proxy_ready(self, client_id: str, proxy: LearnerProxy):
         """接收业务通信层创建的代理"""
@@ -181,7 +192,8 @@ class BaseTrainer(ABC):
     def __init__(self,
                  config: Optional[Dict[str, Any]] = None,
                  lazy_init: bool = True,
-                 logger: Optional[Logger] = None):
+                 logger: Optional[Logger] = None,
+                 server_id: Optional[str] = None):
         """
         初始化训练器
 
@@ -190,10 +202,17 @@ class BaseTrainer(ABC):
                    由ComponentBuilder.parse_config()生成
             lazy_init: 是否延迟初始化组件（默认True）
             logger: 日志记录器
+            server_id: 服务器节点ID（用于日志归属和组件初始化）
         """
         self.config = config or {}
         self.lazy_init = lazy_init
-        self.logger = logger if logger else get_train_logger("server")
+        self.server_id = server_id  # 保存 server_id
+
+        # 如果提供了 server_id，使用对应的训练日志；否则使用默认的 server
+        if server_id:
+            self.logger = logger if logger else get_train_logger(server_id)
+        else:
+            self.logger = logger if logger else get_train_logger("server")
 
         # 提取trainer自己的配置参数
         trainer_config = self.config.get('trainer', {})
@@ -216,11 +235,11 @@ class BaseTrainer(ABC):
             client_selection_ratio=getattr(self, 'client_selection_ratio', 1.0)
         )
 
-        #  自动实例化代理管理器（用户无感知）
-        self._proxy_manager = ProxyManager(self)
+        #  自动实例化代理管理器（用户无感知），传递 server_id
+        self._proxy_manager = ProxyManager(self, server_id=server_id)
 
-        # 创建事件处理器，用于接收业务层的代理创建事件
-        self._proxy_event_handler = ProxyManagerEventHandler(self._proxy_manager)
+        # 创建事件处理器，用于接收业务层的代理创建事件，传递 server_id
+        self._proxy_event_handler = ProxyManagerEventHandler(self._proxy_manager, server_id=server_id)
 
         # learner_proxies变成代理管理器的代理属性
         self.learner_proxies = self._proxy_manager.proxies
@@ -983,8 +1002,15 @@ class BaseTrainer(ABC):
             event: 事件名称
             *args, **kwargs: 传递给回调的参数
         """
+        # 调试日志：输出判断条件和callback队列
+        self.logger.info(f"[Callback Debug] 触发事件: {event}")
+        self.logger.info(f"[Callback Debug] 判断条件: event='{event}', _callbacks 是否有此事件: {event in self._callbacks}")
+        self.logger.info(f"[Callback Debug] Callback队列中的元素: {list(self._callbacks.keys())}")
+        self.logger.info(f"[Callback Debug] 事件 '{event}' 的回调数量: {len(self._callbacks.get(event, []))}")
+
         for callback in self._callbacks.get(event, []):
             try:
+                self.logger.info(f"[Callback Debug] 执行回调: {callback}")
                 if asyncio.iscoroutinefunction(callback):
                     asyncio.create_task(callback(*args, **kwargs))
                 else:

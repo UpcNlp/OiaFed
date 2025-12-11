@@ -1,17 +1,20 @@
 # Fashion-MNIST服务器配置 - FedAvg
 # configs/distributed/fmnist/server.yaml
 
+# 继承共享的日志配置
+extends: ../logging.yaml
+
 role: server
 node_id: server_fmnist
 
 communication:
-  mode: memory
+  mode: process
   server:
     host: "127.0.0.1"
     port: 8001
 
 training:
-  max_rounds: 5
+  max_rounds: 3  # 快速测试
   min_clients: 2
   trainer:
     name: "Generic"

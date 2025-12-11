@@ -15,7 +15,8 @@ from ..exceptions import RegistrationError
 from ..transport.network import NetworkTransport
 from ..types import (
     ClientInfo, RegistrationRequest, RegistrationResponse,
-    HeartbeatMessage, CommunicationConfig, RegistrationStatus
+    HeartbeatMessage, CommunicationConfig, RegistrationStatus,
+    TrackerContext
 )
 from ..utils.auto_logger import get_sys_logger
 
@@ -65,6 +66,9 @@ class NetworkCommunicationManager(CommunicationManagerBase):
         # Process模式特定初始化
         if self.is_process_mode:
             self._init_process_mode()
+
+        # 用于存储服务端的 TrackerContext（用于注册时传递给客户端）
+        self._tracker_context: Optional[TrackerContext] = None
     
     def _init_process_mode(self):
         """初始化Process模式特定功能"""
@@ -120,37 +124,54 @@ class NetworkCommunicationManager(CommunicationManagerBase):
         try:
             client_id = registration.client_id
 
-            # 检查本地是否已注册
+            # 向服务端发送注册请求
+            if self._is_client_node():
+                # 客户端向服务端注册
+                response_data = await self._register_to_server(registration)
+                if not response_data.get("success", False):
+                    return RegistrationResponse(
+                        success=False,
+                        client_id=client_id,
+                        error_message=response_data.get("error", "Failed to register with server")
+                    )
+
+                # 从服务端响应中提取 TrackerContext
+                tracker_context = None
+                if "tracker_context" in response_data:
+                    from ..types import TrackerContext
+                    tc_data = response_data["tracker_context"]
+                    self.logger.info(f"[DEBUG] 从服务端响应中提取 TrackerContext: {tc_data}")
+                    tracker_context = TrackerContext(
+                        enabled=tc_data.get("enabled", False),
+                        tracker_type=tc_data.get("tracker_type", "none"),
+                        shared_run_id=tc_data.get("shared_run_id"),
+                        config=tc_data.get("config", {}),
+                        metadata=tc_data.get("metadata", {})
+                    )
+                else:
+                    self.logger.warning(f"[DEBUG] 服务端响应中没有 TrackerContext")
+
+                # 客户端注册成功后，返回包含 TrackerContext 的响应
+                return RegistrationResponse(
+                    success=True,
+                    client_id=client_id,
+                    server_info=response_data.get("server_info", {
+                        "server_id": self.node_id,
+                        "registration_mode": "client_to_server"
+                    }),
+                    tracker_context=tracker_context
+                )
+
+            # 以下代码只在服务端执行（处理客户端的注册请求）
+
+            # 检查本地是否已注册（仅服务端需要此检查）
             if client_id in self.clients:
+                self.logger.warning(f"[DEBUG] Client {client_id} already registered locally, skipping duplicate")
                 return RegistrationResponse(
                     success=False,
                     client_id=client_id,
                     error_message=f"Client {client_id} already registered locally"
                 )
-
-            # 向服务端发送注册请求
-            if self._is_client_node():
-                # 客户端向服务端注册
-                success = await self._register_to_server(registration)
-                if not success:
-                    return RegistrationResponse(
-                        success=False,
-                        client_id=client_id,
-                        error_message="Failed to register with server"
-                    )
-
-                # 客户端注册成功后，直接返回（不在客户端本地保存）
-                # 客户端地址应该在服务端的transport中注册
-                return RegistrationResponse(
-                    success=True,
-                    client_id=client_id,
-                    server_info={
-                        "server_id": self.node_id,
-                        "registration_mode": "client_to_server"
-                    }
-                )
-
-            # 以下代码只在服务端执行（处理客户端的注册请求）
 
             # 创建本地客户端信息
             client_info = ClientInfo(
@@ -200,12 +221,12 @@ class NetworkCommunicationManager(CommunicationManagerBase):
         except Exception as e:
             raise RegistrationError(f"Client registration failed: {str(e)}")
     
-    async def _register_to_server(self, registration: RegistrationRequest) -> bool:
-        """向服务端注册"""
+    async def _register_to_server(self, registration: RegistrationRequest) -> Dict[str, Any]:
+        """向服务端注册，返回完整的响应数据"""
         try:
             if not self._client_session:
                 self._client_session = aiohttp.ClientSession()
-            
+
             registration_data = {
                 "client_id": registration.client_id,
                 "client_type": registration.client_type,
@@ -213,25 +234,30 @@ class NetworkCommunicationManager(CommunicationManagerBase):
                 "metadata": registration.metadata,
                 "timestamp": datetime.now().isoformat()
             }
-            
+
             url = f"{self.server_url}/api/v1/register"
             timeout = aiohttp.ClientTimeout(total=self.config.registration_timeout)
-            
+
+            self.logger.info(f"[DEBUG] 客户端向服务端发送注册请求: {url}")
+
             async with self._client_session.post(
-                url, 
-                json=registration_data, 
+                url,
+                json=registration_data,
                 timeout=timeout
             ) as response:
                 if response.status == 200:
                     result = await response.json()
-                    return result.get("success", False)
+                    self.logger.info(f"[DEBUG] 收到服务端注册响应: {result.keys()}")
+                    self.logger.info(f"[DEBUG] 响应success字段: {result.get('success')}")
+                    self.logger.info(f"[DEBUG] 响应error_message字段: {result.get('error_message')}")
+                    return result
                 else:
-                    print(f"Registration failed: HTTP {response.status}")
-                    return False
-                    
+                    self.logger.error(f"Registration failed: HTTP {response.status}")
+                    return {"success": False, "error": f"HTTP {response.status}"}
+
         except Exception as e:
-            print(f"Register to server failed: {e}")
-            return False
+            self.logger.error(f"Register to server failed: {e}")
+            return {"success": False, "error": str(e)}
     
     async def unregister_client(self, client_id: str) -> bool:
         """注销客户端"""
@@ -362,7 +388,16 @@ class NetworkCommunicationManager(CommunicationManagerBase):
 
         self.logger.error(f"无法解析目标地址: {target}")
         return None
-    
+
+    def set_tracker_context(self, tracker_context: TrackerContext) -> None:
+        """设置 TrackerContext（由 FederatedLearning 调用）
+
+        Args:
+            tracker_context: 实验跟踪上下文，包含共享 run_id 等信息
+        """
+        self._tracker_context = tracker_context
+        self.logger.debug(f"[TrackerContext] 已设置: enabled={tracker_context.enabled}, type={tracker_context.tracker_type}")
+
     async def handle_registration_request(self, request_data: Dict[str, Any]) -> Dict[str, Any]:
         """处理注册请求 - 服务端使用"""
         try:
@@ -372,17 +407,31 @@ class NetworkCommunicationManager(CommunicationManagerBase):
                 capabilities=request_data.get("capabilities", []),
                 metadata=request_data.get("metadata", {})
             )
-            
+
             response = await self.register_client(registration)
-            
-            return {
+
+            # 构造返回字典
+            result = {
                 "success": response.success,
                 "client_id": response.client_id,
                 "server_info": response.server_info,
                 "error_message": response.error_message,
                 "timestamp": datetime.now().isoformat()
             }
-            
+
+            # 如果设置了 TrackerContext，将其包含在响应中
+            if self._tracker_context:
+                result["tracker_context"] = {
+                    "enabled": self._tracker_context.enabled,
+                    "tracker_type": self._tracker_context.tracker_type,
+                    "shared_run_id": self._tracker_context.shared_run_id,
+                    "config": self._tracker_context.config,
+                    "metadata": self._tracker_context.metadata
+                }
+                self.logger.debug(f"[TrackerContext] 已包含在注册响应中: client={response.client_id}")
+
+            return result
+
         except Exception as e:
             return {
                 "success": False,
