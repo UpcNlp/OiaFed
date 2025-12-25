@@ -1,3 +1,0 @@
-# CIFAR-10 IID实验 - 客户端0
-extends: "../base/cifar10_client_base.yaml"
-node_id: "client_0"

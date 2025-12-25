@@ -1,0 +1,48 @@
+# =============================================================================
+# MLflow-Enabled Base Configuration
+# =============================================================================
+#
+# This configuration extends base.yaml and adds MLflow tracking capabilities
+# for reproducing Table 3 results from the paper.
+#
+# Key Features:
+# - File backend for local logging
+# - MLflow backend for distributed experiment tracking
+# - Environment variable support for configuration
+# - Dynamic run_name generation
+#
+# Usage:
+#   extend: presets/common/base_mlflow.yaml
+#
+# Required Environment Variables:
+#   MLFLOW_TRACKING_URI: MLflow server URL (default: http://localhost:5000)
+#   MLFLOW_TRACKING_USERNAME: MLflow authentication username
+#   MLFLOW_TRACKING_PASSWORD: MLflow authentication password
+#   RUN_NAME: Run name in format {dataset}_{algorithm}_{non_iid_type}
+#   EXP_NAME: Experiment name (default: table3_reproduction)
+#
+# =============================================================================
+
+extend: base.yaml
+
+# Enhanced tracker configuration with MLflow support
+tracker:
+  enabled: true
+  tracking_dir: tracking
+
+  backends:
+    # File backend for local logging
+    - type: file
+      args:
+        level: DEBUG
+
+    # MLflow backend for distributed experiment tracking
+    - type: mlflow
+      args:
+        tracking_uri: ${MLFLOW_TRACKING_URI:http://localhost:5000}
+        experiment_name: ${EXP_NAME:table3_reproduction}
+        run_name: ${RUN_NAME}  # Dynamic: {dataset}_{algorithm}_{non_iid_type}_{timestamp}
+        auto_start_run: true
+        auto_end_run: true
+        username: ${MLFLOW_TRACKING_USERNAME}
+        password: ${MLFLOW_TRACKING_PASSWORD}

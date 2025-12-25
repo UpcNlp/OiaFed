@@ -1,0 +1,45 @@
+# Learner 1 节点配置
+extend: base.yaml
+
+node_id: learner_1
+role: learner
+
+# 监听端口（不同于 learner_0）
+listen:
+  host: localhost
+  port: 50053
+
+# 连接到 trainer
+connect_to:
+  - trainer@localhost:50051
+
+# Learner 配置
+learner:
+  type: default
+  args:
+    batch_size: 64  # 加大 batch_size 加快训练
+    lr: 0.01
+    device: cpu     # 使用 CPU 避免 GPU 占用问题
+
+# Dataset 配置
+datasets:
+  - type: mnist
+    split: train
+    args:
+      data_dir: ./data
+    partition:
+      id: 1
+      num_partitions: 2
+      type: iid  # 使用 IID 简化测试
+      args: {}
+
+  - type: mnist
+    split: test
+    args:
+      data_dir: ./data
+
+# Model 配置
+model:
+  type: simple_cnn
+  args:
+    num_classes: 10

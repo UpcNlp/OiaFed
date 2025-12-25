@@ -1,0 +1,65 @@
+# =============================================================================
+# FedDBE Algorithm Preset
+# =============================================================================
+# Paper: Federated Deep Bayesian Ensemble Learning
+#
+# Description:
+#   FedDBE (Federated Deep Bayesian Ensemble) maintains an ensemble of models
+#   to capture uncertainty and diversity in federated learning. Multiple models
+#   are trained and aggregated independently, then used together for prediction
+#   to improve robustness and calibration.
+#
+# Key Features:
+#   - Ensemble of multiple models for uncertainty quantification
+#   - Better calibrated predictions with confidence estimates
+#   - Improved robustness to non-IID data and outliers
+#   - Diversity in ensemble models captures different aspects of data
+#
+# Components:
+#   - Trainer: default
+#   - Learner: fl.feddbe (ensemble-based training)
+#   - Aggregator: fedavg (aggregates each ensemble member)
+#
+# Hyperparameters:
+#   - ensemble_size: Number of models in the ensemble (default: 3)
+#
+# Usage:
+#   extend: presets/algorithms/feddbe.yaml
+#
+# =============================================================================
+
+extend: ../common/base.yaml
+
+# Trainer configuration
+trainer:
+  type: default
+  args:
+    max_rounds: 100
+    local_epochs: 5
+    client_fraction: 0.1
+    min_available_clients: 2
+
+    fit_config:
+      epochs: 5
+      evaluate_after_fit: true
+
+    eval_interval: 5
+    evaluate_after_aggregation: false
+
+# Aggregator configuration (aggregates each ensemble member)
+aggregator:
+  type: fedavg
+  args:
+    weighted: true
+
+# Learner configuration (FedDBE with ensemble learning)
+learner:
+  type: fl.feddbe
+  args:
+    learning_rate: 0.01
+    batch_size: 32
+    optimizer: SGD
+    momentum: 0.9
+
+    # FedDBE-specific configuration
+    ensemble_size: 3  # Number of models in the ensemble

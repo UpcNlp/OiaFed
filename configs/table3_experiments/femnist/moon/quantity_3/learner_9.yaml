@@ -1,0 +1,31 @@
+extend: base.yaml
+node_id: learner_9
+role: learner
+listen:
+  host: localhost
+  port: 50061
+connect_to:
+- trainer@localhost:50051
+learner:
+  type: default
+  args:
+    batch_size: 64
+    lr: 0.01
+    device: cuda
+datasets:
+- type: femnist
+  split: train
+  args:
+    data_dir: ./data
+    download: true
+  partition:
+    strategy: label
+    num_partitions: 10
+    config:
+      labels_per_client: 3
+      seed: 42
+    partition_id: 9
+model:
+  type: simple_cnn
+  args:
+    num_classes: 62

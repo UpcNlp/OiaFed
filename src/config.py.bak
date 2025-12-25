@@ -1,0 +1,645 @@
+"""
+配置系统 v2.0
+
+支持：
+1. 层次化配置（SystemConfig → NodeConfig → BaseConfig）
+2. 配置继承（extend 字段）
+3. 一节点一配置文件
+4. 多种运行模式（serial/parallel/distributed）
+"""
+
+from dataclasses import dataclass, field
+from typing import Any, Dict, List, Optional, Union
+from pathlib import Path
+import yaml
+import copy
+
+
+# ==================== 基础配置类 ====================
+# 注意：LoggingConfig 已删除，统一使用 infra.log_config.LogConfig
+
+@dataclass
+class TransportConfig:
+    """传输层配置"""
+    mode: str = "memory"                    # memory | grpc
+    grpc: Dict[str, Any] = field(default_factory=lambda: {
+        "host": "0.0.0.0",
+        "port": 50051,
+    })
+
+
+@dataclass
+class ConnectionRetryConfig:
+    """连接重试配置"""
+    enabled: bool = True                    # 是否启用重试
+    max_retries: int = 10                   # 最大重试次数（-1 表示无限重试）
+    retry_interval: float = 2.0             # 重试间隔（秒）
+    timeout: float = 60.0                   # 总超时时间（秒）
+    backoff: str = "exponential"            # 退避策略：constant | exponential | linear
+    backoff_factor: float = 1.5             # 指数退避因子
+
+
+@dataclass
+class MLflowTrackerConfig:
+    """
+    MLflow 追踪配置
+
+    将训练指标保存到 MLflow
+    """
+    tracking_uri: str = "http://localhost:5000"   # MLflow 服务地址
+    experiment_name: str = "federated_learning"   # 实验名称
+    run_name: Optional[str] = None                # 运行名称（None 则使用 logging.run_name）
+
+
+@dataclass
+class WandbTrackerConfig:
+    """
+    Weights & Biases 追踪配置
+
+    将训练指标保存到 W&B
+    """
+    project: str = "federated-learning"           # 项目名称
+    entity: Optional[str] = None                  # 团队名称
+    name: Optional[str] = None                    # 运行名称
+    tags: List[str] = field(default_factory=list) # 标签列表
+
+
+@dataclass
+class TensorBoardTrackerConfig:
+    """
+    TensorBoard 追踪配置
+
+    将训练指标保存为 TensorBoard 格式
+    """
+    log_dir: Optional[str] = None                 # 日志目录（None 则自动生成）
+
+
+@dataclass
+class TrackerBackendConfig:
+    """
+    单个 Tracker Backend 配置
+
+    支持的类型：
+    - file: 文件追踪
+    - mlflow: MLflow 追踪
+    - wandb: Weights & Biases 追踪
+    - tensorboard: TensorBoard 追踪
+
+    使用示例：
+        # 方式1：使用 dict（简单）
+        backend = {"type": "file", "args": {"level": "INFO"}}
+
+        # 方式2：使用配置类（类型安全）
+        backend = TrackerBackendConfig(
+            type="file",
+            config=FileTrackerConfig(level="INFO")
+        )
+    """
+    type: str                                     # backend 类型
+    config: Optional[Any] = None                  # 配置对象（FileTrackerConfig 等）
+
+    # 向后兼容：支持 args dict
+    args: Optional[Dict[str, Any]] = None
+
+    def get_args(self) -> Dict[str, Any]:
+        """
+        获取参数字典
+
+        优先使用 config 对象，如果不存在则使用 args
+        """
+        if self.config is not None:
+            # 将配置对象转换为字典
+            if hasattr(self.config, "__dict__"):
+                return {k: v for k, v in self.config.__dict__.items() if not k.startswith("_")}
+            return {}
+        return self.args or {}
+
+
+@dataclass
+class TrackerConfig:
+    """
+    训练追踪配置
+
+    统一使用 backends 数组配置所有训练相关的日志和指标。
+
+    配置示例：
+        # 方式1：使用 dict（简单，向后兼容）
+        tracker:
+          enabled: true
+          backends:
+            - type: file
+              args:
+                level: INFO
+            - type: mlflow
+              args:
+                tracking_uri: ./mlruns
+
+        # 方式2：使用配置类（类型安全，推荐）
+        from federation.config import (
+            TrackerConfig,
+            TrackerBackendConfig,
+            FileTrackerConfig,
+            MLflowTrackerConfig,
+        )
+
+        tracker = TrackerConfig(
+            enabled=True,
+            backends=[
+                TrackerBackendConfig(
+                    type="file",
+                    config=FileTrackerConfig(level="INFO")
+                ),
+                TrackerBackendConfig(
+                    type="mlflow",
+                    config=MLflowTrackerConfig(tracking_uri="./mlruns")
+                ),
+            ]
+        )
+    """
+    enabled: bool = True
+
+    # 追踪目录（相对于 logs/<run_name>/ 的目录名）
+    tracking_dir: str = "tracking"
+
+    # 统一后端配置
+    # 支持两种格式：
+    # 1. Dict[str, Any] - 向后兼容
+    # 2. TrackerBackendConfig - 类型安全
+    backends: Optional[List[Union[Dict[str, Any], "TrackerBackendConfig"]]] = None
+
+
+# ==================== 节点配置类 ====================
+
+@dataclass
+class NodeConfig:
+    """
+    单个节点的配置
+
+    支持通过 extend 字段继承基础配置
+    """
+
+    # ========== 基本信息 ==========
+    node_id: str = ""                              # 节点唯一 ID
+    role: str = "learner"                          # trainer | learner | both
+    extend: Optional[str] = None                   # 继承的基础配置文件路径
+
+    # ========== 连接配置 ==========
+    listen: Optional[Dict[str, Any]] = None        # 监听配置（Trainer 使用）
+    # listen:
+    #   port: 50051
+    #   host: 0.0.0.0
+
+    connect_to: Optional[List[str]] = None         # 连接目标列表（Learner 使用）
+    # connect_to:
+    #   - "trainer:50051"
+
+    # ========== 传输层配置 ==========
+    transport: TransportConfig = field(default_factory=TransportConfig)
+
+    # ========== 序列化配置 ==========
+    serialization: Optional[Dict[str, Any]] = None  # 序列化配置（传递给 node_comm 层）
+
+    # ========== 组件配置 ==========
+    # Trainer 组件（role=trainer or both 时必需）
+    trainer: Optional[Dict[str, Any]] = None
+    # trainer:
+    #   type: federated.trainer.fedavg
+    #   args:
+    #     max_rounds: 100
+
+    # Learner 组件（role=learner or both 时必需）
+    learner: Optional[Dict[str, Any]] = None
+    # learner:
+    #   type: federated.learner.sgd
+    #   args:
+    #     learning_rate: 0.01
+
+    # Aggregator 组件（role=trainer 时必需）
+    aggregator: Optional[Dict[str, Any]] = None
+    # aggregator:
+    #   type: federated.aggregator.fedavg
+
+    # Dataset 配置（支持多个训练数据集）
+    datasets: Optional[List[Dict[str, Any]]] = None
+    # datasets:
+    #   - type: dataset.mnist
+    #     args:
+    #       path: ./data
+    #       partition:
+    #         strategy: dirichlet
+    #         num_partitions: 10
+
+    # Test Dataset 配置（支持多个测试数据集）
+    test_datasets: Optional[List[Dict[str, Any]]] = None
+    # test_datasets:
+    #   - type: dataset.mnist
+    #     args:
+    #       path: ./data
+    #       train: false
+
+    # 向后兼容：保留单个 dataset
+    dataset: Optional[Dict[str, Any]] = None
+
+    # Model 配置
+    model: Optional[Dict[str, Any]] = None
+    # model:
+    #   type: model.cnn
+
+    # ========== 基础设施配置 ==========
+    tracker: Optional[TrackerConfig] = None
+    callbacks: Optional[List[Dict[str, Any]]] = None
+    logging: Optional[Any] = None  # LogConfig 类型（from infra.log_config）
+
+    # ========== 连接重试配置 ==========
+    connection_retry: ConnectionRetryConfig = field(default_factory=ConnectionRetryConfig)
+
+    # ========== 其他配置 ==========
+    min_peers: int = 0                            # Trainer 等待的最少对等节点数
+    default_timeout: float = 30.0
+    heartbeat: Optional[Dict[str, Any]] = None
+
+    def validate(self) -> None:
+        """
+        验证配置完整性
+
+        新设计原则：
+        - 不依赖 role 字段
+        - 根据配置中存在的组件来验证
+        - 如果有 trainer，必须有 aggregator
+        - 如果有 learner，不需要额外验证（learner 可独立存在）
+
+        Raises:
+            ValueError: 配置不完整或不合法
+        """
+        if not self.node_id:
+            raise ValueError("node_id is required")
+
+        # 组件一致性验证（不依赖 role）
+        # 如果配置了 Trainer，必须配置 Aggregator
+        if self.trainer and not self.aggregator:
+            raise ValueError(f"Node {self.node_id}: aggregator config is required when trainer is configured")
+
+        # 连接配置验证
+        if not self.listen and not self.connect_to:
+            raise ValueError(f"Node {self.node_id}: must have either 'listen' or 'connect_to'")
+
+        # 至少要有一个功能组件（trainer 或 learner）
+        if not self.trainer and not self.learner:
+            raise ValueError(f"Node {self.node_id}: must have at least one of 'trainer' or 'learner' config")
+
+    def to_dict(self) -> Dict[str, Any]:
+        """
+        将 NodeConfig 转换为字典格式
+
+        Returns:
+            配置字典
+        """
+        result = {
+            "node_id": self.node_id,
+            "role": self.role,
+        }
+
+        # 连接配置
+        if self.listen:
+            result["listen"] = self.listen
+
+        if self.connect_to:
+            result["connect_to"] = self.connect_to
+
+        # 传输配置
+        result["transport"] = {
+            "mode": self.transport.mode,
+            "grpc": self.transport.grpc,
+        }
+
+        # 序列化配置
+        if self.serialization:
+            result["serialization"] = self.serialization
+
+        # 组件配置
+        if self.trainer:
+            result["trainer"] = self.trainer
+
+        if self.learner:
+            result["learner"] = self.learner
+
+        if self.aggregator:
+            result["aggregator"] = self.aggregator
+
+        if self.dataset:
+            result["dataset"] = self.dataset
+
+        if self.datasets:
+            result["datasets"] = self.datasets
+
+        if self.test_datasets:
+            result["test_datasets"] = self.test_datasets
+
+        if self.model:
+            result["model"] = self.model
+
+        # 基础设施配置
+        if self.tracker:
+            result["tracker"] = {
+                "enabled": self.tracker.enabled,
+                "tracking_dir": self.tracker.tracking_dir,
+                "backends": self.tracker.backends,
+            }
+
+        if self.callbacks:
+            result["callbacks"] = self.callbacks
+
+        # 日志配置（直接传递字典数据）
+        if self.logging:
+            result["logging"] = self.logging
+
+        # 连接重试配置
+        result["connection_retry"] = {
+            "enabled": self.connection_retry.enabled,
+            "max_retries": self.connection_retry.max_retries,
+            "retry_interval": self.connection_retry.retry_interval,
+            "timeout": self.connection_retry.timeout,
+            "backoff": self.connection_retry.backoff,
+            "backoff_factor": self.connection_retry.backoff_factor,
+        }
+
+        # 其他配置
+        result["min_peers"] = self.min_peers
+        result["default_timeout"] = self.default_timeout
+
+        if self.heartbeat:
+            result["heartbeat"] = self.heartbeat
+
+        return result
+
+# ==================== 配置加载函数 ====================
+
+def deep_merge(base: Dict[str, Any], override: Dict[str, Any]) -> Dict[str, Any]:
+    """
+    深度合并两个字典
+
+    策略：
+    - 字典：递归合并
+    - 列表：完全覆盖
+    - 标量：覆盖
+
+    Args:
+        base: 基础字典
+        override: 覆盖字典
+
+    Returns:
+        合并后的字典
+    """
+    result = copy.deepcopy(base)
+
+    for key, value in override.items():
+        if key in result and isinstance(result[key], dict) and isinstance(value, dict):
+            # 递归合并字典
+            result[key] = deep_merge(result[key], value)
+        else:
+            # 覆盖（包括列表和标量）
+            result[key] = copy.deepcopy(value)
+
+    return result
+
+
+def load_node_config(path: str, base_dir: Optional[str] = None) -> NodeConfig:
+    """
+    加载节点配置
+
+    支持 extend 字段继承基础配置
+
+    Args:
+        path: 配置文件路径
+        base_dir: 基础目录（用于解析相对路径）
+
+    Returns:
+        NodeConfig 实例
+
+    Example:
+        # trainer.yaml
+        extend: base.yaml
+        node_id: trainer
+        transport:
+          mode: memory
+        listen:
+          port: 50051
+        trainer:
+          type: federated.trainer.fedavg
+        aggregator:
+          type: federated.aggregator.fedavg
+
+        # 加载
+        config = load_node_config("trainer.yaml")
+    """
+    path_obj = Path(path)
+    if not path_obj.is_absolute() and base_dir:
+        path_obj = Path(base_dir) / path_obj
+
+    if not path_obj.exists():
+        raise FileNotFoundError(f"Config file not found: {path_obj}")
+
+    with open(path_obj, "r") as f:
+        data = yaml.safe_load(f) or {}
+
+    # 处理 extend 字段
+    if "extend" in data:
+        extend_path = data.pop("extend")
+
+        # 解析相对路径（相对于当前配置文件）
+        if not Path(extend_path).is_absolute():
+            extend_path = path_obj.parent / extend_path
+
+        # 加载基础配置
+        base_data = load_yaml(extend_path)
+
+        # 深度合并
+        data = deep_merge(base_data, data)
+
+    # 解析为 NodeConfig
+    return _parse_node_config(data)
+
+
+def load_config(path: str) -> NodeConfig:
+    """
+    加载配置文件
+
+    统一加载节点配置（不再区分系统配置和节点配置）
+
+    Args:
+        path: 配置文件路径
+
+    Returns:
+        NodeConfig 实例
+
+    Example:
+        config = load_config("configs/trainer.yaml")
+        system = FederatedSystem(config)
+        await system.initialize()
+        await system.run()
+    """
+    return load_node_config(path)
+
+
+def load_yaml(path: str) -> Dict[str, Any]:
+    """
+    加载 YAML 文件
+
+    Args:
+        path: 文件路径
+
+    Returns:
+        解析后的字典
+    """
+    with open(path, "r") as f:
+        return yaml.safe_load(f) or {}
+
+
+# ==================== 配置解析函数 ====================
+
+def _parse_node_config(data: Dict[str, Any]) -> NodeConfig:
+    """解析节点配置字典"""
+    config = NodeConfig()
+
+    # 基本信息
+    config.node_id = data.get("node_id", "")
+    config.role = data.get("role", "learner")
+
+    # 连接配置
+    config.listen = data.get("listen")
+    config.connect_to = data.get("connect_to")
+
+    # 传输配置
+    transport = data.get("transport", {})
+    config.transport = TransportConfig(
+        mode=transport.get("mode", "memory"),
+        grpc=transport.get("grpc", {"host": "0.0.0.0", "port": 50051}),
+    )
+
+    # 序列化配置（传递给 node_comm 层）
+    config.serialization = data.get("serialization")
+
+    # 组件配置
+    config.trainer = data.get("trainer")
+    config.learner = data.get("learner")
+    config.aggregator = data.get("aggregator")
+    config.model = data.get("model")
+
+    # 数据集配置
+    config.datasets = data.get("datasets")
+    config.test_datasets = data.get("test_datasets")
+    config.dataset = data.get("dataset")  # 向后兼容
+
+    # 基础设施配置
+    tracker_data = data.get("tracker")
+    if tracker_data:
+        config.tracker = TrackerConfig(
+            enabled=tracker_data.get("enabled", True),
+            tracking_dir=tracker_data.get("tracking_dir", "tracking"),
+            backends=tracker_data.get("backends"),
+        )
+
+    config.callbacks = data.get("callbacks")
+
+    # 日志配置（直接传递原始数据，由 LogConfig 处理）
+    config.logging = data.get("logging")
+
+    # 连接重试配置
+    retry_data = data.get("connection_retry", {})
+    config.connection_retry = ConnectionRetryConfig(
+        enabled=retry_data.get("enabled", True),
+        max_retries=retry_data.get("max_retries", 10),
+        retry_interval=retry_data.get("retry_interval", 2.0),
+        timeout=retry_data.get("timeout", 60.0),
+        backoff=retry_data.get("backoff", "exponential"),
+        backoff_factor=retry_data.get("backoff_factor", 1.5),
+    )
+
+    # 其他配置
+    config.min_peers = data.get("min_peers", 0)
+    config.default_timeout = data.get("default_timeout", 30.0)
+    config.heartbeat = data.get("heartbeat")
+
+    return config
+
+
+# ==================== 向后兼容 ====================
+
+# 保留旧的类型别名，用于向后兼容
+FederationConfig = NodeConfig
+
+
+def load_config(path: str) -> NodeConfig:
+    """
+    加载配置文件（向后兼容）
+
+    直接加载节点配置
+
+    Args:
+        path: 配置文件路径
+
+    Returns:
+        NodeConfig
+    """
+    return load_node_config(path)
+
+
+def load_config_from_dict(data: Dict[str, Any]) -> NodeConfig:
+    """
+    从字典加载配置（向后兼容）
+
+    Args:
+        data: 配置字典
+
+    Returns:
+        NodeConfig 实例
+    """
+    return _parse_node_config(data)
+
+
+def create_client_config(
+    base_config: NodeConfig,
+    client_id: str,
+    port: int = 0,
+) -> NodeConfig:
+    """
+    从基础配置创建客户端配置（向后兼容）
+
+    Args:
+        base_config: 基础配置
+        client_id: 客户端 ID
+        port: gRPC 端口
+
+    Returns:
+        客户端配置
+    """
+    config = copy.deepcopy(base_config)
+    config.role = "learner"
+    config.node_id = client_id
+    if port > 0:
+        config.transport.grpc["port"] = port
+
+    return config
+
+
+# ==================== 导出 ====================
+
+__all__ = [
+    # 配置类
+    "NodeConfig",
+    "TransportConfig",
+    "ConnectionRetryConfig",
+    "TrackerConfig",
+
+    # 加载函数
+    "load_node_config",
+    "load_config",
+    "load_config_from_dict",
+
+    # 工具函数
+    "deep_merge",
+    "create_client_config",
+
+    # 向后兼容
+    "FederationConfig",
+]

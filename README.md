@@ -1,560 +1,364 @@
-# MOE-FedCL 联邦通信系统
+# MOE-FedCL
 
-一个现代化的联邦学习通信框架，支持 Memory/Process/Network 三种通信模式。
+**A Modular and Extensible Federated Continual Learning Framework**
 
-## 🚀 核心特性
+[![Python 3.12+](https://img.shields.io/badge/python-3.12+-blue.svg)](https://www.python.org/downloads/)
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
+[![PyTorch](https://img.shields.io/badge/PyTorch-2.7+-ee4c2c.svg)](https://pytorch.org/)
 
-### 1. 统一入口 - 最简单的启动方式
-
-**一行代码启动完整的联邦学习系统**：
-
-```python
-from fedcl import run_federated_learning, BaseTrainer, BaseLearner
-
-# 一行代码启动！
-result = await run_federated_learning(
-    trainer_class=MyTrainer,
-    learner_class=MyLearner,
-    global_model={"weights": [0.1, 0.2, 0.3]},
-    server_config_path="configs/server_demo.yaml",
-    client_config_path="configs/client_demo_1.yaml",
-    num_clients=5,
-    max_rounds=10
-)
-```
-
-### 2. 三种通信模式
-
-- **Memory 模式**：进程内通信，适合开发和调试
-- **Process 模式**：多进程 + HTTP 通信，适合本地测试
-- **Network 模式**：分布式 + HTTP 通信，适合生产环境
-
-### 3. 五层架构设计
-
-```
-Layer 0: FederationCoordinator       # 联邦学习协调器
-Layer 1: BaseTrainer / Server        # 训练器和服务端
-Layer 2: LearnerProxy / Stub         # 客户端代理和存根
-Layer 3: ConnectionManager           # 连接管理
-Layer 4: CommunicationManager        # 通信管理
-Layer 5: TransportBase               # 传输层
-```
-
-### 4. 配置驱动
-
-- **YAML 配置文件**：集中管理所有参数
-- **类型安全**：完整的类型提示和验证
-- **灵活配置**：支持文件、对象和默认配置
-
-### 5. 多层次 API
-
-```
-高层: FederatedLearning          # 统一入口（推荐）
-中层: ServerAPI, ClientAPI        # 组件 API
-底层: FederationServer, Client    # 底层组件
-```
-
-## 📦 安装
-
-```bash
-# 克隆项目
-git clone <repository-url>
-cd MOE-FedCL
-
-# 安装依赖
-pip install -r requirements.txt
-
-# 设置环境变量
-export PYTHONPATH=/path/to/MOE-FedCL:$PYTHONPATH
-```
-
-## 🎯 快速开始
-
-### 方式 1: 统一入口（最推荐）
-
-```python
-import asyncio
-from fedcl import FederatedLearning, BaseTrainer, BaseLearner
-
-class MyTrainer(BaseTrainer):
-    async def train_round(self, round_num, client_ids):
-        # 实现训练逻辑
-        pass
-
-    async def aggregate_models(self, client_results):
-        # 实现聚合逻辑
-        pass
-
-class MyLearner(BaseLearner):
-    async def train(self, training_params):
-        # 实现本地训练
-        pass
-
-    async def evaluate(self, evaluation_params):
-        # 实现本地评估
-        pass
-
-async def main():
-    # 使用上下文管理器自动管理资源
-    async with FederatedLearning(
-        trainer_class=MyTrainer,
-        learner_class=MyLearner,
-        global_model={"weights": [0.1, 0.2, 0.3]},
-        server_config_path="configs/server_demo.yaml",
-        client_config_path="configs/client_demo_1.yaml",
-        num_clients=5
-    ) as fl:
-        result = await fl.run(max_rounds=10)
-        print(f"训练完成！准确率: {result.final_accuracy:.4f}")
-
-if __name__ == "__main__":
-    asyncio.run(main())
-```
-
-### 方式 2: 高层 API
-
-```python
-from fedcl import ServerAPI, MultiClientAPI
-
-async def main():
-    # 启动服务端
-    async with ServerAPI(
-        trainer_class=MyTrainer,
-        global_model={"weights": [0.1, 0.2, 0.3]},
-        config_path="configs/server_demo.yaml"
-    ) as server:
-
-        # 启动多个客户端
-        async with MultiClientAPI(
-            learner_class=MyLearner,
-            num_clients=5,
-            config_path="configs/client_demo_1.yaml"
-        ) as clients:
-
-            # 运行训练
-            await server.run_training(num_rounds=10)
-
-if __name__ == "__main__":
-    asyncio.run(main())
-```
-
-### 方式 3: 底层组件（完全控制）
-
-```python
-from fedcl.federation import FederationServer, FederationClient
-from fedcl.federation.coordinator import FederationCoordinator
-
-async def main():
-    # 手动创建和管理所有组件
-    server = FederationServer(config)
-    await server.initialize_with_trainer(MyTrainer, global_model)
-    await server.start_server()
-
-    clients = []
-    for i in range(5):
-        client = FederationClient(config, f"client_{i}")
-        await client.initialize_with_learner(MyLearner)
-        await client.start_client()
-        clients.append(client)
-
-    coordinator = FederationCoordinator(server, federation_config)
-    result = await coordinator.start_federation()
-
-    # 清理
-    for client in clients:
-        await client.stop_client()
-    await server.stop_server()
-
-if __name__ == "__main__":
-    asyncio.run(main())
-```
-
-## 📖 配置示例
-
-### 服务端配置 (`configs/server_demo.yaml`)
-
-```yaml
-mode: process                    # 通信模式: memory, process, network
-server_host: "127.0.0.1"
-server_port: 8000
-
-transport:
-  timeout: 30.0
-  retry_attempts: 3
-
-communication:
-  heartbeat_interval: 30.0
-  heartbeat_timeout: 90.0
-  max_clients: 100
-
-federation:
-  max_rounds: 100
-  min_clients: 2
-  client_selection: "all"
-```
-
-### 客户端配置 (`configs/client_demo.yaml`)
-
-```yaml
-mode: process
-server_host: "127.0.0.1"
-server_port: 8000
-client_host: "127.0.0.1"
-client_port: 0                   # 0 表示自动分配端口
-
-stub:
-  auto_register: true
-  registration_retry_attempts: 3
-  request_timeout: 120.0
-```
-
-## 📚 文档
-
-详细文档请查看：
-
-- **[统一入口使用指南](docs/统一入口使用指南.md)** - FederatedLearning 类完整指南
-- **[API 使用指南](docs/API使用指南.md)** - 高层 API 使用说明
-- **[配置系统指南](docs/配置系统使用指南.md)** - 配置文件详解
-- **[新架构使用指南](docs/新架构使用指南.md)** - 底层架构说明
-- **[架构设计文档](docs/MOE-FedCL联邦通信系统架构设计.md)** - 完整架构设计
-
-## 🔧 核心组件
-
-### 1. FederatedLearning（统一入口）
-
-整合服务端、客户端和协调器的一站式解决方案：
-
-```python
-from fedcl import FederatedLearning
-
-fl = FederatedLearning(
-    trainer_class=MyTrainer,
-    learner_class=MyLearner,
-    global_model=initial_model,
-    server_config_path="configs/server.yaml",
-    client_config_path="configs/client.yaml",
-    num_clients=5
-)
-
-# 初始化所有组件
-await fl.initialize()
-
-# 运行训练
-result = await fl.run(max_rounds=10)
-
-# 清理资源
-await fl.cleanup()
-```
-
-### 2. FederationCoordinator（协调器）
-
-协调整个联邦学习训练流程：
-
-```python
-from fedcl.federation.coordinator import FederationCoordinator, FederationConfig
-
-coordinator = FederationCoordinator(
-    federation_server=server,
-    federation_config=FederationConfig(
-        max_rounds=10,
-        min_clients=2,
-        client_selection="all"
-    )
-)
-
-result = await coordinator.start_federation()
-```
-
-### 3. FederationServer（服务端）
-
-管理全局模型和客户端：
-
-```python
-from fedcl.federation.server import FederationServer
-
-server = FederationServer(config)
-await server.initialize_with_trainer(
-    trainer_class=MyTrainer,
-    global_model=initial_model
-)
-await server.start_server()
-```
-
-### 4. FederationClient（客户端）
-
-执行本地训练和评估：
-
-```python
-from fedcl.federation.client import FederationClient
-
-client = FederationClient(config, client_id="client_1")
-await client.initialize_with_learner(MyLearner)
-await client.start_client()
-```
-
-### 5. BaseTrainer（训练器基类）
-
-用户需要继承实现的服务端训练器：
-
-```python
-from fedcl import BaseTrainer
-
-class MyTrainer(BaseTrainer):
-    async def train_round(self, round_num: int, client_ids: List[str]) -> RoundResult:
-        """实现单轮训练逻辑"""
-        # 1. 向客户端分发任务
-        # 2. 收集训练结果
-        # 3. 聚合模型
-        pass
-
-    async def aggregate_models(self, client_results: Dict) -> ModelData:
-        """实现模型聚合逻辑"""
-        pass
-```
-
-### 6. BaseLearner（学习器基类）
-
-用户需要继承实现的客户端学习器：
-
-```python
-from fedcl import BaseLearner
-
-class MyLearner(BaseLearner):
-    async def train(self, training_params: Dict) -> TrainingResult:
-        """实现本地训练逻辑"""
-        pass
-
-    async def evaluate(self, evaluation_params: Dict) -> EvaluationResult:
-        """实现本地评估逻辑"""
-        pass
-```
-
-## 🎨 示例代码
-
-### 完整示例
-
-查看 `examples/` 目录下的示例：
-
-- **[unified_entry_demo.py](examples/unified_entry_demo.py)** - 统一入口示例
-- **[api_usage_demo.py](examples/api_usage_demo.py)** - 高层 API 示例
-- **[config_usage_demo.py](examples/config_usage_demo.py)** - 配置系统示例
-- **[minimal_memory_demo.py](examples/minimal_memory_demo.py)** - 内存模式示例
-- **[mnist_process_demo.py](examples/mnist_process_demo.py)** - 进程模式示例
-
-### Memory 模式示例
-
-```python
-# 单进程内模拟联邦学习
-config = {"mode": "memory"}
-
-async with FederatedLearning(
-    trainer_class=MyTrainer,
-    learner_class=MyLearner,
-    global_model=model,
-    num_clients=3
-) as fl:
-    result = await fl.run(max_rounds=5)
-```
-
-### Process 模式示例
-
-```python
-# 多进程 + HTTP 通信
-server_config = "configs/server_demo.yaml"  # mode: process
-client_config = "configs/client_demo_1.yaml"
-
-async with FederatedLearning(
-    trainer_class=MyTrainer,
-    learner_class=MyLearner,
-    global_model=model,
-    server_config_path=server_config,
-    client_config_path=client_config,
-    num_clients=5
-) as fl:
-    result = await fl.run(max_rounds=10)
-```
-
-### Network 模式示例
-
-```python
-# 分布式部署
-# 服务端脚本
-async with ServerAPI(
-    trainer_class=MyTrainer,
-    global_model=model,
-    config_path="configs/server_network.yaml"  # mode: network
-) as server:
-    await server.run_training(num_rounds=10)
-
-# 客户端脚本（运行在不同机器）
-async with ClientAPI(
-    learner_class=MyLearner,
-    config_path="configs/client_network.yaml"
-) as client:
-    await client.wait_for_tasks()
-```
-
-## 🏗️ 架构特点
-
-### 1. 客户端地址注册
-
-客户端在注册时会告知服务器自己的 IP 地址和端口，服务器可以主动向客户端发送请求：
-
-```python
-# 客户端注册时包含地址信息
-registration_request = RegistrationRequest(
-    client_id="client_1",
-    metadata={
-        "client_address": {
-            "host": "192.168.1.100",
-            "port": 8001,
-            "url": "http://192.168.1.100:8001"
-        }
-    }
-)
-
-# 服务器缓存客户端地址
-transport.register_client_address("client_1", address_info)
-
-# 服务器向客户端发送请求
-response = await transport.send_request("client_1", request_data)
-```
-
-### 2. 异步通信
-
-所有通信操作都是异步的，提高系统性能：
-
-```python
-# 并发训练多个客户端
-tasks = []
-for client_id in selected_clients:
-    task = learner_proxy.train(training_params)
-    tasks.append(task)
-
-results = await asyncio.gather(*tasks)
-```
-
-### 3. 自动重试和超时
-
-内置重试机制和超时控制：
-
-```yaml
-transport:
-  timeout: 30.0           # 请求超时时间
-  retry_attempts: 3       # 重试次数
-  retry_delay: 1.0        # 重试延迟
-```
-
-### 4. 心跳机制
-
-自动检测客户端健康状态：
-
-```yaml
-communication:
-  heartbeat_interval: 30.0    # 心跳间隔
-  heartbeat_timeout: 90.0     # 心跳超时
-```
-
-## 🔍 调试和监控
-
-### 日志系统
-
-自动设置结构化日志：
-
-```python
-from fedcl.utils.auto_logger import setup_auto_logging, get_sys_logger
-
-# 设置日志
-setup_auto_logging(level="DEBUG")
-
-# 获取日志器
-logger = get_sys_logger()
-logger.info("系统启动")
-```
-
-### 调试模式
-
-```python
-# 启用详细日志
-fl = FederatedLearning(
-    ...,
-    auto_setup_logging=True
-)
-
-# 查看通信细节
-# 日志会显示每次请求和响应
-```
-
-## 🚀 部署指南
-
-### 本地开发
-
-```bash
-# 运行示例
-python examples/unified_entry_demo.py
-```
-
-### 生产环境
-
-```bash
-# 服务端（单独运行）
-python scripts/run_server.py --config configs/server_production.yaml
-
-# 客户端（多台机器）
-python scripts/run_client.py --config configs/client_production.yaml
-```
-
-### Docker 部署
-
-```dockerfile
-FROM python:3.8-slim
-
-WORKDIR /app
-COPY requirements.txt .
-RUN pip install -r requirements.txt
-
-COPY . .
-
-# 服务端
-CMD ["python", "scripts/run_server.py"]
-
-# 或客户端
-# CMD ["python", "scripts/run_client.py"]
-```
-
-## 🤝 贡献指南
-
-欢迎贡献代码！请遵循以下步骤：
-
-1. Fork 项目
-2. 创建功能分支 (`git checkout -b feature/AmazingFeature`)
-3. 提交更改 (`git commit -m 'Add some AmazingFeature'`)
-4. 推送到分支 (`git push origin feature/AmazingFeature`)
-5. 开启 Pull Request
-
-### 代码规范
-
-- 使用 Python 类型注解
-- 遵循 PEP 8 代码风格
-- 添加详细的文档字符串
-- 编写单元测试
-
-## 📄 许可证
-
-本项目采用 MIT 许可证 - 详见 [LICENSE](LICENSE) 文件
-
-## 📞 联系方式
-
-如有问题或建议，欢迎：
-
-- 提交 [Issue](https://github.com/your-repo/issues)
-- 发起 [Discussion](https://github.com/your-repo/discussions)
-- 发送邮件至 your-email@example.com
-
-## 🌟 致谢
-
-感谢所有贡献者对本项目的支持！
+A flexible, production-ready framework for federated learning and continual learning research. Built with modularity and extensibility at its core, MOE-FedCL supports multiple learning scenarios, running modes, and 20+ built-in algorithms.
 
 ---
 
-**MOE-FedCL - 让联邦学习更简单！** 🚀
+## Why MOE-FedCL?
+
+### Core Strengths
+
+- **🎯 4 Learning Scenarios**: Federated Learning (FL), Continual Learning (CL), Hybrid FL+CL, and Custom scenarios
+- **🚀 3 Running Modes**: Seamless switching between Serial (debugging), Parallel (single-machine multi-GPU), and Distributed (multi-machine)
+- **🔌 20+ Built-in Algorithms**: FedAvg, FedProx, MOON, SCAFFOLD, TARGET, FedWEIT, and more - all ready to use
+- **📊 Experiment Tracking**: Native MLflow and Loguru integration for comprehensive experiment management
+- **⚙️ Configuration-Driven**: YAML-based configs with inheritance support for reproducible experiments
+- **🛠️ Easy to Extend**: Clean Registry system for adding custom algorithms in minutes
+- **🔄 Communication Flexibility**: Memory, gRPC, and custom transport layers with transparent switching
+
+### Architecture Overview
+
+MOE-FedCL follows a clean two-layer architecture:
+
+```
+┌─────────────────────────────────────────┐
+│    Federation Framework Layer           │
+│  (Trainer, Learner, Aggregator, etc.)   │
+├─────────────────────────────────────────┤
+│    Communication Layer (node_comm)      │
+│  (Transport, Serialization, Messaging)  │
+├─────────────────────────────────────────┤
+│    Transport Backends                   │
+│  (Memory, gRPC, Custom)                 │
+└─────────────────────────────────────────┘
+```
+
+---
+
+## Quick Start
+
+### Installation
+
+```bash
+# Clone the repository
+git clone https://github.com/YOUR_USERNAME/MOE-FedCL.git
+cd MOE-FedCL
+
+# Install dependencies (using uv recommended)
+uv sync
+
+# Or with pip
+pip install -e .
+```
+
+### Your First Federated Learning Experiment (5 minutes)
+
+**1. Create a simple config** (`my_config.yaml`):
+
+```yaml
+# Trainer configuration
+role: trainer
+node_id: trainer
+listen:
+  host: localhost
+  port: 50051
+
+trainer:
+  type: default
+  args:
+    max_rounds: 10
+    local_epochs: 5
+
+aggregator:
+  type: fedavg
+
+model:
+  type: simple_cnn
+  args:
+    num_classes: 10
+
+datasets:
+  - type: mnist
+    split: train
+```
+
+**2. Run the experiment**:
+
+```bash
+# Serial mode (single process, for debugging)
+python -m src.core.system --config my_config.yaml --mode serial --num-clients 5
+
+# Parallel mode (multi-process, for production)
+python -m src.core.system --config my_config.yaml --mode parallel --num-clients 5
+```
+
+**3. Check results**:
+
+Results are automatically tracked in `mlruns/` (MLflow) and `logs/` directories.
+
+---
+
+## Key Features
+
+### 1. Multiple Learning Scenarios
+
+#### Federated Learning (FL)
+Support for 12+ FL algorithms:
+- **Basic**: FedAvg, FedProx, FedNova
+- **Adaptive**: FedAdam, FedYogi, FedAdaGrad
+- **Personalized**: FedPer, FedRep, FedBABU, FedRod
+- **Advanced**: MOON, SCAFFOLD, FedBN, FedProto, GPFL
+
+#### Continual Learning (CL)
+Support for 7 CL methods:
+- TARGET, FedWEIT, FedKNOW, FedCPrompt, GLFC, LGA
+
+#### Hybrid Scenarios
+Combine FL and CL for realistic scenarios with data heterogeneity and task evolution.
+
+### 2. Flexible Running Modes
+
+| Mode | Use Case | Performance | Setup |
+|------|----------|-------------|-------|
+| **Serial** | Debugging, quick tests | Single process | Zero config |
+| **Parallel** | Single-machine, multi-GPU | High performance | Specify `--num-clients` |
+| **Distributed** | Multi-machine deployment | Production scale | Configure `listen` and `connect_to` |
+
+### 3. Configuration System
+
+Powerful YAML-based configuration with inheritance:
+
+```yaml
+# base.yaml
+trainer:
+  args:
+    max_rounds: 100
+
+# experiment.yaml
+extend: base.yaml  # Inherit from base
+trainer:
+  args:
+    max_rounds: 50  # Override specific values
+```
+
+### 4. Experiment Management
+
+Built-in tracking with multiple backends:
+
+```yaml
+tracker:
+  backends:
+    - type: mlflow
+      tracking_uri: ./mlruns
+      experiment_name: my_experiment
+
+    - type: loguru
+      level: INFO
+      file: ./logs/training.log
+```
+
+### 5. Data Partitioning
+
+Support for various non-IID scenarios:
+
+```yaml
+partition:
+  strategy: dirichlet  # or: iid, label_skew, quantity_skew
+  num_partitions: 10
+  config:
+    alpha: 0.5  # Controls heterogeneity
+    seed: 42
+```
+
+---
+
+## Built-in Algorithms
+
+### Federated Learning Aggregators
+
+| Algorithm | Paper | Key Feature |
+|-----------|-------|-------------|
+| FedAvg | [McMahan et al., 2017](https://arxiv.org/abs/1602.05629) | Basic weighted averaging |
+| FedProx | [Li et al., 2020](https://arxiv.org/abs/1812.06127) | Proximal term for stability |
+| SCAFFOLD | [Karimireddy et al., 2020](https://arxiv.org/abs/1910.06378) | Control variates |
+| FedNova | [Wang et al., 2020](https://arxiv.org/abs/2007.07481) | Normalized averaging |
+| FedAdam/FedYogi | [Reddi et al., 2021](https://arxiv.org/abs/2003.00295) | Adaptive server optimization |
+| MOON | [Li et al., 2021](https://arxiv.org/abs/2103.16257) | Model contrastive learning |
+| FedBN | [Li et al., 2021](https://arxiv.org/abs/2102.07623) | Local batch normalization |
+
+### Continual Learning Methods
+
+| Method | Paper | Key Feature |
+|--------|-------|-------------|
+| TARGET | [Your paper] | Task-specific generators |
+| FedWEIT | [Yoon et al., 2021](https://arxiv.org/abs/2104.07409) | Weight decomposition |
+| FedKNOW | [Your paper] | Knowledge distillation |
+| GLFC | [Your paper] | Global-local feature composition |
+
+[See full algorithm list →](docs/builtin-algorithms.md)
+
+---
+
+## Examples
+
+### Example 1: FedAvg on MNIST (IID)
+
+```yaml
+# configs/examples/fedavg_mnist.yaml
+extend: configs/presets/base.yaml
+
+datasets:
+  - type: mnist
+    partition:
+      strategy: iid
+
+aggregator:
+  type: fedavg
+```
+
+Run: `python -m src.core.system --config configs/examples/fedavg_mnist.yaml`
+
+### Example 2: FedProx on CIFAR-10 (Non-IID)
+
+```yaml
+# configs/examples/fedprox_cifar10.yaml
+datasets:
+  - type: cifar10
+    partition:
+      strategy: dirichlet
+      config:
+        alpha: 0.5
+
+aggregator:
+  type: fedprox
+  args:
+    mu: 0.01  # Proximal term
+```
+
+### Example 3: Custom Learner
+
+```python
+# src/methods/learners/my_learner.py
+from src.core import Learner, register
+
+@register("learner", "my_custom")
+class MyCustomLearner(Learner):
+    async def fit(self, config):
+        # Your training logic
+        return {"loss": 0.1, "accuracy": 0.95}
+
+    async def evaluate(self, config):
+        # Your evaluation logic
+        return {"accuracy": 0.96}
+```
+
+Use in config:
+```yaml
+learner:
+  type: my_custom
+```
+
+[More examples →](examples/)
+
+---
+
+## Reproducing Papers
+
+We provide ready-to-use configurations for reproducing 288 experiments across 8 datasets and 9 algorithms:
+
+```bash
+# Run a single experiment
+python -m src.core.system --config configs/table3_experiments/mnist/fedavg/dir_0.5/trainer.yaml
+
+# Run batch experiments
+python scripts/run_experiments.py --config-dir configs/table3_experiments
+```
+
+**Available configurations**:
+- **Datasets**: MNIST, Fashion-MNIST, CIFAR-10, CIFAR-100, SVHN, EMNIST, FEMNIST, CINIC-10
+- **Algorithms**: FedAvg, FedProx, SCAFFOLD, FedNova, FedAdam, FedYogi, MOON, FedBN
+- **Non-IID scenarios**: Dirichlet(α=0.5), Quantity skew (levels 1/2/3)
+
+[Reproduction guide →](docs/reproducing-papers.md)
+
+---
+
+## Documentation
+
+### For Users
+- [Installation Guide](docs/installation.md)
+- [Quick Start Tutorial](docs/quickstart.md)
+- [Configuration Guide](docs/configuration.md)
+- [Running Modes](docs/running-modes.md)
+- [Built-in Algorithms](docs/builtin-algorithms.md)
+- [Data Partitioning](docs/data-partitioning.md)
+
+### For Developers
+- [Architecture Overview](docs/architecture.md)
+- [Adding Custom Algorithms](docs/custom-algorithms.md)
+- [Communication Layer](docs/communication.md)
+- [Contributing Guide](CONTRIBUTING.md)
+- [API Reference](docs/api/)
+
+### For AI Assistants
+This framework is designed to be AI-friendly. If you're an AI assistant helping a user:
+- Read [AI Assistant Guide](docs/ai-guide.md) for structured information about components
+- Check [Component Registry](docs/component-registry.json) for available algorithms and their parameters
+- Use [Config Templates](configs/presets/) as starting points
+
+---
+
+## Roadmap
+
+- [x] Core framework with FL/CL support
+- [x] 20+ built-in algorithms
+- [x] Configuration system with inheritance
+- [x] MLflow integration
+- [x] Distributed mode with gRPC
+- [ ] WandB integration
+- [ ] Plugin system for community algorithms
+- [ ] Web-based experiment dashboard
+- [ ] Hierarchical federated learning support
+- [ ] More datasets and benchmarks
+
+---
+
+## Contributing
+
+We welcome contributions! Please see our [Contributing Guide](CONTRIBUTING.md) for details.
+
+**Quick contribution checklist**:
+1. Fork the repository
+2. Create a feature branch
+3. Add your algorithm/feature with tests
+4. Update documentation
+5. Submit a pull request
+
+---
+
+
+---
+
+## License
+
+This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
+
+---
+
+---
+
+## Support
+
+- **Issues**: [GitHub Issues](https://github.com/YOUR_USERNAME/MOE-FedCL/issues)
+- **Discussions**: [GitHub Discussions](https://github.com/YOUR_USERNAME/MOE-FedCL/discussions)
+- **Email**: your.email@example.com
+
+---
+
+**Star ⭐ this repo if you find it useful!**

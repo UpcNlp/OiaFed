@@ -42,6 +42,9 @@ rerun_failed_experiments.py
 run_failed_batch.sh
 run_*.py
 table3.md
+docs.bak/
+scripts/
+examples.bak/
 view_table3_results.py
 CINIC-10.tar.gz
 run_failed_simple.sh

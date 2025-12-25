@@ -1,0 +1,55 @@
+# Node 通信层配置示例
+# config.yaml
+
+node_id: "participant_1"
+debug: false
+default_timeout: 30.0
+
+transport:
+  mode: "grpc"  # memory | grpc
+  
+  memory:
+    zero_copy: true
+    simulate_latency: false
+    latency_ms: 0
+  
+  grpc:
+    host: "0.0.0.0"
+    port: 50051
+    max_workers: 10
+    
+    tls:
+      enabled: false
+      cert_file: "/certs/server.crt"
+      key_file: "/certs/server.key"
+      ca_file: "/certs/ca.crt"
+      mutual_tls: false
+
+serialization:
+  default: "json"
+  
+  methods:
+    get_model:
+      serializer: "pickle"
+      compress: false
+    set_model:
+      serializer: "pickle"
+      compress: false
+    train:
+      serializer: "json"
+      compress: false
+
+interceptors:
+  logging: true
+  metrics: false
+  auth: false
+  
+  retry:
+    enabled: false
+    max_retries: 3
+    backoff: 1.0
+
+heartbeat:
+  enabled: true
+  interval: 30.0
+  timeout: 90.0

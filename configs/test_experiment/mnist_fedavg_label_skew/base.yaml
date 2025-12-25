@@ -1,0 +1,62 @@
+# =============================================================================
+# Quick Test Configuration - MNIST FedAvg with Label Skew
+# =============================================================================
+
+# 传输配置 - gRPC 模式（本地并行）
+transport:
+  mode: grpc
+  grpc:
+    max_workers: 10
+    max_message_length: 104857600  # 100MB
+
+    # 双线程配置（默认启用）
+    dual_thread:
+      enabled: true  # 启用双线程优化，心跳独立运行
+
+    # 心跳配置（gRPC 专属，由控制线程处理）
+    heartbeat:
+      enabled: true
+      interval: 5.0           # 心跳间隔（秒）
+      timeout: 30.0           # 超时时间（秒）
+      check_interval: 10.0    # 健康检查间隔（秒）
+
+# 序列化配置 - 使用 pickle 以支持复杂对象
+serialization:
+  default: pickle
+
+# 日志配置
+logging:
+  level: INFO
+  log_dir: ./logs
+  exp_name: test_label_skew
+  console: true
+  console_level: INFO
+  diagnose: false
+  rotation: "10 MB"
+  retention: "30 days"
+  compression: "zip"
+
+# Tracker 配置
+tracker:
+  enabled: true
+  tracking_dir: tracking
+
+  backends:
+    - type: mlflow
+      args:
+        tracking_uri: ${MLFLOW_TRACKING_URI:http://172.19.138.200:5000}
+        experiment_name: test_quick_validation
+        run_name: mnist_fedavg_label_skew_test
+        username: ${MLFLOW_TRACKING_USERNAME:dongshou}
+        password: ${MLFLOW_TRACKING_PASSWORD:admin123admin}
+
+# Callbacks 配置
+callbacks:
+  - type: logging
+    args:
+      log_epoch: true
+      log_round: true
+      log_fit: false
+
+# 超时配置
+default_timeout: 60.0

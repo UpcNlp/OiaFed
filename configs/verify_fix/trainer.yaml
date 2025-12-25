@@ -1,0 +1,46 @@
+# Trainer 节点配置
+extend: base.yaml
+
+node_id: trainer
+role: trainer
+
+# 监听端口
+listen:
+  host: localhost
+  port: 50051
+
+# 等待 2 个 learner 连接
+min_peers: 2
+
+# Trainer 配置 - 最小化测试
+trainer:
+  type: default
+  args:
+    max_rounds: 2          # 只跑 2 轮
+    local_epochs: 1        # 每轮只训练 1 个 epoch
+    client_fraction: 1.0
+    min_available_clients: 2
+
+    fit_config:
+      epochs: 1
+      evaluate_after_fit: true
+
+    eval_interval: 1
+    eval_config: {}
+    evaluate_after_aggregation: false
+
+# Aggregator 配置
+aggregator:
+  type: fedavg
+  args:
+    weighted: true
+
+# Dataset 配置（可选，用于中心化评估）
+dataset:
+  type: mnist
+  args:
+    data_dir: ./data
+    partition_id: 0
+    num_partitions: 1
+    partition_type: iid
+    download: true

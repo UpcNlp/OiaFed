@@ -1,0 +1,68 @@
+# =============================================================================
+# FedCPrompt Algorithm Preset
+# =============================================================================
+# Paper: Federated Continual Learning with Contrastive Prompts
+# Authors: Li et al.
+#
+# Components:
+#   - Trainer: Continual (task scheduling)
+#   - Learner: cl.fed_cprompt (contrastive prompt learning)
+#   - Aggregator: fedavg
+#
+# Features:
+#   - Prompt pool for task-specific knowledge
+#   - Contrastive prompt selection
+#   - Parameter-efficient continual learning
+#   - Dynamic prompt composition
+#
+# Usage:
+#   extend: presets/algorithms/fedcprompt.yaml
+#
+# =============================================================================
+
+extend: ../common/base.yaml
+
+# Trainer configuration
+trainer:
+  type: Continual
+  args:
+    max_rounds: 50
+    local_epochs: 5
+    client_fraction: 0.1
+    min_available_clients: 2
+
+    # Continual Learning parameters
+    num_tasks: 5
+    rounds_per_task: 10
+    evaluate_all_tasks: true
+    compute_forgetting: true
+
+# Aggregator configuration
+aggregator:
+  type: fedavg
+  args:
+    weighted: true
+
+# Learner configuration
+learner:
+  type: cl.fed_cprompt
+  args:
+    learning_rate: 0.01
+    batch_size: 32
+    optimizer: SGD
+    momentum: 0.9
+
+    # FedCPrompt-specific parameters
+    prompt_pool_size: 10
+    prompt_length: 5
+    prompt_key_dim: 768
+    top_k_prompts: 3
+    use_contrastive_selection: true
+    contrastive_temperature: 0.07
+    prompt_momentum: 0.9
+    freeze_backbone: true
+
+    # Continual Learning parameters
+    num_tasks: 5
+    classes_per_task: 2
+    scenario: class_incremental

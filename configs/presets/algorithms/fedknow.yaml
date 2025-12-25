@@ -1,0 +1,66 @@
+# =============================================================================
+# FedKNOW Algorithm Preset
+# =============================================================================
+# Paper: Federated Class-Incremental Learning with Signature Knowledge
+# Authors: Wang et al.
+#
+# Components:
+#   - Trainer: Continual (task scheduling)
+#   - Learner: cl.fedknow (signature-based knowledge preservation)
+#   - Aggregator: fedavg
+#
+# Features:
+#   - Signature-based task knowledge representation
+#   - Compact knowledge storage
+#   - Task-specific signature learning
+#   - Efficient knowledge transfer across tasks
+#
+# Usage:
+#   extend: presets/algorithms/fedknow.yaml
+#
+# =============================================================================
+
+extend: ../common/base.yaml
+
+# Trainer configuration
+trainer:
+  type: Continual
+  args:
+    max_rounds: 50
+    local_epochs: 5
+    client_fraction: 0.1
+    min_available_clients: 2
+
+    # Continual Learning parameters
+    num_tasks: 5
+    rounds_per_task: 10
+    evaluate_all_tasks: true
+    compute_forgetting: true
+
+# Aggregator configuration
+aggregator:
+  type: fedavg
+  args:
+    weighted: true
+
+# Learner configuration
+learner:
+  type: cl.fedknow
+  args:
+    learning_rate: 0.01
+    batch_size: 32
+    optimizer: SGD
+    momentum: 0.9
+
+    # FedKNOW-specific parameters
+    signature_dim: 128
+    use_signature_distillation: true
+    signature_learning_rate: 0.001
+    distillation_weight: 1.0
+    distill_temperature: 2.0
+    update_signature_every: 1
+
+    # Continual Learning parameters
+    num_tasks: 5
+    classes_per_task: 2
+    scenario: class_incremental

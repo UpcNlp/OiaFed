@@ -1,0 +1,66 @@
+# =============================================================================
+# FedRoD Algorithm Preset
+# =============================================================================
+# Paper: On Bridging Generic and Personalized Federated Learning
+# Authors: Chen et al., 2022
+#
+# Description:
+#   FedRoD (Federated Robust and Discriminative learning) learns both a generic
+#   representation shared across clients and personalized classifiers. It uses
+#   a balanced loss to train the generic feature extractor while maintaining
+#   personalized decision boundaries.
+#
+# Key Features:
+#   - Dual optimization: generic feature extractor + personalized classifier
+#   - Balanced loss between generic and personalized objectives
+#   - Robust to both label and feature shift
+#   - Better generalization than pure personalization methods
+#
+# Components:
+#   - Trainer: default
+#   - Learner: fl.fedrod (balanced generic-personalized training)
+#   - Aggregator: fedavg (aggregates generic representation)
+#
+# Hyperparameters:
+#   - balance_weight: Weight balancing generic and personalized loss (default: 0.1)
+#
+# Usage:
+#   extend: presets/algorithms/fedrod.yaml
+#
+# =============================================================================
+
+extend: ../common/base.yaml
+
+# Trainer configuration
+trainer:
+  type: default
+  args:
+    max_rounds: 100
+    local_epochs: 5
+    client_fraction: 0.1
+    min_available_clients: 2
+
+    fit_config:
+      epochs: 5
+      evaluate_after_fit: true
+
+    eval_interval: 5
+    evaluate_after_aggregation: false
+
+# Aggregator configuration (aggregates generic representation)
+aggregator:
+  type: fedavg
+  args:
+    weighted: true
+
+# Learner configuration (FedRoD with balanced training)
+learner:
+  type: fl.fedrod
+  args:
+    learning_rate: 0.01
+    batch_size: 32
+    optimizer: SGD
+    momentum: 0.9
+
+    # FedRoD-specific configuration
+    balance_weight: 0.1  # Weight for balancing generic and personalized loss

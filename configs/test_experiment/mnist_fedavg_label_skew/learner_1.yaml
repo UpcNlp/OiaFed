@@ -1,0 +1,33 @@
+extend: base.yaml
+node_id: learner_1
+role: learner
+
+listen:
+  host: localhost
+  port: 50053
+
+connect_to:
+  - trainer@localhost:50051
+
+learner:
+  type: default
+  args:
+    batch_size: 64
+    lr: 0.01
+
+dataset:
+  type: mnist
+  args:
+    data_dir: ./data
+    download: true
+  partition:
+    type: label_quantity_skew
+    args:
+      num_clients: 4
+      classes_per_client: 2
+    id: 1
+
+model:
+  type: simple_cnn
+  args:
+    num_classes: 10

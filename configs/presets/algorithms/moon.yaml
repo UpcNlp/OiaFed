@@ -1,0 +1,67 @@
+# =============================================================================
+# MOON Algorithm Preset
+# =============================================================================
+# Paper: Model-Contrastive Federated Learning
+# Authors: Li et al., 2021
+#
+# Description:
+#   MOON (Model-Contrastive Federated Learning) uses contrastive learning at
+#   the model level to correct local training of individual clients. It contrasts
+#   representations from the current local model with the global model and
+#   previous local model to prevent client drift.
+#
+# Key Features:
+#   - Model-level contrastive loss between local, global, and previous models
+#   - Prevents catastrophic forgetting and local model drift
+#   - Improves convergence in non-IID settings
+#
+# Components:
+#   - Trainer: default
+#   - Learner: fl.moon (contrastive learning approach)
+#   - Aggregator: fedavg
+#
+# Hyperparameters:
+#   - mu: Weight of contrastive loss (default: 1.0)
+#   - temperature: Temperature parameter for contrastive loss (default: 0.5)
+#
+# Usage:
+#   extend: presets/algorithms/moon.yaml
+#
+# =============================================================================
+
+extend: ../common/base.yaml
+
+# Trainer configuration
+trainer:
+  type: default
+  args:
+    max_rounds: 100
+    local_epochs: 5
+    client_fraction: 0.1
+    min_available_clients: 2
+
+    fit_config:
+      epochs: 5
+      evaluate_after_fit: true
+
+    eval_interval: 5
+    evaluate_after_aggregation: false
+
+# Aggregator configuration
+aggregator:
+  type: fedavg
+  args:
+    weighted: true
+
+# Learner configuration (MOON with contrastive learning)
+learner:
+  type: fl.moon
+  args:
+    learning_rate: 0.01
+    batch_size: 32
+    optimizer: SGD
+    momentum: 0.9
+
+    # MOON-specific configuration
+    mu: 1.0              # Weight of contrastive loss
+    temperature: 0.5     # Temperature for contrastive loss

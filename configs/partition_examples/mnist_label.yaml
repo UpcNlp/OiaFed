@@ -1,0 +1,21 @@
+# MNIST Label-based (Non-IID) 划分示例
+# 使用场景：每个客户端只有部分类别的数据，模拟真实的非均衡场景
+
+dataset:
+  type: mnist
+  args:
+    data_dir: ./data
+    partition_id: 0
+    num_partitions: 5
+    partition_type: label  # 或 "non_iid"（向后兼容）
+    partition_config:
+      labels_per_client: 2  # 每个客户端只有 2 个类别
+      seed: 42
+    download: true
+
+# 说明：
+# - Client 0: 类别 [0, 1]
+# - Client 1: 类别 [2, 3]
+# - Client 2: 类别 [4, 5]
+# - Client 3: 类别 [6, 7]
+# - Client 4: 类别 [8, 9]

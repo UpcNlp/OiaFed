@@ -1,0 +1,65 @@
+# =============================================================================
+# GLFC Algorithm Preset
+# =============================================================================
+# Paper: Federated Class-Incremental Learning via Global-Local Compensation
+# Authors: Dong et al., CVPR 2022
+#
+# Components:
+#   - Trainer: Continual (task scheduling)
+#   - Learner: cl.glfc (gradient compensation + semantic distillation)
+#   - Aggregator: fedavg
+#
+# Features:
+#   - Class-aware gradient compensation
+#   - Class-semantic relation distillation
+#   - Global-local knowledge balancing
+#   - Adaptive compensation weights
+#
+# Usage:
+#   extend: presets/algorithms/glfc.yaml
+#
+# =============================================================================
+
+extend: ../common/base.yaml
+
+# Trainer configuration
+trainer:
+  type: Continual
+  args:
+    max_rounds: 50
+    local_epochs: 5
+    client_fraction: 0.1
+    min_available_clients: 2
+
+    # Continual Learning parameters
+    num_tasks: 5
+    rounds_per_task: 10
+    evaluate_all_tasks: true
+    compute_forgetting: true
+
+# Aggregator configuration
+aggregator:
+  type: fedavg
+  args:
+    weighted: true
+
+# Learner configuration
+learner:
+  type: cl.glfc
+  args:
+    learning_rate: 0.01
+    batch_size: 32
+    optimizer: SGD
+    momentum: 0.9
+
+    # GLFC-specific parameters
+    gradient_compensation_weight: 0.5
+    use_class_aware_compensation: true
+    semantic_distill_weight: 1.0
+    relation_temperature: 4.0
+    distill_temperature: 2.0
+
+    # Continual Learning parameters
+    num_tasks: 5
+    classes_per_task: 2
+    scenario: class_incremental

@@ -1,0 +1,41 @@
+# =============================================================================
+# Base Configuration for Table 3 Reproduction
+# Generated at: 2025-12-13T16:19:40.962234
+# Experiment: table3_mnist_fedprox_quantity_3
+# Description: Table 3 reproduction: FEDPROX on MNIST with Label skew: #C=3 (3 classes per client)
+# =============================================================================
+
+experiment:
+  name: table3_mnist_fedprox_quantity_3
+  description: 'Table 3 reproduction: FEDPROX on MNIST with Label skew: #C=3 (3 classes
+    per client)'
+  tags:
+    dataset: mnist
+    algorithm: fedprox
+    non_iid_type: quantity_3
+    paper: TPAMI-2025-08-2415
+    table: table3
+tracker:
+  enabled: true
+  tracking_dir: tracking/mnist/fedprox/quantity_3
+  backends:
+  - type: file
+    args:
+      level: DEBUG
+  - type: mlflow
+    args:
+      tracking_uri: ${MLFLOW_TRACKING_URI:http://172.19.138.200:5000}
+      experiment_name: table3_reproduction
+      run_name: mnist_fedprox_quantity_3_20251213_161940
+      auto_start_run: true
+      auto_end_run: true
+      username: ${MLFLOW_TRACKING_USERNAME:dongshou}
+      password: ${MLFLOW_TRACKING_PASSWORD:admin123admin}
+logging:
+  level: INFO
+  log_dir: logs/mnist_fedprox_quantity_3
+transport:
+  mode: grpc
+  grpc:
+    max_workers: 10
+    max_message_length: 104857600

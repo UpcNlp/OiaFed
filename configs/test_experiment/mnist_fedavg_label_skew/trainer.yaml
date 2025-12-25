@@ -1,0 +1,27 @@
+extend: base.yaml
+node_id: trainer
+role: trainer
+
+listen:
+  host: localhost
+  port: 50051
+
+min_peers: 4
+
+trainer:
+  type: default
+  args:
+    max_rounds: 10  # Reduced for quick testing
+    local_epochs: 2  # Reduced for quick testing
+    client_fraction: 1.0
+    min_available_clients: 2
+    fit_config:
+      epochs: 2
+      evaluate_after_fit: true
+    eval_interval: 2
+    evaluate_after_aggregation: true
+
+aggregator:
+  type: fedavg
+  args:
+    weighted: true

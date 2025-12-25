@@ -1,0 +1,68 @@
+# =============================================================================
+# FedRep Algorithm Preset
+# =============================================================================
+# Paper: Exploiting Shared Representations for Personalized Federated Learning
+# Authors: Collins et al., 2021
+#
+# Description:
+#   FedRep alternates between training the representation (body) and head layers.
+#   Representation layers are shared and aggregated, while head layers remain
+#   personalized. This approach learns better shared features while maintaining
+#   personalization capability.
+#
+# Key Features:
+#   - Alternating optimization of representation and head
+#   - Representation epochs: trains shared feature extractor
+#   - Head epochs: trains personalized classifier
+#   - Better feature learning than FedPer
+#
+# Components:
+#   - Trainer: default
+#   - Learner: fl.fedrep (alternating training strategy)
+#   - Aggregator: fedavg (aggregates representation only)
+#
+# Hyperparameters:
+#   - head_epochs: Local epochs for head training (default: 1)
+#   - representation_epochs: Local epochs for representation training (default: 5)
+#
+# Usage:
+#   extend: presets/algorithms/fedrep.yaml
+#
+# =============================================================================
+
+extend: ../common/base.yaml
+
+# Trainer configuration
+trainer:
+  type: default
+  args:
+    max_rounds: 100
+    local_epochs: 6  # Total: 5 rep + 1 head
+    client_fraction: 0.1
+    min_available_clients: 2
+
+    fit_config:
+      epochs: 6
+      evaluate_after_fit: true
+
+    eval_interval: 5
+    evaluate_after_aggregation: false
+
+# Aggregator configuration (only aggregates representation)
+aggregator:
+  type: fedavg
+  args:
+    weighted: true
+
+# Learner configuration (FedRep with alternating training)
+learner:
+  type: fl.fedrep
+  args:
+    learning_rate: 0.01
+    batch_size: 32
+    optimizer: SGD
+    momentum: 0.9
+
+    # FedRep-specific configuration
+    head_epochs: 1           # Epochs for personalized head training
+    representation_epochs: 5  # Epochs for shared representation training

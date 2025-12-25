@@ -1,0 +1,763 @@
+"""
+联邦学习系统容器
+
+提供统一的系统初始化和管理
+
+设计原则：
+- 延迟连接：initialize() 不阻塞，连接在 run() 入口建立
+- 支持多种运行模式：本地串行、本地并行、分布式
+"""
+
+import asyncio
+import sys
+from typing import Dict, Any, Optional, Union, List
+from pathlib import Path
+from datetime import datetime
+
+from ..config import NodeConfig, LoggingConfig
+from ..proxy import ProxyCollection
+from .node import Node  # 使用 federation 的 Node 层
+from ..registry import registry
+from ..callback import CallbackManager
+from ..tracker import CompositeTracker
+from ..infra.logging import setup_logging, get_logger
+from ..infra.log_config import LogConfig, load_log_config_from_yaml
+
+
+class FederatedSystem:
+    """
+    联邦学习系统容器
+
+    职责：
+    1. 统一节点管理（不区分角色）
+    2. 配置驱动组件创建（根据配置中存在的组件来初始化）
+    3. 依赖注入
+    4. 提供统一入口
+
+    设计原则：
+    - 延迟连接：initialize() 只做本地准备，不等待连接
+    - 连接在 run() 入口建立，支持重试
+    - 支持本地串行、本地并行、分布式三种模式
+
+    Example:
+        # Trainer 节点配置
+        config = {
+            "node_id": "trainer",
+            "listen": {"port": 50051},
+            "min_peers": 2,
+            "trainer": {"type": "fedavg_trainer", "args": {"max_rounds": 100}},
+            "aggregator": {"type": "fedavg"},
+        }
+
+        # Learner 节点配置
+        config = {
+            "node_id": "learner_0",
+            "connect_to": ["trainer"],
+            "learner": {"type": "sgd_learner", "args": {"lr": 0.01}},
+            "dataset": {"type": "mnist", "args": {"path": "./data"}},
+        }
+
+        # 统一使用方式
+        fl_system = FederatedSystem(config)
+        await fl_system.initialize()
+        result = await fl_system.run()
+        await fl_system.stop()
+    """
+
+    def __init__(self, config: Union[Dict[str, Any], NodeConfig]):
+        """
+        初始化系统
+
+        Args:
+            config: 配置字典或 NodeConfig 实例
+        """
+        # 支持 NodeConfig 和字典两种格式
+        if isinstance(config, NodeConfig):
+            self.node_config = config
+            self.config = self._node_config_to_dict(config)
+        else:
+            # 向后兼容：字典格式
+            self.config = config
+            self.node_config = None
+
+        # Node 将在 initialize 中创建
+        self.node = None
+
+        # 日志系统
+        self.run_name = None           # 运行名称
+
+        # 组件容器（只保留顶层组件）
+        self.trainer = None
+        self.learner = None
+        self.learners = None  # ProxyCollection（Trainer 用）
+
+        # Tracker 和 Callbacks（基础设施）
+        self.tracker = None
+        self.callbacks = None
+
+        # ComponentBuilder（用于组件初始化）
+        from ..builder import ComponentBuilder
+        self.builder = ComponentBuilder()
+
+        # ========== 延迟连接相关状态 ==========
+        self._connect_targets: List[str] = []   # 要连接的目标
+        self._min_peers: int = 0                 # 需要等待的最小连接数
+        self._connected: bool = False            # 是否已建立连接
+        self._initialized: bool = False          # 是否已初始化
+
+        # ========== Shutdown 相关状态 ==========
+        self._shutdown_event: Optional[asyncio.Event] = None  # Learner 关闭事件
+
+    @classmethod
+    def from_node_config(cls, config: NodeConfig) -> "FederatedSystem":
+        """
+        从 NodeConfig 创建系统（推荐方式）
+
+        Args:
+            config: NodeConfig 实例
+
+        Returns:
+            FederatedSystem 实例
+
+        Example:
+            from federation import load_node_config, FederatedSystem
+
+            config = load_node_config("configs/trainer.yaml")
+            system = FederatedSystem.from_node_config(config)
+            await system.initialize()
+            await system.run()
+        """
+        return cls(config)
+
+    def _node_config_to_dict(self, config: NodeConfig) -> Dict[str, Any]:
+        """
+        将 NodeConfig 转换为字典格式（向后兼容）
+
+        Args:
+            config: NodeConfig 实例
+
+        Returns:
+            配置字典
+        """
+        return config.to_dict()
+
+    # ========== 核心生命周期方法 ==========
+
+    async def initialize(self):
+        """
+        初始化系统（不阻塞）
+
+        此方法只做本地准备工作，不等待任何远程连接：
+        1. 创建并启动 Node（服务端开始 listen）
+        2. 初始化基础设施（Tracker/Callbacks）
+        3. 初始化 Learner 组件并 bind（不依赖连接）
+        4. 记录连接目标（但不立即连接）
+
+        连接将在 run() 入口建立，这样可以支持：
+        - 本地串行调试：所有节点先 init，再并发 run
+        - 本地并行：init 和 run 都并发
+        - 分布式：各进程独立，靠重试机制保证连接
+        """
+        node_id = self.config["node_id"]
+
+        try:
+            if self._initialized:
+                # 此时可能还没有 sys_logger
+                if hasattr(self, 'sys_logger'):
+                    self.sys_logger.warning(f"系统已初始化: {node_id}")
+                return
+
+            # 初始化 loguru 日志系统（最先执行）
+            # 从配置中加载日志配置
+            if hasattr(self.node_config, 'logging') and self.node_config.logging:
+                # 优先使用 _raw_data（包含完整的配置，如 level, console_level, exp_name）
+                log_config_data = self.node_config.logging._raw_data
+            else:
+                # 向后兼容：从字典配置中提取
+                log_config_data = self.config.get("logging", {})
+
+            log_config = LogConfig.from_dict(log_config_data) if log_config_data else LogConfig()
+
+            # 设置日志
+            setup_logging(node_id=node_id, log_config=log_config)
+
+            # 获取系统日志 logger（保存为实例变量）
+            self.sys_logger = get_logger(node_id, "system")
+            self.sys_logger.info(f"开始初始化联邦学习节点: node_id={node_id}")
+
+            # node_comm 现在使用 loguru，会自动继承上面配置的日志级别
+            self.sys_logger.debug(f"node_comm 将使用 loguru 日志系统")
+
+            # 1. 创建 Node（封装 node_comm）
+            self.sys_logger.info(f"正在创建通信节点: {node_id}")
+
+            # 准备 Node 配置（包含 node_comm 需要的所有配置）
+            node_config = {
+                "node_id": node_id,
+                "debug": self.config.get("debug", False),
+                "default_timeout": self.config.get("default_timeout", 30.0),
+                "advertised_address": self.config.get("advertised_address"),
+                "listen": self.config.get("listen"),
+                "transport": self.config.get("transport", {}),
+                "serialization": self.config.get("serialization", {}),
+                "heartbeat": self.config.get("heartbeat", {}),
+            }
+
+            # 创建 federation Node（内部管理 node_comm）
+            self.node = Node(node_config)
+            await self.node.initialize()
+            self.sys_logger.debug(f"通信节点创建完成: {node_id}")
+
+            # 2. 注册事件处理器
+            self.sys_logger.debug("注册连接事件处理器")
+            self.node.on("connect", self._on_peer_connect)
+            self.node.on("disconnect", self._on_peer_disconnect)
+
+            # 3. 启动 Node（Memory 模式下自动注册到 registry，可被连接）
+            self.sys_logger.debug("启动通信节点")
+            await self.node.start()
+            self.sys_logger.debug("通信节点已启动，正在监听连接")
+
+            # 4. 初始化基础设施
+            self.sys_logger.debug("初始化基础设施（日志、追踪器、回调）")
+            await self._initialize_infrastructure()
+
+            # 5. 初始化 Learner（不依赖连接，可以提前 bind）
+            if "learner" in self.config:
+                self.sys_logger.debug("初始化 Learner 组件")
+                await self._initialize_learner()
+
+            # 6. 记录连接目标（延迟到 run 时连接）
+            self._connect_targets = self.config.get("connect_to", [])
+            if "listen" in self.config:
+                self._min_peers = self.config.get("min_peers", 0)
+            else:
+                self._min_peers = 0
+
+            self._initialized = True
+            self.sys_logger.debug(f"联邦学习系统初始化完成: node_id={node_id}，等待连接建立")
+
+        except Exception as e:
+            # 确保异常被记录
+            if hasattr(self, 'sys_logger'):
+                self.sys_logger.exception(f"系统初始化失败: {e}")
+            else:
+                # 如果 loguru 还没初始化，输出到 stderr
+                import traceback
+                print(f"ERROR: 系统初始化失败 (node_id={node_id}): {e}", file=sys.stderr)
+                traceback.print_exc()
+            raise
+
+    async def run(self) -> Dict:
+        """
+        运行系统
+
+        执行流程：
+        1. 确保连接已建立（延迟连接）
+        2. 初始化 Trainer（需要连接信息，创建 ProxyCollection）
+        3. 触发系统启动钩子
+        4. 运行主逻辑
+
+        Returns:
+            运行结果字典
+        """
+        if not self._initialized:
+            raise RuntimeError("System not initialized. Call initialize() first.")
+
+        node_id = self.config["node_id"]
+
+        try:
+            # 1. 确保连接已建立
+            await self._ensure_connected()
+
+            # 2. 初始化 Trainer（需要连接信息）
+            if "trainer" in self.config and self.trainer is None:
+                self.sys_logger.info(f"[{node_id}] 开始初始化 Trainer")
+                await self._initialize_trainer()
+                self.sys_logger.info(f"[{node_id}] Trainer 初始化完成")
+
+            # 3. 触发系统启动钩子
+            if self.callbacks:
+                self.sys_logger.debug(f"[{node_id}] 触发系统启动钩子")
+                await self.callbacks.on_system_start(self)
+
+            # 4. 运行主逻辑
+            if self.trainer:
+                # 有 Trainer，运行 Trainer（发起方）
+                self.sys_logger.info(f"[{node_id}] 开始运行 Trainer")
+                result = await self.trainer.run()
+                self.sys_logger.info(f"[{node_id}] Trainer 运行完成")
+                return result
+
+            # 只有 Learner，等待被调用（参与方）
+            self.sys_logger.debug(f"[{node_id}] Learner 等待被调用")
+
+            # 等待 shutdown 信号
+            if self._shutdown_event:
+                try:
+                    await self._shutdown_event.wait()
+                    self.sys_logger.debug(f"[{node_id}] 收到 shutdown 信号，开始清理...")
+
+                    # 停止 Node（分阶段关闭）
+                    if self.node:
+                        self.sys_logger.info(f"[{node_id}] 正在停止 Node...")
+                        await self.node.stop()
+                        self.sys_logger.info(f"[{node_id}] Node 已停止")
+
+                    # 调用 Learner 的 shutdown 钩子
+                    if self.learner:
+                        self.learner.on_shutdown()
+
+                    self.sys_logger.info(f"[{node_id}] Learner 已完全关闭")
+                except asyncio.CancelledError:
+                    self.sys_logger.info(f"[{node_id}] Learner cancelled")
+            else:
+                # 没有 shutdown event（旧的兼容模式）
+                try:
+                    await asyncio.Event().wait()  # 无限等待
+                except asyncio.CancelledError:
+                    self.sys_logger.info(f"[{node_id}] Learner stopped")
+
+            # 返回 Learner 的简单统计信息
+            return {
+                "node_id": node_id,
+                "role": "learner",
+                "status": "cancelled",
+            }
+
+        except Exception as e:
+            # 确保异常被记录
+            self.sys_logger.exception(f"系统运行失败: {e}")
+            raise
+
+    async def stop(self):
+        """停止系统"""
+        node_id = self.config.get("node_id", "unknown")
+        self.sys_logger.info(f"Stopping FederatedSystem: {node_id}")
+
+        # 触发系统停止钩子
+        if self.callbacks:
+            await self.callbacks.on_system_stop(self)
+
+        # 关闭 Tracker
+        if self.tracker:
+            self.tracker.close()
+            self.sys_logger.info("Tracker closed")
+
+        # 停止节点
+        if self.node:
+            await self.node.stop()
+
+        self._connected = False
+        self.sys_logger.debug(f"FederatedSystem stopped: {node_id}")
+
+    # ========== 延迟连接 ==========
+
+    async def _ensure_connected(self):
+        """
+        确保连接已建立
+
+        此方法在 run() 入口调用，实现延迟连接：
+        - Learner: 连接到 Trainer（带重试）
+        - Trainer: 等待足够的 Learner 连接
+        """
+        if self._connected:
+            return
+
+        node_id = self.config["node_id"]
+        self.sys_logger.debug(f"[{node_id}] 开始建立网络连接")
+
+        # 1. 连接到远程节点（Learner 模式）
+        if self._connect_targets:
+            retry_config = self._get_retry_config()
+            self.sys_logger.debug(f"[{node_id}] 连接到远程节点: {self._connect_targets}")
+
+            for addr in self._connect_targets:
+                target_id, address = self._parse_address(addr)
+                self.sys_logger.debug(f"[{node_id}] 正在连接到 {target_id} (地址: {address})")
+
+                await self.node.connect(target_id, address, retry_config=retry_config)
+                self.sys_logger.debug(f"[{node_id}] 已成功连接到 {target_id}")
+
+        # 2. 等待足够的 peer 连接（Trainer 模式）
+        if self._min_peers > 0:
+            timeout = self.config.get("connection_timeout", 120)
+            self.sys_logger = get_logger(node_id, "system")
+            self.sys_logger.debug(
+                "连接参数: min_peers={}, node_id={}",
+                self._min_peers,
+                node_id
+            )
+            self.sys_logger.info(
+                "等待 {} 个节点连接（超时: {}秒）",
+                self._min_peers,
+                timeout
+            )
+            self.sys_logger.info(f"[{node_id}] 等待 {self._min_peers} 个节点连接（超时: {timeout}秒）")
+
+            await self.node.wait_for_connections(min_peers=self._min_peers, timeout=timeout)
+            connected_peers = self.node.get_connected_nodes()
+            self.sys_logger.info(f"[{node_id}] 所有节点已连接: {connected_peers}")
+
+        self._connected = True
+        self.sys_logger.info(f"[{node_id}] 网络连接建立完成")
+
+    def _get_retry_config(self) -> Optional[Dict]:
+        """获取连接重试配置"""
+        if self.node_config and self.node_config.connection_retry:
+            cfg = self.node_config.connection_retry
+            return {
+                "enabled": cfg.enabled,
+                "max_retries": cfg.max_retries,
+                "retry_interval": cfg.retry_interval,
+                "timeout": cfg.timeout,
+                "backoff": cfg.backoff,
+                "backoff_factor": cfg.backoff_factor,
+            }
+        # 默认重试配置
+        return {
+            "enabled": True,
+            "max_retries": 30,
+            "retry_interval": 1.0,
+            "timeout": 120,
+            "backoff": True,
+            "backoff_factor": 1.5,
+        }
+
+    def _parse_address(self, addr: str) -> tuple:
+        """
+        解析地址字符串
+
+        格式：
+        - node_id@host:port（gRPC 模式）
+        - node_id（Memory 模式）
+
+        Returns:
+            (target_id, address) 元组
+        """
+        if "@" in addr:
+            target_id, address = addr.split("@", 1)
+        else:
+            # Memory 模式：直接使用节点 ID
+            # gRPC 模式：使用地址
+            target_id = addr
+            address = addr if ":" in addr else None
+        return target_id, address
+
+    # ========== 事件处理 ==========
+
+    async def _on_peer_connect(self, peer_id: str, client_proxy):
+        """
+        连接事件处理器
+
+        当新的 peer 连接时自动触发
+
+        Args:
+            peer_id: 对等节点 ID
+            client_proxy: 客户端代理（Transport 层创建）
+        """
+        self.sys_logger.debug(f"Peer connected: {peer_id}")
+
+        # ProxyCollection 会自动感知（动态查询）
+        if self.learners:
+            self.sys_logger.debug(f"Current learners count: {len(self.learners)}")
+
+        # 可选：记录到 Tracker
+        if self.tracker:
+            self.tracker.log_params({f"peer_{peer_id}": "connected"})
+
+    async def _on_peer_disconnect(self, peer_id: str, reason: str = "unknown"):
+        """
+        断开连接事件处理器
+
+        当 peer 断开连接时自动触发
+
+        Args:
+            peer_id: 对等节点 ID
+            reason: 断开原因
+        """
+        self.sys_logger.warning(f"Peer disconnected: {peer_id}, reason: {reason}")
+
+        # ProxyCollection 会自动感知（动态查询）
+        if self.learners:
+            self.sys_logger.debug(f"Remaining learners count: {len(self.learners)}")
+
+        # 可选：记录到 Tracker
+        if self.tracker:
+            self.tracker.log_params({f"peer_{peer_id}": f"disconnected_{reason}"})
+
+    # ========== 基础设施初始化 ==========
+
+    async def _initialize_infrastructure(self):
+        """初始化基础设施（Logger、Tracker 和 Callbacks）"""
+        self.sys_logger.debug("Initializing infrastructure...")
+
+        # ========== 系统日志 ==========
+        await self._initialize_system_logging()
+
+        # ========== Tracker ==========
+        self.sys_logger.debug("开始初始化 Tracker")
+        tracker_configs = self.config.get("tracker", {})
+        self.sys_logger.debug(f"Tracker configs: {tracker_configs}")
+
+        # 使用 CompositeTracker.from_config() 创建 Tracker
+        is_trainer = "trainer" in self.config
+        self.tracker = CompositeTracker.from_config(
+            tracker_config=tracker_configs,
+            node_id=self.config["node_id"],
+            is_trainer=is_trainer,
+        )
+
+        # 记录系统参数
+        if self.tracker:
+            params = {
+                "node_id": self.config["node_id"],
+            }
+            if "trainer" in self.config:
+                params.update(self.config["trainer"].get("args", {}))
+
+            self.tracker.log_params(params)
+            self.sys_logger.debug("Logged system parameters to tracker")
+
+            self.tracker.set_tags({
+                "node_id": self.config["node_id"],
+                "framework": "federation",
+            })
+            self.sys_logger.debug("Set system tags in tracker")
+
+        # ========== Callbacks ==========
+        self.callbacks = CallbackManager()
+        for cb_config in self.config.get("callbacks", []):
+            cb_args = cb_config.get("args", {})
+
+            # 为 tracker_sync callback 注入 tracker
+            if cb_config['type'] == 'tracker_sync' and self.tracker:
+                cb_args['tracker'] = self.tracker
+
+            cb = registry.create(
+                namespace=f"federated.callback.{cb_config['type']}",
+                **cb_args
+            )
+            self.callbacks.add(cb)
+            self.sys_logger.debug(f"Added Callback: {cb_config['type']}")
+
+        self.sys_logger.debug("Infrastructure initialized successfully")
+
+    async def _initialize_system_logging(self):
+        """初始化系统日志"""
+        logging_config = None
+        if self.node_config and self.node_config.logging:
+            logging_config = self.node_config.logging
+        else:
+            logging_config = LoggingConfig()
+
+        if not logging_config.enabled:
+            self.sys_logger.debug("Logging is disabled")
+            return
+
+        # 生成 run_name
+        dataset_name = None
+        trainer_name = None
+        if "dataset" in self.config:
+            dataset_name = self.config["dataset"].get("type", "").split(".")[-1]
+        if "trainer" in self.config:
+            trainer_name = self.config["trainer"].get("type", "").split(".")[-1]
+
+        self.run_name = self._get_run_name(logging_config, dataset_name, trainer_name)
+        self.sys_logger.debug(f"Run name: {self.run_name}")
+
+        node_id = self.config["node_id"]
+
+    def _get_run_name(
+        self,
+        logging_config: LoggingConfig,
+        dataset: Optional[str] = None,
+        trainer: Optional[str] = None,
+    ) -> str:
+        """获取运行名称"""
+        if logging_config.run_name:
+            return logging_config.run_name
+
+        pattern = logging_config.auto_run_name.get("pattern", "{dataset}_{trainer}_{timestamp}")
+        timestamp_format = logging_config.auto_run_name.get("timestamp_format", "%Y%m%d_%H%M%S")
+
+        run_name = pattern
+        run_name = run_name.replace("{dataset}", dataset or "unknown")
+        run_name = run_name.replace("{trainer}", trainer or "trainer")
+        run_name = run_name.replace("{timestamp}", datetime.now().strftime(timestamp_format))
+
+        return run_name
+
+    def _get_system_log_path(
+        self,
+        logging_config: LoggingConfig,
+        node_id: str,
+    ) -> Path:
+        """获取系统日志文件路径"""
+        base_dir = Path(logging_config.base_dir)
+        filename_pattern = logging_config.system.get("filename_pattern", "{node_id}.log")
+        filename = filename_pattern.replace("{node_id}", node_id)
+
+        return base_dir / self.run_name / "system" / filename
+
+    # ========== 业务组件初始化 ==========
+
+    async def _initialize_trainer(self):
+        """
+        初始化 Trainer（发起方）
+
+        注意：此方法在 run() 中调用，因为需要连接信息来创建 ProxyCollection
+        """
+        self.sys_logger.info("Initializing Trainer...")
+
+        # 1. 获取已连接的节点ID列表（作为 learners）
+        connected_peer_ids = self.node.get_connected_nodes()
+        self.sys_logger.info(f"已连接的节点: {connected_peer_ids}")
+
+        # 2. 创建 ProxyCollection（传递 Node 和 target_ids）
+        self.learners = ProxyCollection(self.node, connected_peer_ids)
+        self.sys_logger.info(f"Created ProxyCollection with {len(self.learners)} learners")
+
+        # 3. 使用 Builder 构建 Trainer 及其依赖（aggregator, dataset）
+        components = await self.builder.build(
+            config=self.config,
+            node_id=self.config["node_id"]
+        )
+
+        # 获取 aggregator 和 dataset（临时变量，传给 Trainer）
+        aggregator = components.get("aggregator")
+        dataset = components.get("dataset")
+
+        # 4. 创建 Trainer（依赖注入）
+        trainer_config = self.config["trainer"]
+        self.sys_logger.info(f"正在创建 Trainer: {trainer_config['type']}")
+        self.trainer = registry.create(
+            namespace=f"trainer.{trainer_config['type']}",
+            config=trainer_config.get("args", {}),
+            # 依赖注入
+            learners=self.learners,      # ProxyCollection（动态查询）
+            aggregator=aggregator,
+            dataset=dataset,
+            tracker=self.tracker,
+            callbacks=self.callbacks,
+        )
+
+        self.sys_logger.info(f"Trainer initialized: {trainer_config['type']}")
+
+    async def _initialize_learner(self):
+        """
+        初始化 Learner（参与方）
+
+        使用 ComponentBuilder 构建 Learner 及其依赖组件
+        """
+        self.sys_logger.info("Initializing Learner...")
+
+        # 使用 ComponentBuilder 构建所有组件
+        components = await self.builder.build(
+            config=self.config,
+            node_id=self.config["node_id"]
+        )
+
+        # 只保存 Learner（其他组件由 Learner 内部管理）
+        self.learner = components.get("learner")
+
+        if self.learner:
+            self.sys_logger.info(f"Created Learner: {type(self.learner).__name__}")
+
+            # 注入 tracker 和 callbacks（Builder 中设为 None）
+            if self.tracker:
+                self.learner.set_tracker(self.tracker)
+                self.sys_logger.debug("Injected Tracker into Learner")
+            if self.callbacks:
+                self.learner._callbacks = self.callbacks
+                self.sys_logger.debug("Injected Callbacks into Learner")
+
+            # 暴露 Learner 服务（bind 不需要连接）
+            self.node.bind(
+                self.learner,
+                name="learner"
+            )
+
+            # 注册 shutdown 处理器
+            self._shutdown_event = asyncio.Event()
+            self.node.register("_fed_shutdown", self._handle_shutdown)
+            self.sys_logger.debug("Registered _fed_shutdown handler")
+            self.sys_logger.info("Learner initialized and bound")
+        else:
+            self.sys_logger.warning("Learner not created (missing configuration)")
+
+    # ========== Shutdown 处理 ==========
+
+    async def _handle_shutdown(self, payload: Dict[str, Any], ctx: Any) -> Dict[str, Any]:
+        """
+        处理 Trainer 发送的 shutdown 信号
+
+        Args:
+            payload: 包含 reason 的字典
+            ctx: 消息上下文
+
+        Returns:
+            响应字典
+        """
+        reason = payload.get("reason", "unknown")
+        node_id = self.config["node_id"]
+        self.sys_logger.debug(f"[{node_id}] 收到 shutdown 信号: {reason}")
+
+        # ===== 关键修复：先停止心跳任务（防止向已关闭的 Trainer 发送心跳）=====
+        await self._stop_heartbeat_safely()
+
+        # 设置 shutdown event，让 run() 方法退出
+        if self._shutdown_event:
+            self._shutdown_event.set()
+
+        # 立即返回响应（不阻塞）
+        return {"status": "shutting_down", "reason": reason}
+
+    async def _stop_heartbeat_safely(self):
+        """
+        安全停止心跳任务
+
+        在收到 shutdown 信号后立即调用，确保不会向已关闭的服务器发送心跳
+        """
+        try:
+            node_id = self.config.get("node_id", "unknown")
+
+            # 获取 transport 层
+            if not self.node or not hasattr(self.node, '_comm'):
+                self.sys_logger.debug(f"[{node_id}] 无法访问 comm，跳过停止心跳")
+                return
+
+            comm = self.node._comm
+            if not hasattr(comm, '_transport'):
+                self.sys_logger.debug(f"[{node_id}] 无法访问 transport，跳过停止心跳")
+                return
+
+            transport = comm._transport
+
+            # 检查是否是 gRPC 传输且有控制线程
+            if hasattr(transport, '_control_running') and transport._control_running:
+                self.sys_logger.debug(f"[{node_id}] 停止 gRPC 心跳任务")
+                transport._stop_control_thread()
+
+                # 给心跳线程一点时间完成当前操作
+                await asyncio.sleep(0.1)
+
+                self.sys_logger.debug(f"[{node_id}] gRPC 心跳任务已停止")
+            else:
+                self.sys_logger.debug(f"[{node_id}] 没有运行中的控制线程")
+
+        except Exception as e:
+            # 即使失败也不影响关闭流程
+            self.sys_logger.warning(f"停止心跳任务时出错: {e}", exc_info=True)
+
+    # ========== 上下文管理器 ==========
+
+    async def __aenter__(self):
+        """异步上下文管理器入口"""
+        await self.initialize()
+        return self
+
+    async def __aexit__(self, exc_type, exc_val, exc_tb):
+        """异步上下文管理器出口"""
+        await self.stop()
+        return False

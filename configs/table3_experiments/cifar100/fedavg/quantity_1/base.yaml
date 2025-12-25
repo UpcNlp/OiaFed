@@ -1,0 +1,41 @@
+# =============================================================================
+# Base Configuration for Table 3 Reproduction
+# Generated at: 2025-12-13T16:19:40.862177
+# Experiment: table3_cifar100_fedavg_quantity_1
+# Description: Table 3 reproduction: FEDAVG on CIFAR100 with Label skew: #C=1 (1 class per client)
+# =============================================================================
+
+experiment:
+  name: table3_cifar100_fedavg_quantity_1
+  description: 'Table 3 reproduction: FEDAVG on CIFAR100 with Label skew: #C=1 (1
+    class per client)'
+  tags:
+    dataset: cifar100
+    algorithm: fedavg
+    non_iid_type: quantity_1
+    paper: TPAMI-2025-08-2415
+    table: table3
+tracker:
+  enabled: true
+  tracking_dir: tracking/cifar100/fedavg/quantity_1
+  backends:
+  - type: file
+    args:
+      level: DEBUG
+  - type: mlflow
+    args:
+      tracking_uri: ${MLFLOW_TRACKING_URI:http://172.19.138.200:5000}
+      experiment_name: table3_reproduction
+      run_name: cifar100_fedavg_quantity_1_20251213_161940
+      auto_start_run: true
+      auto_end_run: true
+      username: ${MLFLOW_TRACKING_USERNAME:dongshou}
+      password: ${MLFLOW_TRACKING_PASSWORD:admin123admin}
+logging:
+  level: INFO
+  log_dir: logs/cifar100_fedavg_quantity_1
+transport:
+  mode: grpc
+  grpc:
+    max_workers: 10
+    max_message_length: 104857600

@@ -1,0 +1,58 @@
+# =============================================================================
+# SCAFFOLD Algorithm Preset
+# =============================================================================
+# Paper: SCAFFOLD: Stochastic Controlled Averaging for Federated Learning
+# Authors: Karimireddy et al., 2020
+#
+# Description:
+#   SCAFFOLD uses control variates to correct for client drift in federated
+#   learning. It maintains both global and local control variates to reduce
+#   variance in local updates and improve convergence in non-IID settings.
+#
+# Key Features:
+#   - Control variates to correct client drift
+#   - Improved convergence in heterogeneous settings
+#   - Reduces communication rounds needed
+#
+# Components:
+#   - Trainer: default
+#   - Learner: fl.generic
+#   - Aggregator: scaffold (with control variates)
+#
+# Usage:
+#   extend: presets/algorithms/scaffold.yaml
+#
+# =============================================================================
+
+extend: ../common/base.yaml
+
+# Trainer configuration
+trainer:
+  type: default
+  args:
+    max_rounds: 100
+    local_epochs: 5
+    client_fraction: 0.1
+    min_available_clients: 2
+
+    fit_config:
+      epochs: 5
+      evaluate_after_fit: true
+
+    eval_interval: 5
+    evaluate_after_aggregation: false
+
+# Aggregator configuration (SCAFFOLD with control variates)
+aggregator:
+  type: scaffold
+  args:
+    weighted: true
+
+# Learner configuration
+learner:
+  type: fl.generic
+  args:
+    learning_rate: 0.01
+    batch_size: 32
+    optimizer: SGD
+    momentum: 0.9

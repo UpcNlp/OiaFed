@@ -1,0 +1,68 @@
+# =============================================================================
+# FedYogi Algorithm Preset
+# =============================================================================
+# Paper: Adaptive Federated Optimization
+# Authors: Reddi et al., 2021
+#
+# Description:
+#   FedYogi applies Yogi-style adaptive optimization at the server level.
+#   It uses a different second moment update rule than Adam, which can be
+#   more stable and less sensitive to hyperparameters in federated settings.
+#
+# Key Features:
+#   - Server-side adaptive learning rate with Yogi momentum
+#   - More stable than FedAdam in some settings
+#   - Improved handling of noisy gradients
+#
+# Components:
+#   - Trainer: default
+#   - Learner: fl.generic
+#   - Aggregator: fedyogi (Yogi-style adaptive optimization)
+#
+# Hyperparameters:
+#   - server_lr: Server learning rate (default: 0.01)
+#   - beta1: First moment decay (default: 0.9)
+#   - beta2: Second moment decay (default: 0.99)
+#   - tau: Adaptive learning rate parameter (default: 1e-3)
+#
+# Usage:
+#   extend: presets/algorithms/fedyogi.yaml
+#
+# =============================================================================
+
+extend: ../common/base.yaml
+
+# Trainer configuration
+trainer:
+  type: default
+  args:
+    max_rounds: 100
+    local_epochs: 5
+    client_fraction: 0.1
+    min_available_clients: 2
+
+    fit_config:
+      epochs: 5
+      evaluate_after_fit: true
+
+    eval_interval: 5
+    evaluate_after_aggregation: false
+
+# Aggregator configuration (FedYogi with adaptive optimization)
+aggregator:
+  type: fedyogi
+  args:
+    weighted: true
+    server_lr: 0.01
+    beta1: 0.9
+    beta2: 0.99
+    tau: 1e-3
+
+# Learner configuration
+learner:
+  type: fl.generic
+  args:
+    learning_rate: 0.01
+    batch_size: 32
+    optimizer: SGD
+    momentum: 0.9

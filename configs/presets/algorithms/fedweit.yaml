@@ -1,0 +1,66 @@
+# =============================================================================
+# FedWeIT Algorithm Preset
+# =============================================================================
+# Paper: Federated Continual Learning with Weighted Inter-client Transfer
+# Authors: Yoon et al., ICML 2021
+#
+# Components:
+#   - Trainer: Continual (task scheduling)
+#   - Learner: cl.fedweit (task-adaptive attention)
+#   - Aggregator: fedavg
+#
+# Features:
+#   - Task-adaptive attention mechanism
+#   - Weighted inter-client knowledge transfer
+#   - Adaptive parameter importance estimation
+#   - Base and task-specific adapter modules
+#
+# Usage:
+#   extend: presets/algorithms/fedweit.yaml
+#
+# =============================================================================
+
+extend: ../common/base.yaml
+
+# Trainer configuration
+trainer:
+  type: Continual
+  args:
+    max_rounds: 50
+    local_epochs: 5
+    client_fraction: 0.1
+    min_available_clients: 2
+
+    # Continual Learning parameters
+    num_tasks: 5
+    rounds_per_task: 10
+    evaluate_all_tasks: true
+    compute_forgetting: true
+
+# Aggregator configuration
+aggregator:
+  type: fedavg
+  args:
+    weighted: true
+
+# Learner configuration
+learner:
+  type: cl.fedweit
+  args:
+    learning_rate: 0.01
+    batch_size: 32
+    optimizer: SGD
+    momentum: 0.9
+
+    # FedWeIT-specific parameters
+    adaptive_weight: 0.5
+    use_task_attention: true
+    attention_temperature: 1.0
+    base_model_freeze: false
+    adapter_hidden_dim: 256
+    num_adapter_layers: 2
+
+    # Continual Learning parameters
+    num_tasks: 5
+    classes_per_task: 2
+    scenario: class_incremental

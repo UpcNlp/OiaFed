@@ -1,0 +1,65 @@
+# =============================================================================
+# FedCP Algorithm Preset
+# =============================================================================
+# Paper: Federated Contrastive Personalization
+#
+# Description:
+#   FedCP uses contrastive learning to learn personalized representations for
+#   each client. It contrasts positive pairs (augmented views of the same sample)
+#   against negative pairs (different samples) to learn robust features that
+#   are both globally consistent and locally adapted.
+#
+# Key Features:
+#   - Contrastive learning for personalized feature extraction
+#   - Temperature-scaled contrastive loss
+#   - Learns representations robust to data augmentation
+#   - Balances global consistency with local personalization
+#
+# Components:
+#   - Trainer: default
+#   - Learner: fl.fedcp (contrastive personalization)
+#   - Aggregator: fedavg
+#
+# Hyperparameters:
+#   - contrast_temperature: Temperature parameter for contrastive loss (default: 0.5)
+#
+# Usage:
+#   extend: presets/algorithms/fedcp.yaml
+#
+# =============================================================================
+
+extend: ../common/base.yaml
+
+# Trainer configuration
+trainer:
+  type: default
+  args:
+    max_rounds: 100
+    local_epochs: 5
+    client_fraction: 0.1
+    min_available_clients: 2
+
+    fit_config:
+      epochs: 5
+      evaluate_after_fit: true
+
+    eval_interval: 5
+    evaluate_after_aggregation: false
+
+# Aggregator configuration
+aggregator:
+  type: fedavg
+  args:
+    weighted: true
+
+# Learner configuration (FedCP with contrastive learning)
+learner:
+  type: fl.fedcp
+  args:
+    learning_rate: 0.01
+    batch_size: 32
+    optimizer: SGD
+    momentum: 0.9
+
+    # FedCP-specific configuration
+    contrast_temperature: 0.5  # Temperature for contrastive loss

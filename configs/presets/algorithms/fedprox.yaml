@@ -1,0 +1,63 @@
+# =============================================================================
+# FedProx Algorithm Preset
+# =============================================================================
+# Paper: Federated Optimization in Heterogeneous Networks
+# Authors: Li et al., 2020
+#
+# Description:
+#   FedProx addresses system and statistical heterogeneity in FL by adding
+#   a proximal term to the local objective, limiting client model divergence
+#   from the global model. The proximal term mu controls regularization strength.
+#
+# Key Features:
+#   - Proximal term: ||w - w_global||^2 with coefficient mu
+#   - Robust to heterogeneous client data and systems
+#   - Allows partial local work with bounded divergence
+#
+# Components:
+#   - Trainer: default
+#   - Learner: fl.generic
+#   - Aggregator: fedprox (with proximal term)
+#
+# Hyperparameters:
+#   - mu: Proximal term coefficient (default: 0.01)
+#         Higher values enforce stronger regularization
+#
+# Usage:
+#   extend: presets/algorithms/fedprox.yaml
+#
+# =============================================================================
+
+extend: ../common/base.yaml
+
+# Trainer configuration
+trainer:
+  type: default
+  args:
+    max_rounds: 100
+    local_epochs: 5
+    client_fraction: 0.1
+    min_available_clients: 2
+
+    fit_config:
+      epochs: 5
+      evaluate_after_fit: true
+
+    eval_interval: 5
+    evaluate_after_aggregation: false
+
+# Aggregator configuration (FedProx aggregator with proximal term)
+aggregator:
+  type: fedprox
+  args:
+    weighted: true
+    mu: 0.01  # Proximal term coefficient
+
+# Learner configuration
+learner:
+  type: fl.generic
+  args:
+    learning_rate: 0.01
+    batch_size: 32
+    optimizer: SGD
+    momentum: 0.9

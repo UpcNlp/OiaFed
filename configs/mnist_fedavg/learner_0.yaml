@@ -1,0 +1,41 @@
+# Learner 0 节点配置
+
+# 继承基础配置
+extend: base.yaml
+
+# 节点信息
+node_id: learner_0
+role: learner
+
+# 连接到 Trainer
+connect_to:
+  - trainer
+
+# Learner 组件
+learner:
+  type: default
+  args:
+    learning_rate: 0.01
+    batch_size: 32
+    epochs: 3
+    device: cuda  # 可选：'cpu', 'cuda', 'cuda:0', 'cuda:1'。不指定则自动检测
+
+# Dataset 配置
+dataset:
+  type: mnist
+  args:
+    data_dir: ./data
+    partition_id: 0
+    num_partitions: 5
+    partition_type: iid
+    download: true
+
+# Model 配置
+model:
+  type: simple_cnn
+  args:
+    input_shape: [28, 28, 1]
+    num_classes: 10
+    conv_channels: [32, 64]
+    dense_units: 128
+    dropout_rate: 0.5

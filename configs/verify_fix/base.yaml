@@ -1,0 +1,55 @@
+# 快速验证配置 - 基础配置
+# 用于快速测试通信是否正常
+
+# 全局配置
+global:
+  exp_name: verify_connection_fix
+  run_name:  # 自动生成时间戳
+  log_dir: ./logs
+
+# 传输配置 - gRPC 模式
+transport:
+  mode: grpc
+  grpc:
+    max_workers: 5
+    max_message_length: 104857600  # 100MB
+
+    # 双线程配置
+    dual_thread:
+      enabled: true
+
+    # 心跳配置
+    heartbeat:
+      enabled: true
+      interval: 5.0
+      timeout: 30.0
+      check_interval: 10.0
+
+# 序列化配置
+serialization:
+  default: pickle
+
+# 日志配置 - 只显示 INFO 级别
+logging:
+  level: INFO              # 文件日志级别：只记录 INFO 及以上
+  console: true            # 输出到控制台
+  console_level: INFO      # 控制台日志级别：只显示 INFO 及以上
+  diagnose: false          # 关闭诊断模式
+  rotation: "10 MB"
+  retention: "7 days"
+  compression: "zip"
+
+# Tracker 配置 - 简化版
+tracker:
+  enabled: false  # 快速测试时禁用 tracker
+
+# Callbacks 配置 - 最小化
+callbacks:
+  - type: logging
+    args:
+      log_epoch: true
+      log_round: true
+      log_fit: false
+
+# 超时配置
+default_timeout: 30.0

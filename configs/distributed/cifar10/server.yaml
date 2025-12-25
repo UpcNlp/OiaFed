@@ -1,3 +1,0 @@
-# CIFAR-10 IID实验 - 服务器配置
-extends: "../base/cifar10_server_base.yaml"
-node_id: "server_cifar10_iid"

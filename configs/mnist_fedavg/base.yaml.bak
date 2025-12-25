@@ -1,0 +1,39 @@
+# MNIST FedAvg 实验 - 基础配置
+# 所有节点共享的配置
+
+# 传输配置 - Memory 模式（本地串行）
+transport:
+  mode: memory
+
+# 日志配置
+logging:
+  level: DEBUG          # 日志级别：DEBUG / INFO / WARNING / ERROR
+  log_dir: ./logs       # 日志目录
+  console: true         # 是否输出到控制台
+  diagnose: false       # 是否开启诊断模式（详细堆栈）
+
+# Tracker 配置（统一使用 backends 数组）
+tracker:
+  enabled: true
+  tracking_dir: tracking
+
+  # 使用 backends 数组统一配置（可以配置多个后端）
+  backends:
+    - type: file
+      args:
+        level: DEBUG
+
+# Callbacks 配置（用于训练日志）
+callbacks:
+  - type: logging
+    args:
+      log_epoch: true
+      log_round: true
+      log_fit: false
+
+# 超时配置
+default_timeout: 60.0
+
+# 心跳配置（Memory 模式不需要）
+heartbeat:
+  enabled: false

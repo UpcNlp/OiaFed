@@ -1,0 +1,24 @@
+extend: base.yaml
+node_id: trainer
+role: trainer
+listen:
+  host: localhost
+  port: 50051
+min_peers: 20
+default_timeout: 300.0
+trainer:
+  type: default
+  args:
+    max_rounds: 1
+    local_epochs: 1
+    client_fraction: 1.0
+    min_available_clients: 2
+    fit_config:
+      epochs: 1
+      evaluate_after_fit: true
+    eval_interval: 1
+    evaluate_after_aggregation: false
+aggregator:
+  type: fedyogi
+  args:
+    weighted: true

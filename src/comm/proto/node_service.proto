@@ -1,0 +1,47 @@
+// node_service.proto
+
+syntax = "proto3";
+
+package node;
+
+// 消息类型
+enum MessageType {
+    MESSAGE_TYPE_UNSPECIFIED = 0;
+    MESSAGE_TYPE_REQUEST = 1;
+    MESSAGE_TYPE_RESPONSE = 2;
+    MESSAGE_TYPE_NOTIFY = 3;
+}
+
+// 错误信息
+message ErrorInfo {
+    string code = 1;
+    string message = 2;
+    string details_json = 3;    // JSON 格式的详细信息
+    string stack_trace = 4;      // 调用栈（调试用）
+}
+
+// 通用消息
+message NodeMessage {
+    string id = 1;
+    MessageType type = 2;
+    string method = 3;
+    string source = 4;
+    string target = 5;
+    bytes payload = 6;
+    string correlation_id = 7;
+    int64 timestamp = 8;
+    map<string, string> metadata = 9;
+    ErrorInfo error = 10;
+}
+
+// 空响应（用于 Notify）
+message Empty {}
+
+// 节点服务
+service NodeService {
+    // 请求-响应调用
+    rpc Call(NodeMessage) returns (NodeMessage);
+    
+    // 单向通知
+    rpc Notify(NodeMessage) returns (Empty);
+}

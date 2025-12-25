@@ -1,0 +1,62 @@
+# =============================================================================
+# GPFL Algorithm Preset
+# =============================================================================
+# Paper: Group Personalized Federated Learning
+#
+# Description:
+#   GPFL (Group Personalized Federated Learning) clusters clients into groups
+#   with similar data distributions and maintains a separate model for each
+#   group. This approach balances between full personalization (one model per
+#   client) and global aggregation (one model for all).
+#
+# Key Features:
+#   - Automatic client clustering based on model updates or data distribution
+#   - Group-specific model aggregation
+#   - Better handling of multi-modal non-IID data
+#   - More efficient than full personalization
+#
+# Components:
+#   - Trainer: default
+#   - Learner: fl.gpfl (group-aware training)
+#   - Aggregator: fedavg (within-group aggregation)
+#
+# Hyperparameters:
+#   - Clustering is typically done at server-side based on model similarity
+#
+# Usage:
+#   extend: presets/algorithms/gpfl.yaml
+#
+# =============================================================================
+
+extend: ../common/base.yaml
+
+# Trainer configuration
+trainer:
+  type: default
+  args:
+    max_rounds: 100
+    local_epochs: 5
+    client_fraction: 0.1
+    min_available_clients: 2
+
+    fit_config:
+      epochs: 5
+      evaluate_after_fit: true
+
+    eval_interval: 5
+    evaluate_after_aggregation: false
+
+# Aggregator configuration (within-group aggregation)
+aggregator:
+  type: fedavg
+  args:
+    weighted: true
+
+# Learner configuration (GPFL with group awareness)
+learner:
+  type: fl.gpfl
+  args:
+    learning_rate: 0.01
+    batch_size: 32
+    optimizer: SGD
+    momentum: 0.9

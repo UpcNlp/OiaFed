@@ -1,0 +1,47 @@
+# Learner 1 节点配置
+extend: base.yaml
+
+node_id: learner_0
+role: learner
+
+# 监听端口（每个 learner 不同端口）
+listen:
+  host: localhost
+  port: 50059
+
+# 连接到 trainer
+connect_to:
+  - trainer@localhost:50051    
+
+# Learner 配置
+learner:
+  type: default
+  args:
+    batch_size: 32
+    lr: 0.01
+    device: cuda:1
+
+# Dataset 配置
+datasets:
+  - type: mnist
+    split: train
+    args:
+      data_dir: ./data
+    partition:
+      id: 0
+      num_partitions: 4
+      type: label_quantity_skew
+      args:
+        num_clients: 4
+        classes_per_client: 2 
+
+  - type: mnist
+    split: test
+    args:
+      data_dir: ./data
+
+# Model 配置
+model:
+  type: simple_cnn
+  args:
+    num_classes: 10

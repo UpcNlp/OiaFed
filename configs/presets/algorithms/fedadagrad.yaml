@@ -1,0 +1,68 @@
+# =============================================================================
+# FedAdagrad Algorithm Preset
+# =============================================================================
+# Paper: Adaptive Federated Optimization
+# Authors: Reddi et al., 2021
+#
+# Description:
+#   FedAdagrad applies adaptive learning rates using Adagrad-style momentum
+#   at the server level. It maintains second moment estimates to scale updates
+#   per parameter, improving convergence in non-convex federated settings.
+#
+# Key Features:
+#   - Server-side adaptive learning rate with Adagrad momentum
+#   - Per-parameter learning rate scaling
+#   - Better handling of sparse gradients
+#
+# Components:
+#   - Trainer: default
+#   - Learner: fl.generic
+#   - Aggregator: fedadam (configured for Adagrad)
+#
+# Hyperparameters:
+#   - server_lr: Server learning rate (default: 1.0)
+#   - beta1: First moment decay (set to 0 for Adagrad)
+#   - beta2: Second moment decay (default: 0.99)
+#   - tau: Adaptive learning rate parameter (default: 1e-3)
+#
+# Usage:
+#   extend: presets/algorithms/fedadagrad.yaml
+#
+# =============================================================================
+
+extend: ../common/base.yaml
+
+# Trainer configuration
+trainer:
+  type: default
+  args:
+    max_rounds: 100
+    local_epochs: 5
+    client_fraction: 0.1
+    min_available_clients: 2
+
+    fit_config:
+      epochs: 5
+      evaluate_after_fit: true
+
+    eval_interval: 5
+    evaluate_after_aggregation: false
+
+# Aggregator configuration (FedAdam configured as FedAdagrad)
+aggregator:
+  type: fedadam
+  args:
+    weighted: true
+    server_lr: 1.0
+    beta1: 0.0      # Set to 0 for Adagrad behavior
+    beta2: 0.99
+    tau: 1e-3
+
+# Learner configuration
+learner:
+  type: fl.generic
+  args:
+    learning_rate: 0.01
+    batch_size: 32
+    optimizer: SGD
+    momentum: 0.9

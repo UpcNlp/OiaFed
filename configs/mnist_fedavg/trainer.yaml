@@ -1,0 +1,42 @@
+# Trainer 节点配置
+
+# 继承基础配置
+extend: base.yaml
+
+# 节点信息
+node_id: trainer
+role: trainer
+
+# 监听配置
+listen:
+  enabled: true
+
+# 等待至少 5 个 Learner 连接
+min_peers: 5
+
+# Trainer 组件
+trainer:
+  type: default
+  args:
+    max_rounds: 20
+    local_epochs: 3
+    client_fraction: 1.0
+    min_available_clients: 5
+
+    # 训练配置
+    fit_config:
+      epochs: 3
+      evaluate_after_fit: true  # 客户端训练后自动评估
+
+    # 评估配置
+    eval_interval: 5  # 每 5 轮在客户端上评估
+    eval_config: {}   # 客户端评估配置
+
+    # 聚合后评估全局模型
+    evaluate_after_aggregation: false  # 服务端评估（需要服务端有测试集）
+
+# Aggregator 组件
+aggregator:
+  type: fedavg
+  args:
+    weighted: true

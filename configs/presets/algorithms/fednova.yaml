@@ -1,0 +1,58 @@
+# =============================================================================
+# FedNova Algorithm Preset
+# =============================================================================
+# Paper: Tackling the Objective Inconsistency Problem in Heterogeneous FL
+# Authors: Wang et al., 2020
+#
+# Description:
+#   FedNova normalizes local updates by the number of local steps to address
+#   objective inconsistency in heterogeneous federated learning. It ensures
+#   proper weighting when clients perform different numbers of local updates.
+#
+# Key Features:
+#   - Normalized averaging based on effective local steps
+#   - Handles heterogeneous local training (different epochs per client)
+#   - Improved convergence with variable local work
+#
+# Components:
+#   - Trainer: default
+#   - Learner: fl.generic
+#   - Aggregator: fednova (with normalized averaging)
+#
+# Usage:
+#   extend: presets/algorithms/fednova.yaml
+#
+# =============================================================================
+
+extend: ../common/base.yaml
+
+# Trainer configuration
+trainer:
+  type: default
+  args:
+    max_rounds: 100
+    local_epochs: 5
+    client_fraction: 0.1
+    min_available_clients: 2
+
+    fit_config:
+      epochs: 5
+      evaluate_after_fit: true
+
+    eval_interval: 5
+    evaluate_after_aggregation: false
+
+# Aggregator configuration (FedNova with normalized averaging)
+aggregator:
+  type: fednova
+  args:
+    weighted: true
+
+# Learner configuration
+learner:
+  type: fl.generic
+  args:
+    learning_rate: 0.01
+    batch_size: 32
+    optimizer: SGD
+    momentum: 0.9

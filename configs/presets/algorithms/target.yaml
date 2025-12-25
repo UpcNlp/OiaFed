@@ -1,0 +1,70 @@
+# =============================================================================
+# TARGET Algorithm Preset
+# =============================================================================
+# Paper: Target: Federated Class-Continual Learning via Exemplar-Free Distillation
+# Authors: Zhang et al., ICCV 2023
+#
+# Components:
+#   - Trainer: TARGET (server-side data generation)
+#   - Learner: cl.target (exemplar-free distillation)
+#   - Aggregator: fedavg
+#
+# Features:
+#   - Server-side synthetic data generation
+#   - Exemplar-free knowledge distillation
+#   - Privacy-preserving continual learning
+#   - No client-side data storage required
+#
+# Usage:
+#   extend: presets/algorithms/target.yaml
+#
+# =============================================================================
+
+extend: ../common/base.yaml
+
+# Trainer configuration
+trainer:
+  type: TARGET
+  args:
+    max_rounds: 50
+    local_epochs: 5
+    client_fraction: 0.1
+    min_available_clients: 2
+
+    # Continual Learning parameters
+    num_tasks: 5
+    rounds_per_task: 10
+    evaluate_all_tasks: true
+    compute_forgetting: true
+
+    # TARGET-specific parameters
+    enable_data_generation: true
+    generation_strategy: progressive
+    samples_per_class: 100
+
+# Aggregator configuration
+aggregator:
+  type: fedavg
+  args:
+    weighted: true
+
+# Learner configuration
+learner:
+  type: cl.target
+  args:
+    learning_rate: 0.01
+    batch_size: 32
+    optimizer: SGD
+    momentum: 0.9
+
+    # TARGET-specific parameters
+    distillation_weight: 1.0
+    distill_temperature: 2.0
+    use_soft_targets: true
+    feature_distillation: true
+    feature_distill_weight: 0.5
+
+    # Continual Learning parameters
+    num_tasks: 5
+    classes_per_task: 2
+    scenario: class_incremental

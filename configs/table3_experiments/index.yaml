@@ -1,0 +1,396 @@
+metadata:
+  generated_at: '2025-12-13T16:19:42.174968'
+  total_experiments: 288
+  algorithms:
+  - fedavg
+  - fedprox
+  - scaffold
+  - fednova
+  - fedadagrad
+  - fedyogi
+  - fedadam
+  - moon
+  - fedbn
+  datasets:
+  - mnist
+  - fmnist
+  - cifar10
+  - cifar100
+  - svhn
+  - emnist
+  - femnist
+  - cinic10
+  non_iid_types:
+  - dir_0.5
+  - quantity_1
+  - quantity_2
+  - quantity_3
+experiments:
+  mnist:
+    fedavg:
+    - mnist/fedavg/dir_0.5
+    - mnist/fedavg/quantity_1
+    - mnist/fedavg/quantity_2
+    - mnist/fedavg/quantity_3
+    fedprox:
+    - mnist/fedprox/dir_0.5
+    - mnist/fedprox/quantity_1
+    - mnist/fedprox/quantity_2
+    - mnist/fedprox/quantity_3
+    scaffold:
+    - mnist/scaffold/dir_0.5
+    - mnist/scaffold/quantity_1
+    - mnist/scaffold/quantity_2
+    - mnist/scaffold/quantity_3
+    fednova:
+    - mnist/fednova/dir_0.5
+    - mnist/fednova/quantity_1
+    - mnist/fednova/quantity_2
+    - mnist/fednova/quantity_3
+    fedadagrad:
+    - mnist/fedadagrad/dir_0.5
+    - mnist/fedadagrad/quantity_1
+    - mnist/fedadagrad/quantity_2
+    - mnist/fedadagrad/quantity_3
+    fedyogi:
+    - mnist/fedyogi/dir_0.5
+    - mnist/fedyogi/quantity_1
+    - mnist/fedyogi/quantity_2
+    - mnist/fedyogi/quantity_3
+    fedadam:
+    - mnist/fedadam/dir_0.5
+    - mnist/fedadam/quantity_1
+    - mnist/fedadam/quantity_2
+    - mnist/fedadam/quantity_3
+    moon:
+    - mnist/moon/dir_0.5
+    - mnist/moon/quantity_1
+    - mnist/moon/quantity_2
+    - mnist/moon/quantity_3
+    fedbn:
+    - mnist/fedbn/dir_0.5
+    - mnist/fedbn/quantity_1
+    - mnist/fedbn/quantity_2
+    - mnist/fedbn/quantity_3
+  fmnist:
+    fedavg:
+    - fmnist/fedavg/dir_0.5
+    - fmnist/fedavg/quantity_1
+    - fmnist/fedavg/quantity_2
+    - fmnist/fedavg/quantity_3
+    fedprox:
+    - fmnist/fedprox/dir_0.5
+    - fmnist/fedprox/quantity_1
+    - fmnist/fedprox/quantity_2
+    - fmnist/fedprox/quantity_3
+    scaffold:
+    - fmnist/scaffold/dir_0.5
+    - fmnist/scaffold/quantity_1
+    - fmnist/scaffold/quantity_2
+    - fmnist/scaffold/quantity_3
+    fednova:
+    - fmnist/fednova/dir_0.5
+    - fmnist/fednova/quantity_1
+    - fmnist/fednova/quantity_2
+    - fmnist/fednova/quantity_3
+    fedadagrad:
+    - fmnist/fedadagrad/dir_0.5
+    - fmnist/fedadagrad/quantity_1
+    - fmnist/fedadagrad/quantity_2
+    - fmnist/fedadagrad/quantity_3
+    fedyogi:
+    - fmnist/fedyogi/dir_0.5
+    - fmnist/fedyogi/quantity_1
+    - fmnist/fedyogi/quantity_2
+    - fmnist/fedyogi/quantity_3
+    fedadam:
+    - fmnist/fedadam/dir_0.5
+    - fmnist/fedadam/quantity_1
+    - fmnist/fedadam/quantity_2
+    - fmnist/fedadam/quantity_3
+    moon:
+    - fmnist/moon/dir_0.5
+    - fmnist/moon/quantity_1
+    - fmnist/moon/quantity_2
+    - fmnist/moon/quantity_3
+    fedbn:
+    - fmnist/fedbn/dir_0.5
+    - fmnist/fedbn/quantity_1
+    - fmnist/fedbn/quantity_2
+    - fmnist/fedbn/quantity_3
+  cifar10:
+    fedavg:
+    - cifar10/fedavg/dir_0.5
+    - cifar10/fedavg/quantity_1
+    - cifar10/fedavg/quantity_2
+    - cifar10/fedavg/quantity_3
+    fedprox:
+    - cifar10/fedprox/dir_0.5
+    - cifar10/fedprox/quantity_1
+    - cifar10/fedprox/quantity_2
+    - cifar10/fedprox/quantity_3
+    scaffold:
+    - cifar10/scaffold/dir_0.5
+    - cifar10/scaffold/quantity_1
+    - cifar10/scaffold/quantity_2
+    - cifar10/scaffold/quantity_3
+    fednova:
+    - cifar10/fednova/dir_0.5
+    - cifar10/fednova/quantity_1
+    - cifar10/fednova/quantity_2
+    - cifar10/fednova/quantity_3
+    fedadagrad:
+    - cifar10/fedadagrad/dir_0.5
+    - cifar10/fedadagrad/quantity_1
+    - cifar10/fedadagrad/quantity_2
+    - cifar10/fedadagrad/quantity_3
+    fedyogi:
+    - cifar10/fedyogi/dir_0.5
+    - cifar10/fedyogi/quantity_1
+    - cifar10/fedyogi/quantity_2
+    - cifar10/fedyogi/quantity_3
+    fedadam:
+    - cifar10/fedadam/dir_0.5
+    - cifar10/fedadam/quantity_1
+    - cifar10/fedadam/quantity_2
+    - cifar10/fedadam/quantity_3
+    moon:
+    - cifar10/moon/dir_0.5
+    - cifar10/moon/quantity_1
+    - cifar10/moon/quantity_2
+    - cifar10/moon/quantity_3
+    fedbn:
+    - cifar10/fedbn/dir_0.5
+    - cifar10/fedbn/quantity_1
+    - cifar10/fedbn/quantity_2
+    - cifar10/fedbn/quantity_3
+  cifar100:
+    fedavg:
+    - cifar100/fedavg/dir_0.5
+    - cifar100/fedavg/quantity_1
+    - cifar100/fedavg/quantity_2
+    - cifar100/fedavg/quantity_3
+    fedprox:
+    - cifar100/fedprox/dir_0.5
+    - cifar100/fedprox/quantity_1
+    - cifar100/fedprox/quantity_2
+    - cifar100/fedprox/quantity_3
+    scaffold:
+    - cifar100/scaffold/dir_0.5
+    - cifar100/scaffold/quantity_1
+    - cifar100/scaffold/quantity_2
+    - cifar100/scaffold/quantity_3
+    fednova:
+    - cifar100/fednova/dir_0.5
+    - cifar100/fednova/quantity_1
+    - cifar100/fednova/quantity_2
+    - cifar100/fednova/quantity_3
+    fedadagrad:
+    - cifar100/fedadagrad/dir_0.5
+    - cifar100/fedadagrad/quantity_1
+    - cifar100/fedadagrad/quantity_2
+    - cifar100/fedadagrad/quantity_3
+    fedyogi:
+    - cifar100/fedyogi/dir_0.5
+    - cifar100/fedyogi/quantity_1
+    - cifar100/fedyogi/quantity_2
+    - cifar100/fedyogi/quantity_3
+    fedadam:
+    - cifar100/fedadam/dir_0.5
+    - cifar100/fedadam/quantity_1
+    - cifar100/fedadam/quantity_2
+    - cifar100/fedadam/quantity_3
+    moon:
+    - cifar100/moon/dir_0.5
+    - cifar100/moon/quantity_1
+    - cifar100/moon/quantity_2
+    - cifar100/moon/quantity_3
+    fedbn:
+    - cifar100/fedbn/dir_0.5
+    - cifar100/fedbn/quantity_1
+    - cifar100/fedbn/quantity_2
+    - cifar100/fedbn/quantity_3
+  svhn:
+    fedavg:
+    - svhn/fedavg/dir_0.5
+    - svhn/fedavg/quantity_1
+    - svhn/fedavg/quantity_2
+    - svhn/fedavg/quantity_3
+    fedprox:
+    - svhn/fedprox/dir_0.5
+    - svhn/fedprox/quantity_1
+    - svhn/fedprox/quantity_2
+    - svhn/fedprox/quantity_3
+    scaffold:
+    - svhn/scaffold/dir_0.5
+    - svhn/scaffold/quantity_1
+    - svhn/scaffold/quantity_2
+    - svhn/scaffold/quantity_3
+    fednova:
+    - svhn/fednova/dir_0.5
+    - svhn/fednova/quantity_1
+    - svhn/fednova/quantity_2
+    - svhn/fednova/quantity_3
+    fedadagrad:
+    - svhn/fedadagrad/dir_0.5
+    - svhn/fedadagrad/quantity_1
+    - svhn/fedadagrad/quantity_2
+    - svhn/fedadagrad/quantity_3
+    fedyogi:
+    - svhn/fedyogi/dir_0.5
+    - svhn/fedyogi/quantity_1
+    - svhn/fedyogi/quantity_2
+    - svhn/fedyogi/quantity_3
+    fedadam:
+    - svhn/fedadam/dir_0.5
+    - svhn/fedadam/quantity_1
+    - svhn/fedadam/quantity_2
+    - svhn/fedadam/quantity_3
+    moon:
+    - svhn/moon/dir_0.5
+    - svhn/moon/quantity_1
+    - svhn/moon/quantity_2
+    - svhn/moon/quantity_3
+    fedbn:
+    - svhn/fedbn/dir_0.5
+    - svhn/fedbn/quantity_1
+    - svhn/fedbn/quantity_2
+    - svhn/fedbn/quantity_3
+  emnist:
+    fedavg:
+    - emnist/fedavg/dir_0.5
+    - emnist/fedavg/quantity_1
+    - emnist/fedavg/quantity_2
+    - emnist/fedavg/quantity_3
+    fedprox:
+    - emnist/fedprox/dir_0.5
+    - emnist/fedprox/quantity_1
+    - emnist/fedprox/quantity_2
+    - emnist/fedprox/quantity_3
+    scaffold:
+    - emnist/scaffold/dir_0.5
+    - emnist/scaffold/quantity_1
+    - emnist/scaffold/quantity_2
+    - emnist/scaffold/quantity_3
+    fednova:
+    - emnist/fednova/dir_0.5
+    - emnist/fednova/quantity_1
+    - emnist/fednova/quantity_2
+    - emnist/fednova/quantity_3
+    fedadagrad:
+    - emnist/fedadagrad/dir_0.5
+    - emnist/fedadagrad/quantity_1
+    - emnist/fedadagrad/quantity_2
+    - emnist/fedadagrad/quantity_3
+    fedyogi:
+    - emnist/fedyogi/dir_0.5
+    - emnist/fedyogi/quantity_1
+    - emnist/fedyogi/quantity_2
+    - emnist/fedyogi/quantity_3
+    fedadam:
+    - emnist/fedadam/dir_0.5
+    - emnist/fedadam/quantity_1
+    - emnist/fedadam/quantity_2
+    - emnist/fedadam/quantity_3
+    moon:
+    - emnist/moon/dir_0.5
+    - emnist/moon/quantity_1
+    - emnist/moon/quantity_2
+    - emnist/moon/quantity_3
+    fedbn:
+    - emnist/fedbn/dir_0.5
+    - emnist/fedbn/quantity_1
+    - emnist/fedbn/quantity_2
+    - emnist/fedbn/quantity_3
+  femnist:
+    fedavg:
+    - femnist/fedavg/dir_0.5
+    - femnist/fedavg/quantity_1
+    - femnist/fedavg/quantity_2
+    - femnist/fedavg/quantity_3
+    fedprox:
+    - femnist/fedprox/dir_0.5
+    - femnist/fedprox/quantity_1
+    - femnist/fedprox/quantity_2
+    - femnist/fedprox/quantity_3
+    scaffold:
+    - femnist/scaffold/dir_0.5
+    - femnist/scaffold/quantity_1
+    - femnist/scaffold/quantity_2
+    - femnist/scaffold/quantity_3
+    fednova:
+    - femnist/fednova/dir_0.5
+    - femnist/fednova/quantity_1
+    - femnist/fednova/quantity_2
+    - femnist/fednova/quantity_3
+    fedadagrad:
+    - femnist/fedadagrad/dir_0.5
+    - femnist/fedadagrad/quantity_1
+    - femnist/fedadagrad/quantity_2
+    - femnist/fedadagrad/quantity_3
+    fedyogi:
+    - femnist/fedyogi/dir_0.5
+    - femnist/fedyogi/quantity_1
+    - femnist/fedyogi/quantity_2
+    - femnist/fedyogi/quantity_3
+    fedadam:
+    - femnist/fedadam/dir_0.5
+    - femnist/fedadam/quantity_1
+    - femnist/fedadam/quantity_2
+    - femnist/fedadam/quantity_3
+    moon:
+    - femnist/moon/dir_0.5
+    - femnist/moon/quantity_1
+    - femnist/moon/quantity_2
+    - femnist/moon/quantity_3
+    fedbn:
+    - femnist/fedbn/dir_0.5
+    - femnist/fedbn/quantity_1
+    - femnist/fedbn/quantity_2
+    - femnist/fedbn/quantity_3
+  cinic10:
+    fedavg:
+    - cinic10/fedavg/dir_0.5
+    - cinic10/fedavg/quantity_1
+    - cinic10/fedavg/quantity_2
+    - cinic10/fedavg/quantity_3
+    fedprox:
+    - cinic10/fedprox/dir_0.5
+    - cinic10/fedprox/quantity_1
+    - cinic10/fedprox/quantity_2
+    - cinic10/fedprox/quantity_3
+    scaffold:
+    - cinic10/scaffold/dir_0.5
+    - cinic10/scaffold/quantity_1
+    - cinic10/scaffold/quantity_2
+    - cinic10/scaffold/quantity_3
+    fednova:
+    - cinic10/fednova/dir_0.5
+    - cinic10/fednova/quantity_1
+    - cinic10/fednova/quantity_2
+    - cinic10/fednova/quantity_3
+    fedadagrad:
+    - cinic10/fedadagrad/dir_0.5
+    - cinic10/fedadagrad/quantity_1
+    - cinic10/fedadagrad/quantity_2
+    - cinic10/fedadagrad/quantity_3
+    fedyogi:
+    - cinic10/fedyogi/dir_0.5
+    - cinic10/fedyogi/quantity_1
+    - cinic10/fedyogi/quantity_2
+    - cinic10/fedyogi/quantity_3
+    fedadam:
+    - cinic10/fedadam/dir_0.5
+    - cinic10/fedadam/quantity_1
+    - cinic10/fedadam/quantity_2
+    - cinic10/fedadam/quantity_3
+    moon:
+    - cinic10/moon/dir_0.5
+    - cinic10/moon/quantity_1
+    - cinic10/moon/quantity_2
+    - cinic10/moon/quantity_3
+    fedbn:
+    - cinic10/fedbn/dir_0.5
+    - cinic10/fedbn/quantity_1
+    - cinic10/fedbn/quantity_2
+    - cinic10/fedbn/quantity_3

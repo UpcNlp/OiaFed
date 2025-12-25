@@ -1,0 +1,51 @@
+# =============================================================================
+# Base Configuration for Table 3 Reproduction
+# Generated at: 2025-12-13T16:19:42.094178
+# Experiment: table3_cifar100_fedbn_quantity_3
+# Description: Table 3 reproduction: FEDBN on CIFAR100 with Label skew: #C=3 (3 classes per client)
+# =============================================================================
+
+experiment:
+  name: table3_cifar100_fedbn_quantity_3
+  description: 'Table 3 reproduction: FEDBN on CIFAR100 with Label skew: #C=3 (3 classes
+    per client)'
+  tags:
+    dataset: cifar100
+    algorithm: fedbn
+    non_iid_type: quantity_3
+    paper: TPAMI-2025-08-2415
+    table: table3
+tracker:
+  enabled: true
+  tracking_dir: tracking/cifar100/fedbn/quantity_3
+  backends:
+  - type: file
+    args:
+      level: DEBUG
+  - type: mlflow
+    args:
+      tracking_uri: ${MLFLOW_TRACKING_URI:http://172.19.138.200:5000}
+      experiment_name: table3_reproduction
+      run_name: cifar100_fedbn_quantity_3_20251213_161942
+      auto_start_run: true
+      auto_end_run: true
+      username: ${MLFLOW_TRACKING_USERNAME:dongshou}
+      password: ${MLFLOW_TRACKING_PASSWORD:admin123admin}
+logging:
+  level: INFO
+  log_dir: logs/cifar100_fedbn_quantity_3
+transport:
+  mode: grpc
+  grpc:
+    max_workers: 10
+    max_message_length: 104857600
+    heartbeat:
+      enabled: true
+      interval: 5.0
+      timeout: 30.0
+      check_interval: 10.0
+      # 自动shutdown配置（learner无法连接trainer时自动退出）
+      max_connection_wait_time: 60.0  # 最大等待时间60秒（测试用）
+      auto_shutdown_on_failure: true
+      critical_peers:
+        - trainer  # 将trainer标记为关键节点

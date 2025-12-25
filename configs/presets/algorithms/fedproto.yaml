@@ -1,0 +1,66 @@
+# =============================================================================
+# FedProto Algorithm Preset
+# =============================================================================
+# Paper: FedProto: Federated Prototype Learning across Heterogeneous Clients
+# Authors: Tan et al., 2022
+#
+# Description:
+#   FedProto shares class prototypes (feature representations) instead of model
+#   parameters. Each client computes prototypes for each class and the server
+#   aggregates them. Local training uses prototype-based loss to align local
+#   features with global class prototypes.
+#
+# Key Features:
+#   - Prototype-based knowledge sharing (not model parameters)
+#   - Robust to model heterogeneity (clients can have different architectures)
+#   - Prototype alignment loss encourages feature consistency
+#   - Effective for non-IID data
+#
+# Components:
+#   - Trainer: default
+#   - Learner: fl.fedproto (prototype computation and alignment)
+#   - Aggregator: fedproto (prototype aggregation)
+#
+# Hyperparameters:
+#   - proto_weight: Weight of prototype alignment loss (default: 0.1)
+#
+# Usage:
+#   extend: presets/algorithms/fedproto.yaml
+#
+# =============================================================================
+
+extend: ../common/base.yaml
+
+# Trainer configuration
+trainer:
+  type: default
+  args:
+    max_rounds: 100
+    local_epochs: 5
+    client_fraction: 0.1
+    min_available_clients: 2
+
+    fit_config:
+      epochs: 5
+      evaluate_after_fit: true
+
+    eval_interval: 5
+    evaluate_after_aggregation: false
+
+# Aggregator configuration (FedProto prototype aggregation)
+aggregator:
+  type: fedproto
+  args:
+    weighted: true
+
+# Learner configuration (FedProto with prototype learning)
+learner:
+  type: fl.fedproto
+  args:
+    learning_rate: 0.01
+    batch_size: 32
+    optimizer: SGD
+    momentum: 0.9
+
+    # FedProto-specific configuration
+    proto_weight: 0.1  # Weight of prototype alignment loss

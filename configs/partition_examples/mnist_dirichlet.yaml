@@ -1,0 +1,25 @@
+# MNIST Dirichlet 划分示例
+# 使用场景：按 Dirichlet 分布划分，控制数据异质性程度
+
+dataset:
+  type: mnist
+  args:
+    data_dir: ./data
+    partition_id: 0
+    num_partitions: 5
+    partition_type: dirichlet
+    partition_config:
+      alpha: 0.5  # alpha 越小，数据分布越不均衡
+      seed: 42
+    download: true
+
+# Alpha 参数说明：
+# - alpha = 0.1: 高度非均衡，每个客户端的类别分布差异很大
+# - alpha = 0.5: 中等非均衡（推荐）
+# - alpha = 1.0: 轻度非均衡
+# - alpha = 10.0: 接近 IID
+
+# 常见论文设置：
+# - FedAvg 原论文: alpha = 0.5
+# - FedProx: alpha = 0.3
+# - SCAFFOLD: alpha = 0.5

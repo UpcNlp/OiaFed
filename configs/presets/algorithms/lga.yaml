@@ -1,0 +1,66 @@
+# =============================================================================
+# LGA Algorithm Preset
+# =============================================================================
+# Paper: Layered Gradient Accumulation for Federated Continual Learning
+# Authors: Chen et al.
+#
+# Components:
+#   - Trainer: Continual (task scheduling)
+#   - Learner: cl.lga (layered gradient accumulation)
+#   - Aggregator: fedavg
+#
+# Features:
+#   - Layer-wise gradient accumulation
+#   - Hierarchical knowledge preservation
+#   - Adaptive gradient scheduling
+#   - Efficient memory usage
+#
+# Usage:
+#   extend: presets/algorithms/lga.yaml
+#
+# =============================================================================
+
+extend: ../common/base.yaml
+
+# Trainer configuration
+trainer:
+  type: Continual
+  args:
+    max_rounds: 50
+    local_epochs: 5
+    client_fraction: 0.1
+    min_available_clients: 2
+
+    # Continual Learning parameters
+    num_tasks: 5
+    rounds_per_task: 10
+    evaluate_all_tasks: true
+    compute_forgetting: true
+
+# Aggregator configuration
+aggregator:
+  type: fedavg
+  args:
+    weighted: true
+
+# Learner configuration
+learner:
+  type: cl.lga
+  args:
+    learning_rate: 0.01
+    batch_size: 32
+    optimizer: SGD
+    momentum: 0.9
+
+    # LGA-specific parameters
+    gradient_accumulation_steps: 4
+    use_layered_accumulation: true
+    layer_importance_threshold: 0.1
+    accumulation_strategy: hierarchical
+    gradient_clip_norm: 1.0
+    normalize_gradients: true
+
+    # Continual Learning parameters
+    num_tasks: 5
+    classes_per_task: 2
+    scenario: class_incremental

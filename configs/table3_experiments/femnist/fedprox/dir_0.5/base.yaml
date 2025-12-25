@@ -1,0 +1,40 @@
+# =============================================================================
+# Base Configuration for Table 3 Reproduction
+# Generated at: 2025-12-13T16:19:41.082801
+# Experiment: table3_femnist_fedprox_dir_0.5
+# Description: Table 3 reproduction: FEDPROX on FEMNIST with Label skew: pk ~ Dir(0.5)
+# =============================================================================
+
+experiment:
+  name: table3_femnist_fedprox_dir_0.5
+  description: 'Table 3 reproduction: FEDPROX on FEMNIST with Label skew: pk ~ Dir(0.5)'
+  tags:
+    dataset: femnist
+    algorithm: fedprox
+    non_iid_type: dir_0.5
+    paper: TPAMI-2025-08-2415
+    table: table3
+tracker:
+  enabled: true
+  tracking_dir: tracking/femnist/fedprox/dir_0.5
+  backends:
+  - type: file
+    args:
+      level: DEBUG
+  - type: mlflow
+    args:
+      tracking_uri: ${MLFLOW_TRACKING_URI:http://172.19.138.200:5000}
+      experiment_name: table3_reproduction
+      run_name: femnist_fedprox_dir_0.5_20251213_161941
+      auto_start_run: true
+      auto_end_run: true
+      username: ${MLFLOW_TRACKING_USERNAME:dongshou}
+      password: ${MLFLOW_TRACKING_PASSWORD:admin123admin}
+logging:
+  level: INFO
+  log_dir: logs/femnist_fedprox_dir_0.5
+transport:
+  mode: grpc
+  grpc:
+    max_workers: 10
+    max_message_length: 104857600

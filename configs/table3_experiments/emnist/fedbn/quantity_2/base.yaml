@@ -1,0 +1,41 @@
+# =============================================================================
+# Base Configuration for Table 3 Reproduction
+# Generated at: 2025-12-13T16:19:42.125668
+# Experiment: table3_emnist_fedbn_quantity_2
+# Description: Table 3 reproduction: FEDBN on EMNIST with Label skew: #C=2 (2 classes per client)
+# =============================================================================
+
+experiment:
+  name: table3_emnist_fedbn_quantity_2
+  description: 'Table 3 reproduction: FEDBN on EMNIST with Label skew: #C=2 (2 classes
+    per client)'
+  tags:
+    dataset: emnist
+    algorithm: fedbn
+    non_iid_type: quantity_2
+    paper: TPAMI-2025-08-2415
+    table: table3
+tracker:
+  enabled: true
+  tracking_dir: tracking/emnist/fedbn/quantity_2
+  backends:
+  - type: file
+    args:
+      level: DEBUG
+  - type: mlflow
+    args:
+      tracking_uri: ${MLFLOW_TRACKING_URI:http://172.19.138.200:5000}
+      experiment_name: table3_reproduction
+      run_name: emnist_fedbn_quantity_2_20251213_161942
+      auto_start_run: true
+      auto_end_run: true
+      username: ${MLFLOW_TRACKING_USERNAME:dongshou}
+      password: ${MLFLOW_TRACKING_PASSWORD:admin123admin}
+logging:
+  level: INFO
+  log_dir: logs/emnist_fedbn_quantity_2
+transport:
+  mode: grpc
+  grpc:
+    max_workers: 10
+    max_message_length: 104857600
