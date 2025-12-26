@@ -176,6 +176,15 @@ class ConfigManager:
             # 深度合并
             data = self._deep_merge(base_data, data)
         
+        # 处理 paper 引用（从论文注册表加载默认配置）
+        if "paper" in data:
+            paper_id = data.pop("paper")
+            paper_defaults = self._load_paper_defaults(paper_id)
+            
+            if paper_defaults:
+                # 论文默认配置作为基础，用户配置覆盖
+                data = self._deep_merge(paper_defaults, data)
+        
         # 解析为 NodeConfig
         config = self.from_dict(data, validate=False)
         
@@ -194,6 +203,7 @@ class ConfigManager:
         从字典创建配置
         
         自动同步共享字段到子配置。
+        自动为 tracker backends 添加对应的 callbacks。
         
         Args:
             data: 配置字典
@@ -241,7 +251,13 @@ class ConfigManager:
             tracker_config,
         )
         
-        # 5. 构建 NodeConfig
+        # 5. 自动注入 tracker 对应的 callbacks
+        callbacks_data = self._auto_inject_tracker_callbacks(
+            data.get("callbacks", []),
+            tracker_config,
+        )
+        
+        # 6. 构建 NodeConfig
         config = NodeConfig(
             # 基本信息
             node_id=data.get("node_id", ""),
@@ -270,8 +286,8 @@ class ConfigManager:
             # 数据集配置
             datasets=data.get("datasets"),
             
-            # 回调配置
-            callbacks=data.get("callbacks"),
+            # 回调配置（使用自动注入后的）
+            callbacks=callbacks_data,
             
             # 其他配置
             serialization=data.get("serialization"),
@@ -512,6 +528,81 @@ class ConfigManager:
             tracker_config._run_name = global_config.run_name
             tracker_config._log_dir = global_config.log_dir
     
+    def _auto_inject_tracker_callbacks(
+        self,
+        callbacks: Optional[List[Any]],
+        tracker_config: Optional[TrackerConfig],
+    ) -> List[Any]:
+        """
+        自动为 Tracker backends 注入对应的 Callbacks
+        
+        当用户配置了 tracker.backends 时，自动添加对应的 callback，
+        这样用户无需同时配置 tracker 和 callbacks。
+        
+        规则：
+        - tracker.backends: [mlflow] → 自动添加 callbacks: [{type: mlflow}]
+        - 如果用户已经配置了对应的 callback，则不重复添加
+        
+        Args:
+            callbacks: 用户配置的 callbacks 列表
+            tracker_config: Tracker 配置
+            
+        Returns:
+            合并后的 callbacks 列表
+            
+        Example:
+            # 用户只配置了 tracker
+            tracker:
+              backends:
+                - type: mlflow
+                  args: {tracking_uri: ./mlruns}
+            
+            # 自动添加 mlflow callback，等效于
+            callbacks:
+              - type: mlflow
+        """
+        # 初始化 callbacks 列表
+        result = list(callbacks) if callbacks else []
+        
+        # 如果没有 tracker 配置或 tracker 未启用，直接返回
+        if not tracker_config or not tracker_config.enabled:
+            return result
+        
+        # 获取已存在的 callback 类型
+        existing_types = set()
+        for cb in result:
+            if isinstance(cb, dict):
+                existing_types.add(cb.get("type", ""))
+            elif hasattr(cb, "type"):
+                existing_types.add(cb.type)
+        
+        # Tracker backend 类型到 callback 类型的映射
+        # 某些 tracker 需要对应的 callback 来记录指标
+        tracker_to_callback_map = {
+            "mlflow": "mlflow",
+            # 可以扩展其他映射
+            # "wandb": "wandb",
+            # "tensorboard": "tensorboard",
+        }
+        
+        # 遍历 tracker backends，自动添加对应的 callback
+        for backend in tracker_config.get_backends():
+            backend_type = backend.type
+            
+            # 检查是否有对应的 callback 需要添加
+            if backend_type in tracker_to_callback_map:
+                callback_type = tracker_to_callback_map[backend_type]
+                
+                # 如果用户没有配置这个 callback，自动添加
+                if callback_type not in existing_types:
+                    result.append({
+                        "type": callback_type,
+                        "args": {},  # 使用默认参数
+                    })
+                    existing_types.add(callback_type)
+        
+        return result
+    
     # ==================== 解析方法 ====================
     
     def _parse_global_config(self, data: Dict[str, Any]) -> GlobalConfig:
@@ -607,6 +698,72 @@ class ConfigManager:
         content = re.sub(r'\$\{([^}:]+)(?::([^}]*))?\}', replace_env_var, content)
 
         return yaml.safe_load(content) or {}
+    
+    def _load_paper_defaults(self, paper_id: str) -> Optional[Dict[str, Any]]:
+        """
+        从论文注册表加载默认配置
+        
+        Args:
+            paper_id: 论文ID
+            
+        Returns:
+            论文默认配置字典，如果论文不存在返回None
+        """
+        try:
+            # 尝试导入论文注册表
+            try:
+                from ..papers import get_registry
+            except ImportError:
+                try:
+                    from src.papers import get_registry
+                except ImportError:
+                    # 论文模块不可用，静默忽略
+                    return None
+            
+            registry = get_registry()
+            paper = registry.get(paper_id)
+            
+            if not paper:
+                import logging
+                logging.warning(f"未找到论文: {paper_id}")
+                return None
+            
+            # 构建配置字典
+            defaults = registry.get_defaults(paper_id)
+            
+            # 添加组件类型
+            config = {}
+            
+            if paper.get_component("learner"):
+                config["learner"] = {
+                    "type": paper.get_component("learner"),
+                    "args": defaults.get("learner", {}),
+                }
+            
+            if paper.get_component("aggregator"):
+                config["aggregator"] = {
+                    "type": paper.get_component("aggregator"),
+                    "args": defaults.get("aggregator", {}),
+                }
+            
+            if paper.get_component("trainer"):
+                config["trainer"] = {
+                    "type": paper.get_component("trainer"),
+                    "args": defaults.get("trainer", {}),
+                }
+            
+            if paper.get_component("model"):
+                config["model"] = {
+                    "type": paper.get_component("model"),
+                    "args": defaults.get("model", {}),
+                }
+            
+            return config
+            
+        except Exception as e:
+            import logging
+            logging.warning(f"加载论文配置失败: {paper_id}, {e}")
+            return None
     
     def _deep_merge(
         self,

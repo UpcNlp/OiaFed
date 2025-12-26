@@ -104,16 +104,16 @@ class LogConfig:
         compression: 压缩格式（如 "zip"）
         format: 日志格式字符串
         diagnose: 是否显示详细诊断信息
-        
-    Note:
-        exp_name 和 log_dir 由 ConfigManager 从 GlobalConfig 同步，
-        不需要手动设置。
+        log_dir: 日志目录
+        exp_name: 实验名称
         
     Example:
         log_config = LogConfig(
             level="DEBUG",
             console=True,
             console_level="INFO",
+            log_dir="./logs",
+            exp_name="my_experiment",
         )
     """
     # 基础配置
@@ -138,26 +138,37 @@ class LogConfig:
     # 调试配置
     diagnose: bool = False
     
-    # ===== 同步字段（由 ConfigManager 设置）=====
-    # 使用下划线前缀表示这些字段是内部管理的
-    _exp_name: Optional[str] = field(default=None, repr=False, compare=False)
-    _log_dir: Optional[str] = field(default=None, repr=False, compare=False)
-    _run_name: Optional[str] = field(default=None, repr=False, compare=False)
+    # ===== 路径和实验信息 =====
+    # 这些字段可以直接初始化，也可以由 ConfigManager 同步设置
+    log_dir: Optional[str] = field(default="./logs")
+    exp_name: Optional[str] = field(default=None)
+    run_name: Optional[str] = field(default=None)
+    
+    # ===== 向后兼容的私有字段别名 =====
+    # 保留这些属性以兼容旧代码
+    @property
+    def _exp_name(self) -> Optional[str]:
+        return self.exp_name
+    
+    @_exp_name.setter
+    def _exp_name(self, value: Optional[str]):
+        object.__setattr__(self, 'exp_name', value)
     
     @property
-    def exp_name(self) -> Optional[str]:
-        """实验名称（从 GlobalConfig 同步）"""
-        return self._exp_name
+    def _log_dir(self) -> Optional[str]:
+        return self.log_dir
+    
+    @_log_dir.setter
+    def _log_dir(self, value: Optional[str]):
+        object.__setattr__(self, 'log_dir', value)
     
     @property
-    def log_dir(self) -> str:
-        """日志目录（从 GlobalConfig 同步）"""
-        return self._log_dir or "./logs"
+    def _run_name(self) -> Optional[str]:
+        return self.run_name
     
-    @property
-    def run_name(self) -> Optional[str]:
-        """运行名称（从 GlobalConfig 同步）"""
-        return self._run_name
+    @_run_name.setter
+    def _run_name(self, value: Optional[str]):
+        object.__setattr__(self, 'run_name', value)
     
     def get_log_path(self) -> str:
         """

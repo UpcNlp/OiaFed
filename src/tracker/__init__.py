@@ -5,8 +5,13 @@ Tracker 模块
 """
 
 from .base import Tracker
-from .mlflow_tracker import MLflowTracker
 from .composite import CompositeTracker
+
+# MLflow 是可选依赖
+try:
+    from .mlflow_tracker import MLflowTracker
+except ImportError:
+    MLflowTracker = None  # mlflow 未安装
 
 __all__ = [
     "Tracker",

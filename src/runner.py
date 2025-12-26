@@ -27,6 +27,11 @@ from .core.system import FederatedSystem
 from .infra import get_module_logger
 from .infra.logging import setup_logging
 
+# 导入 methods 模块以触发组件注册
+from . import methods
+import warnings
+warnings.filterwarnings("ignore", category=FutureWarning, module="torch")
+
 logger = get_module_logger(__name__)
 
 
@@ -45,6 +50,9 @@ def _run_single_node(config_path: str, adjusted_min_peers: int = None) -> None:
     project_root = src_dir.parent
     if str(project_root) not in sys.path:
         sys.path.insert(0, str(project_root))
+
+    # 导入 methods 模块以触发组件注册
+    from . import methods  # noqa: F401
 
     runner = FederationRunner(config_path)
 

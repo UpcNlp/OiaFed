@@ -9,6 +9,8 @@ PM/
 # Virtual environments
 .venv
 data/
+!src/data
+!src/papers/
 logs/
 syn_imgs/
 outputs
@@ -20,6 +22,7 @@ results
 .env.*
 .python-version
 CLAUDE.md
+deubg*.py
 tests/
 pytest.ini
 run_tests.py
@@ -44,6 +47,7 @@ run_*.py
 table3.md
 docs.bak/
 scripts/
+.vscode/
 examples.bak/
 view_table3_results.py
 CINIC-10.tar.gz

@@ -414,15 +414,10 @@ class FederatedSystem:
         """初始化 Tracker 和 Callbacks"""
         self.sys_logger.debug("Initializing infrastructure...")
 
-        # Tracker
+        # Tracker - 直接传递 TrackerConfig
         if self._config.tracker:
-            tracker_dict = {
-                "enabled": self._config.tracker.enabled,
-                "tracking_dir": self._config.tracker.tracking_dir,
-                "backends": self._config.tracker.backends,
-            }
             self.tracker = CompositeTracker.from_config(
-                tracker_config=tracker_dict,
+                tracker_config=self._config.tracker,
                 node_id=self.node_id,
                 is_trainer=self._config.is_trainer(),
             )

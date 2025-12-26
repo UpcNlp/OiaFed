@@ -8,6 +8,7 @@ from .fedweit import FedWeITLearner
 from .fed_cprompt import FedCPromptLearner
 from .lga import LGALearner
 from .glfc import GLFCLearner
+from .fot import FOTLearner
 
 __all__ = [
     'FedKNOWLearner',
@@ -16,4 +17,5 @@ __all__ = [
     'FedCPromptLearner',
     'LGALearner',
     'GLFCLearner',
+    'FOTLearner'
 ]

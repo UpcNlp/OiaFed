@@ -61,6 +61,11 @@ class Registry:
         """
         获取已注册的类
         
+        支持多种命名格式：
+        - 完整命名空间: "learner.vfl.splitnn"
+        - 简短名称: "vfl.splitnn" (自动尝试添加前缀)
+        - 基础名称: "default" (自动尝试添加前缀)
+        
         Args:
             namespace: 命名空间
             
@@ -70,11 +75,18 @@ class Registry:
         Raises:
             KeyError: 命名空间未注册
         """
-        # 尝试直接查找
+        # 1. 尝试直接查找
         if namespace in self._registry:
             return self._registry[namespace]
         
-        # 尝试动态导入
+        # 2. 尝试添加常见前缀
+        prefixes = ['learner.', 'trainer.', 'aggregator.', 'model.', 'dataset.', 'callback.']
+        for prefix in prefixes:
+            full_namespace = prefix + namespace
+            if full_namespace in self._registry:
+                return self._registry[full_namespace]
+        
+        # 3. 尝试动态导入
         try:
             cls = self._resolve_namespace(namespace)
             return cls

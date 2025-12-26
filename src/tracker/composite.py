@@ -7,7 +7,7 @@
 3. 将操作分发到所有后端
 """
 
-from typing import List, Dict, Any, Optional
+from typing import List, Dict, Any, Optional, Union
 from .base import Tracker
 from ..infra import get_module_logger
 from ..core.types import TrainResult, EvalResult, ClientUpdate, RoundResult, RoundMetrics
@@ -29,16 +29,16 @@ class CompositeTracker(Tracker):
         trackers = [mlflow_tracker, tensorboard_tracker]
         composite = CompositeTracker(trackers)
 
-    使用方式2：从配置创建（推荐）
-        config = {
-            "enabled": True,
-            "backends": [
+    使用方式2：从 TrackerConfig 创建（推荐）
+        from config import TrackerConfig
+        tracker_config = TrackerConfig(
+            enabled=True,
+            backends=[
                 {"type": "mlflow", "args": {"tracking_uri": "..."}},
-                {"type": "tensorboard", "args": {"log_dir": "..."}},
             ]
-        }
+        )
         composite = CompositeTracker.from_config(
-            config,
+            tracker_config,
             node_id="trainer",
             is_trainer=True
         )
@@ -57,7 +57,7 @@ class CompositeTracker(Tracker):
     @classmethod
     def from_config(
         cls,
-        tracker_config: Dict[str, Any],
+        tracker_config: Union["TrackerConfig", Dict[str, Any]],
         node_id: str,
         is_trainer: bool = False,
     ) -> Optional["CompositeTracker"]:
@@ -65,7 +65,7 @@ class CompositeTracker(Tracker):
         从配置创建 CompositeTracker
 
         Args:
-            tracker_config: Tracker 配置字典
+            tracker_config: TrackerConfig 实例或配置字典（向后兼容）
             node_id: 节点 ID
             is_trainer: 是否是 Trainer 节点
 
@@ -73,22 +73,30 @@ class CompositeTracker(Tracker):
             CompositeTracker 实例或 None
 
         Example:
-            config = {
-                "enabled": True,
-                "backends": [
-                    {"type": "mlflow", "args": {...}},
-                    {"type": "tensorboard", "args": {...}},
-                ]
-            }
+            # 方式1：使用 TrackerConfig（推荐）
+            from config import TrackerConfig
+            tracker_config = TrackerConfig(enabled=True, backends=[...])
+            tracker = CompositeTracker.from_config(tracker_config, "trainer", is_trainer=True)
+            
+            # 方式2：使用字典（向后兼容）
+            config = {"enabled": True, "backends": [...]}
             tracker = CompositeTracker.from_config(config, "trainer", is_trainer=True)
         """
+        # 处理 TrackerConfig 类型
+        if hasattr(tracker_config, 'enabled'):
+            # TrackerConfig 对象
+            enabled = tracker_config.enabled
+            backends = tracker_config.get_backends() if hasattr(tracker_config, 'get_backends') else []
+        else:
+            # 字典格式（向后兼容）
+            enabled = tracker_config.get("enabled", True)
+            backends = tracker_config.get("backends", [{"type": "file"}])
+        
         # 检查是否启用
-        if not tracker_config.get("enabled", True):
+        if not enabled:
             logger.debug("Tracker is disabled")
             return None
 
-        # 获取后端配置
-        backends = tracker_config.get("backends", [{"type": "file"}])
         logger.debug(f"Tracker backends: {backends}")
 
         # 创建所有后端

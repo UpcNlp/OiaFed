@@ -1,0 +1,86 @@
+# ============================================================
+# OiaFed 基础配置模板
+# 
+# 包含与具体论文/算法无关的通用配置
+# 
+# 使用方式：
+#   oiafed run --paper fedavg -n 10                    # 自动加载此文件
+#   oiafed run --paper fedavg -n 10 --config base.yaml # 显式指定
+#   
+# 配置优先级（从低到高）：
+#   1. --paper 论文默认配置
+#   2. --config 配置文件
+#   3. 命令行参数 (--rounds, --lr 等)
+# ============================================================
+
+# ==================== 实验信息 ====================
+exp_name: default
+# run_name: auto  # 留空则自动生成时间戳
+
+# ==================== 路径配置 ====================
+data_dir: ./data
+output_dir: ./outputs
+log_dir: ./logs
+
+# ==================== 运行模式 ====================
+# serial: 单进程串行，调试用
+# parallel: 多进程并行，本地实验（默认）
+mode: parallel
+
+# ==================== 日志配置 ====================
+logging:
+  level: INFO           # DEBUG / INFO / WARNING / ERROR
+  console: true
+  file: false
+
+# ==================== 追踪配置 ====================
+tracker:
+  enabled: true
+  backends:
+    - type: mlflow
+      tracking_uri: ./mlruns
+      # experiment_name: 自动使用 exp_name
+    
+    # - type: wandb
+    #   project: oiafed
+    #   entity: your_entity
+    
+    # - type: tensorboard
+    #   log_dir: ./tb_logs
+
+# ==================== 网络配置 (parallel 模式) ====================
+network:
+  trainer_port: 50051
+  learner_base_port: 50052  # 自动分配: 50052, 50053, ...
+  auto_find_port: true      # 端口冲突时自动寻找可用端口
+
+# ==================== 随机种子 ====================
+seed: 42
+
+# ==================== 数据划分配置 ====================
+# 以下会覆盖论文默认的数据划分策略
+# dataset:
+#   partition:
+#     strategy: dirichlet   # iid / dirichlet / pathological
+#     alpha: 0.5            # Dirichlet 参数，越小越异构
+
+# ==================== 覆盖论文默认参数（可选）====================
+# 取消注释并修改以覆盖论文默认值
+
+# trainer:
+#   num_rounds: 100
+#   local_epochs: 5
+#   eval_interval: 10
+#   client_fraction: 1.0
+
+# learner:
+#   learning_rate: 0.01
+#   batch_size: 64
+#   momentum: 0.9
+#   weight_decay: 0.0005
+
+# aggregator:
+#   weighted: true
+
+# model:
+#   num_classes: 10

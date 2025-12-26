@@ -110,7 +110,10 @@ from .tracker import (
     MLflowTracker,
     CompositeTracker,
 )
-
+# 导入以触发注册
+from .callback import builtin as callbacks
+from .callback import tracker_sync  # 新增
+from .tracker import mlflow_tracker
 # 数据
 from .data import (
     DataProvider,
