@@ -359,6 +359,9 @@ class ConfigManager:
                 "compression": config.logging.compression,
                 "format": config.logging.format,
                 "diagnose": config.logging.diagnose,
+                "log_dir": config.logging.log_dir,
+                "exp_name": config.logging.exp_name,
+                "run_name": config.logging.run_name,
             }
         
         # 追踪配置
@@ -606,14 +609,43 @@ class ConfigManager:
     # ==================== 解析方法 ====================
     
     def _parse_global_config(self, data: Dict[str, Any]) -> GlobalConfig:
-        """解析全局配置"""
+        """解析全局配置
+        
+        支持多种配置格式（按优先级）：
+        1. global.exp_name / global.run_name
+        2. 根级别 exp_name / run_name
+        3. logging.exp_name / logging.run_name
+        """
         # 支持 "global" 和 "global_" 两种键名（后者用于 Python 关键字规避）
         global_data = data.get("global", data.get("global_", {}))
+        logging_data = data.get("logging", {})
+        
+        # 按优先级获取 exp_name: global > 根级别 > logging
+        exp_name = (
+            global_data.get("exp_name") or 
+            data.get("exp_name") or 
+            logging_data.get("exp_name") or 
+            "default"
+        )
+        
+        # 按优先级获取 run_name: global > 根级别 > logging
+        run_name = (
+            global_data.get("run_name") or 
+            data.get("run_name") or 
+            logging_data.get("run_name")
+        )
+        
+        # 按优先级获取 log_dir: global > logging > 默认
+        log_dir = (
+            global_data.get("log_dir") or 
+            logging_data.get("log_dir") or 
+            "./logs"
+        )
         
         return GlobalConfig(
-            exp_name=global_data.get("exp_name", "default"),
-            run_name=global_data.get("run_name"),
-            log_dir=global_data.get("log_dir", "./logs"),
+            exp_name=exp_name,
+            run_name=run_name,
+            log_dir=log_dir,
         )
     
     def _parse_log_config(self, data: Dict[str, Any]) -> LogConfig:
@@ -630,6 +662,10 @@ class ConfigManager:
             compression=data.get("compression", "zip"),
             format=data.get("format", LogConfig.format),
             diagnose=data.get("diagnose", False),
+            # 添加实验相关字段
+            log_dir=data.get("log_dir", "./logs"),
+            exp_name=data.get("exp_name"),
+            run_name=data.get("run_name"),
         )
     
     def _parse_tracker_config(

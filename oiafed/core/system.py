@@ -7,10 +7,12 @@
 - 延迟连接：initialize() 不阻塞，连接在 run() 入口建立
 - 支持多种运行模式：本地串行、本地并行、分布式
 - 只使用配置类，不使用字典操作
+- 运行时信息同步：Trainer 生成统一的 run_name，Learner 连接后同步
 """
 
 import asyncio
 import sys
+from datetime import datetime
 from typing import Any, Dict, List, Optional
 
 from ..config import (
@@ -25,7 +27,7 @@ from .node import Node
 from ..registry import registry
 from ..callback import CallbackManager
 from ..tracker import CompositeTracker
-from ..infra.logging import setup_logging, get_logger
+from ..infra.logging import setup_logging, get_logger, cleanup_logging
 
 
 class FederatedSystem:
@@ -87,6 +89,12 @@ class FederatedSystem:
 
         # Shutdown 状态
         self._shutdown_event: Optional[asyncio.Event] = None
+        
+        # ===== 运行时信息（用于分布式同步）=====
+        # Trainer 会生成这些信息，Learner 会在连接后同步获取
+        self._runtime_run_name: Optional[str] = None
+        self._runtime_mlflow_run_id: Optional[str] = None
+        self._runtime_synced: bool = False  # Learner 是否已同步
 
     # ========== 属性访问器 ==========
 
@@ -141,12 +149,17 @@ class FederatedSystem:
         2. 创建并启动 Node
         3. 初始化基础设施（Tracker/Callbacks）
         4. 初始化 Learner 组件并 bind
+        5. [Trainer] 注册运行时信息同步方法
         """
         try:
             if self._initialized:
                 if self.sys_logger:
                     self.sys_logger.warning(f"系统已初始化: {self.node_id}")
                 return
+
+            # 0. [Trainer] 生成统一的 run_name
+            if self._config.is_trainer():
+                self._generate_runtime_info()
 
             # 1. 初始化日志系统
             self._setup_logging()
@@ -181,6 +194,10 @@ class FederatedSystem:
                 self.sys_logger.debug("初始化 Learner 组件")
                 await self._initialize_learner()
 
+            # 7. [Trainer] 注册运行时信息同步方法
+            if self._config.is_trainer():
+                self._register_runtime_sync_handler()
+
             self._initialized = True
             self.sys_logger.info(f"联邦学习系统初始化完成: node_id={self.node_id}")
 
@@ -207,18 +224,22 @@ class FederatedSystem:
             # 1. 确保连接已建立
             await self._ensure_connected()
 
-            # 2. 初始化 Trainer（需要连接信息）
+            # 2. [Learner] 同步运行时信息（从 Trainer 获取 run_name 和 mlflow_run_id）
+            if self._config.is_learner() and not self._config.is_trainer():
+                await self._sync_runtime_info_from_trainer()
+
+            # 3. 初始化 Trainer（需要连接信息）
             if self._config.trainer and self.trainer is None:
                 self.sys_logger.info(f"[{self.node_id}] 开始初始化 Trainer")
                 await self._initialize_trainer()
                 self.sys_logger.info(f"[{self.node_id}] Trainer 初始化完成")
 
-            # 3. 触发系统启动钩子
+            # 4. 触发系统启动钩子
             if self.callbacks:
                 self.sys_logger.debug(f"[{self.node_id}] 触发系统启动钩子")
                 await self.callbacks.on_system_start(self)
 
-            # 4. 运行主逻辑
+            # 5. 运行主逻辑
             if self.trainer:
                 return await self._run_as_trainer()
             else:
@@ -592,6 +613,160 @@ class FederatedSystem:
             "initialized": self._initialized,
             "connected": self._connected,
         }
+
+    # ========== 运行时信息同步 ==========
+
+    def _generate_runtime_info(self) -> None:
+        """
+        [Trainer] 生成运行时信息
+        
+        在 Trainer 初始化时调用，生成统一的 run_name。
+        这个 run_name 会通过 RPC 同步给所有 Learner。
+        """
+        # 使用配置中的 run_name，如果没有则生成
+        if self._config.logging and self._config.logging.run_name:
+            self._runtime_run_name = self._config.logging.run_name
+        else:
+            self._runtime_run_name = datetime.now().strftime("%Y%m%d_%H%M%S")
+        
+        # 更新配置中的 logging.run_name（确保日志系统使用统一的值）
+        if self._config.logging:
+            # LogConfig 是 dataclass，需要通过 object.__setattr__ 修改
+            object.__setattr__(self._config.logging, 'run_name', self._runtime_run_name)
+
+    def _register_runtime_sync_handler(self) -> None:
+        """
+        [Trainer] 注册运行时信息同步 RPC 方法
+        
+        Learner 连接后会调用此方法获取运行时信息。
+        """
+        async def handle_sync_runtime_info(
+            payload: Dict[str, Any],
+            ctx: Any,
+        ) -> Dict[str, Any]:
+            """处理运行时信息同步请求"""
+            self.sys_logger.debug(f"收到运行时信息同步请求: from={ctx.source}")
+            
+            # 调用可覆盖的钩子方法
+            result = self.get_sync_info()
+            
+            self.sys_logger.info(f"同步运行时信息到 {ctx.source}: {result}")
+            return result
+        
+        self.node.register("_sync_runtime_info", handle_sync_runtime_info)
+        self.sys_logger.debug("已注册运行时信息同步方法: _sync_runtime_info")
+
+    def get_sync_info(self) -> Dict[str, Any]:
+        """
+        [Trainer] 获取要同步给 Learner 的运行时信息
+        
+        子类可覆盖此方法添加自定义同步信息。
+        
+        Returns:
+            包含运行时信息的字典
+            
+        Example:
+            class MySystem(FederatedSystem):
+                def get_sync_info(self) -> Dict[str, Any]:
+                    info = super().get_sync_info()
+                    info["global_seed"] = 42
+                    info["custom_config"] = {"key": "value"}
+                    return info
+        """
+        info = {
+            "exp_name": self.exp_name,
+            "run_name": self._runtime_run_name,
+        }
+        
+        # 如果有 MLflow Tracker，添加 run_id
+        if self.tracker:
+            for backend in getattr(self.tracker, 'trackers', []):
+                if hasattr(backend, 'get_sync_info'):
+                    info.update(backend.get_sync_info())
+                    break
+        
+        return info
+
+    async def _sync_runtime_info_from_trainer(self) -> None:
+        """
+        [Learner] 从 Trainer 同步运行时信息
+        
+        获取 Trainer 的 run_name 和 mlflow_run_id 等信息。
+        """
+        if self._runtime_synced:
+            return
+        
+        # 获取 Trainer 节点 ID
+        trainer_id = None
+        if self._config.connect_to:
+            for addr in self._config.connect_to:
+                if '@' in addr:
+                    trainer_id = addr.split('@')[0]
+                    break
+                else:
+                    trainer_id = addr
+                    break
+        
+        if not trainer_id:
+            self.sys_logger.warning("无法确定 Trainer 节点 ID，跳过运行时信息同步")
+            return
+        
+        try:
+            self.sys_logger.info(f"从 Trainer ({trainer_id}) 同步运行时信息...")
+            
+            # 调用 Trainer 的同步方法
+            result = await self.node.call(
+                trainer_id,
+                "_sync_runtime_info",
+                {},
+                timeout=10.0,
+            )
+            
+            if result:
+                self._runtime_run_name = result.get("run_name")
+                self._runtime_mlflow_run_id = result.get("mlflow_run_id")
+                
+                self.sys_logger.info(
+                    f"运行时信息同步成功: "
+                    f"run_name={self._runtime_run_name}, "
+                    f"mlflow_run_id={self._runtime_mlflow_run_id}"
+                )
+                
+                # 调用可覆盖的钩子方法处理同步信息
+                self.on_sync_info(result)
+                
+                self._runtime_synced = True
+            else:
+                self.sys_logger.warning("运行时信息同步返回空结果")
+                
+        except Exception as e:
+            self.sys_logger.warning(f"运行时信息同步失败: {e}")
+            # 不抛出异常，允许继续运行（使用本地配置）
+
+    def on_sync_info(self, info: Dict[str, Any]) -> None:
+        """
+        [Learner] 处理从 Trainer 同步的运行时信息
+        
+        子类可覆盖此方法处理自定义同步信息。
+        
+        Args:
+            info: 从 Trainer 同步的信息字典
+            
+        Example:
+            class MySystem(FederatedSystem):
+                def on_sync_info(self, info: Dict[str, Any]) -> None:
+                    super().on_sync_info(info)  # 先处理默认逻辑
+                    if "global_seed" in info:
+                        torch.manual_seed(info["global_seed"])
+        """
+        # 默认处理：让 MLflow Tracker 加入 Trainer 的 run
+        mlflow_run_id = info.get("mlflow_run_id")
+        if mlflow_run_id and self.tracker:
+            for backend in getattr(self.tracker, 'trackers', []):
+                if hasattr(backend, 'join_run'):
+                    backend.join_run(mlflow_run_id)
+                    self.sys_logger.info(f"MLflow Tracker 已加入 run: {mlflow_run_id}")
+                    break
 
     def __repr__(self) -> str:
         """字符串表示"""

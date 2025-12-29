@@ -47,12 +47,13 @@ class AutoLogger:
         """
         Args:
             log_config: LogConfig 日志配置对象
-            experiment_date: 实验日期标识（自动生成时间戳，可选）
+            experiment_date: 实验日期标识（向后兼容，优先使用 log_config.run_name）
         """
         self.log_config = log_config
         self.base_path = Path(log_config.log_dir)
         self.experiment_name = log_config.exp_name or "default"
-        self.timestamp = experiment_date or datetime.now().strftime("%Y%m%d_%H%M%S")
+        # 优先使用 log_config.run_name，其次是 experiment_date 参数，最后自动生成
+        self.timestamp = log_config.run_name or experiment_date or datetime.now().strftime("%Y%m%d_%H%M%S")
 
         # 从 LogConfig 构建配置字典（用于内部逻辑）
         self.config = {

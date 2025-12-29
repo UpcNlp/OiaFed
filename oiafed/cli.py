@@ -546,21 +546,61 @@ def _run_from_paper(args: argparse.Namespace, config_file: Optional[Path]) -> in
         )
         
         if args.dry_run:
+            # 计算 exp_name 和划分信息用于显示
+            dataset_type = paper.get_component("dataset") or "cifar10"
+            dataset_config = merged.get("dataset", {})
+            partition_config = dataset_config.get("partition", {})
+            partition_strategy = partition_config.get("strategy", "dirichlet")
+            
+            if "exp_name" in file_config:
+                exp_name = file_config["exp_name"]
+            else:
+                exp_name = _generate_exp_name(
+                    algorithm=paper.id,
+                    dataset=dataset_type,
+                    partition_strategy=partition_strategy,
+                    partition_config=partition_config,
+                )
+            
             print(f"\n[Dry Run] 论文: {paper.name}")
             print(f"{'=' * 50}")
+            print(f"  实验名称: {exp_name}")
             print(f"  客户端数: {args.num_clients}")
             print(f"  运行模式: {mode}")
             print(f"  配置目录: {temp_dir}")
+            print(f"")
+            print(f"  数据集配置:")
+            print(f"    - 数据集: {dataset_type}")
+            print(f"    - 划分策略: {partition_strategy}")
+            if partition_strategy == "dirichlet":
+                print(f"    - alpha: {partition_config.get('alpha', 0.5)}")
+            elif partition_strategy == "label_skew":
+                print(f"    - num_labels_per_client: {partition_config.get('num_labels_per_client', 2)}")
             print(f"")
             print(f"  组件:")
             for comp_type, comp_name in paper.components.items():
                 print(f"    - {comp_type}: {comp_name}")
             print(f"")
-            print(f"  主要参数:")
+            print(f"  训练参数:")
             print(f"    - rounds: {merged.get('trainer', {}).get('num_rounds', 'N/A')}")
             print(f"    - local_epochs: {merged.get('trainer', {}).get('local_epochs', 'N/A')}")
             print(f"    - learning_rate: {merged.get('learner', {}).get('learning_rate', 'N/A')}")
             print(f"    - batch_size: {merged.get('learner', {}).get('batch_size', 'N/A')}")
+            print(f"")
+            # 显示 tracker 配置
+            tracker_config = merged.get("tracker", {})
+            if tracker_config.get("enabled", False) or tracker_config.get("backends"):
+                print(f"  实验追踪:")
+                for backend in tracker_config.get("backends", []):
+                    backend_type = backend.get("type", "unknown")
+                    print(f"    - {backend_type}")
+                    if backend_type == "mlflow":
+                        args_dict = backend.get("args", {})
+                        if args_dict.get("tracking_uri"):
+                            print(f"      tracking_uri: {args_dict['tracking_uri']}")
+                        if args_dict.get("experiment_name"):
+                            print(f"      experiment_name: {args_dict['experiment_name']}")
+                print(f"")
             print(f"{'=' * 50}")
             
             if args.save_config:
@@ -568,7 +608,24 @@ def _run_from_paper(args: argparse.Namespace, config_file: Optional[Path]) -> in
             return 0
         
         # 运行实验
+        # 计算 exp_name 用于显示
+        dataset_type = paper.get_component("dataset") or "cifar10"
+        dataset_config = merged.get("dataset", {})
+        partition_config = dataset_config.get("partition", {})
+        partition_strategy = partition_config.get("strategy", "dirichlet")
+        
+        if "exp_name" in file_config:
+            exp_name = file_config["exp_name"]
+        else:
+            exp_name = _generate_exp_name(
+                algorithm=paper.id,
+                dataset=dataset_type,
+                partition_strategy=partition_strategy,
+                partition_config=partition_config,
+            )
+        
         print(f"\n运行论文实验: {paper.name}")
+        print(f"  实验名称: {exp_name}")
         print(f"  客户端数: {args.num_clients}")
         print(f"  运行模式: {mode}")
         print(f"{'=' * 50}")
@@ -613,14 +670,42 @@ def _generate_paper_configs(
     learner_base_port = network_config.get("learner_base_port", 50052)
     auto_find_port = network_config.get("auto_find_port", True)
     
-    # 获取通用配置
-    exp_name = file_config.get("exp_name", f"{paper.id}_exp")
-    data_dir = merged_config.get("dataset", {}).get("data_dir", "./data")
+    # 获取数据集和划分配置
+    dataset_type = paper.get_component("dataset") or "cifar10"
+    dataset_config = merged_config.get("dataset", {})
+    partition_config = dataset_config.get("partition", {})
+    partition_strategy = partition_config.get("strategy", "dirichlet")
+    
+    # 生成 exp_name: {algorithm}_{dataset}_{partition}
+    # 如果用户显式指定了 exp_name，则使用用户指定的
+    if "exp_name" in file_config:
+        exp_name = file_config["exp_name"]
+    else:
+        exp_name = _generate_exp_name(
+            algorithm=paper.id,
+            dataset=dataset_type,
+            partition_strategy=partition_strategy,
+            partition_config=partition_config,
+        )
+    
+    data_dir = dataset_config.get("data_dir", "./data")
     seed = merged_config.get("seed", 42)
     
-    # 日志和追踪配置
-    logging_config = file_config.get("logging", {"level": "INFO", "console": True})
-    tracker_config = file_config.get("tracker", {})
+    # 生成统一的 run_name（时间戳），确保所有节点使用相同的值
+    from datetime import datetime
+    run_name = file_config.get("run_name") or datetime.now().strftime("%Y%m%d_%H%M%S")
+    
+    # 日志和追踪配置（深度合并）
+    # 确保 exp_name 和 run_name 传递到 logging 配置
+    logging_config = merged_config.get("logging", {})
+    logging_config = {
+        "level": logging_config.get("level", "INFO"),
+        "console": logging_config.get("console", True),
+        "exp_name": exp_name,      # 使用生成的实验名称
+        "run_name": run_name,      # 使用统一的运行名称
+        **{k: v for k, v in logging_config.items() if k not in ["level", "console", "exp_name", "run_name"]},
+    }
+    tracker_config = merged_config.get("tracker", {})
     
     # 如果需要，查找可用端口
     if mode == "parallel" and auto_find_port:
@@ -650,7 +735,7 @@ def _generate_paper_configs(
         },
         
         "model": {
-            "type": paper.get_component("model") or "cifar10_cnn",
+            "type": paper.get_component("model") or "cnn",
             "args": merged_config.get("model", {}),
         },
         
@@ -666,9 +751,9 @@ def _generate_paper_configs(
         yaml.dump(trainer_config, f, default_flow_style=False, allow_unicode=True)
     
     # ===== 生成 Learner 配置 =====
-    dataset_type = paper.get_component("dataset") or "cifar10"
-    dataset_config = merged_config.get("dataset", {})
-    partition_config = dataset_config.pop("partition", {})
+    # 注意：dataset_type 和 partition_config 已在上面获取
+    # 这里需要复制 dataset_config 以避免修改原始配置
+    dataset_config_copy = {k: v for k, v in dataset_config.items() if k != "partition"}
     
     for i in range(num_clients):
         learner_port = learner_base_port + i
@@ -692,7 +777,7 @@ def _generate_paper_configs(
             },
             
             "model": {
-                "type": paper.get_component("model") or "cifar10_cnn",
+                "type": paper.get_component("model") or "cnn",
                 "args": merged_config.get("model", {}),
             },
             
@@ -703,10 +788,10 @@ def _generate_paper_configs(
                     "args": {
                         "data_dir": data_dir,
                         "download": True,
-                        **{k: v for k, v in dataset_config.items() if k not in ["data_dir", "download"]},
+                        **{k: v for k, v in dataset_config_copy.items() if k not in ["data_dir", "download"]},
                     },
                     "partition": {
-                        "strategy": partition_config.get("strategy", "dirichlet"),
+                        "strategy": partition_strategy,
                         "num_partitions": num_clients,
                         "partition_id": i,
                         "seed": seed,
@@ -746,6 +831,54 @@ def _find_available_port(start_port: int, max_attempts: int = 100) -> int:
     
     # 如果找不到，返回原端口（让后续程序报错）
     return start_port
+
+
+def _generate_exp_name(
+    algorithm: str,
+    dataset: str,
+    partition_strategy: str,
+    partition_config: dict,
+) -> str:
+    """
+    自动生成实验名称
+    
+    格式: {algorithm}_{dataset}_{partition}
+    
+    示例:
+    - fedavg_cifar10_iid
+    - fedavg_cifar10_dir_0.5
+    - moon_mnist_label_skew_3
+    - scaffold_cifar100_quantity_skew_0.8
+    
+    Args:
+        algorithm: 算法名称 (paper.id)
+        dataset: 数据集名称
+        partition_strategy: 划分策略 (iid, dirichlet, label_skew, quantity_skew)
+        partition_config: 划分配置字典
+        
+    Returns:
+        生成的实验名称
+    """
+    # 基础名称
+    parts = [algorithm, dataset]
+    
+    # 根据划分策略添加后缀
+    if partition_strategy == "iid":
+        parts.append("iid")
+    elif partition_strategy == "dirichlet":
+        alpha = partition_config.get("alpha", 0.5)
+        parts.append(f"dir_{alpha}")
+    elif partition_strategy == "label_skew":
+        num_labels = partition_config.get("num_labels_per_client", 2)
+        parts.append(f"label_skew_{num_labels}")
+    elif partition_strategy == "quantity_skew":
+        imbalance = partition_config.get("imbalance_ratio", 0.5)
+        parts.append(f"quantity_skew_{imbalance}")
+    else:
+        # 未知策略，直接使用策略名
+        parts.append(partition_strategy)
+    
+    return "_".join(parts)
 
 
 def _deep_merge(base: dict, override: dict) -> dict:
