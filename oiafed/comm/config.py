@@ -134,7 +134,7 @@ class NodeConfig:
     debug: bool = False                          # 调试模式
 
     # 超时配置
-    default_timeout: float = 30.0                # 默认调用超时（秒）
+    default_timeout: float = 300.0                # 默认调用超时（秒）
 
     # 网络地址
     advertised_address: Optional[str] = None     # 对外公布的地址（NAT/容器环境）
@@ -300,7 +300,7 @@ def load_config(path: str) -> NodeConfig:
     return NodeConfig(
         node_id=data.get("node_id", ""),
         debug=data.get("debug", False),
-        default_timeout=data.get("default_timeout", 30.0),
+        default_timeout=data.get("default_timeout", 300.0),
         advertised_address=data.get("advertised_address"),
         transport=_parse_transport_config(data.get("transport", {})),
         serialization=_parse_serialization_config(data.get("serialization", {})),

@@ -99,19 +99,18 @@ class GrpcTransport(Transport):
         self._channels: Dict[str, grpc_aio.Channel] = {}
         self._stubs: Dict[str, pb2_grpc.NodeServiceStub] = {}
         self._running = False
-
-        # 双线程相关
-        self._dual_thread_enabled = self.config.dual_thread_enabled
-        self._control_thread: Optional[threading.Thread] = None
-        self._control_loop: Optional[asyncio.AbstractEventLoop] = None
-        self._control_running = False
-        self._control_stop_event: Optional[asyncio.Event] = None  # 控制线程的停止信号
+        
+        # 保存节点地址（用于重连）
+        self._peer_addresses: Dict[str, str] = {}
+        
+        # Channel 状态监控任务
+        self._channel_watchers: Dict[str, asyncio.Task] = {}
 
         # 共享状态（线程安全）
         self._state_lock = threading.RLock()
         self._shared_state = {
-            "last_heartbeat": {},    # {node_id: timestamp}
-            "peer_status": {},       # {node_id: {"health": "healthy"/"unhealthy"}}
+            "peer_status": {},       # {node_id: grpc.ChannelConnectivity}
+            "last_heartbeat": {},    # 保留用于向后兼容
         }
 
         # 连接失败跟踪（用于自动shutdown）
@@ -135,10 +134,17 @@ class GrpcTransport(Transport):
         """启动 gRPC 服务端"""
         self.logger.debug(f"[{self.node_id}] 正在启动 gRPC 服务端")
 
-        # 设置 gRPC server 选项（消息大小限制）
+        # 设置 gRPC server 选项
         server_options = [
             ('grpc.max_send_message_length', self.config.max_message_length),
             ('grpc.max_receive_message_length', self.config.max_message_length),
+            # === gRPC 内置 HTTP/2 PING keepalive（传输层）===
+            # 允许客户端在无调用时发送 keepalive ping
+            ('grpc.keepalive_permit_without_calls', True),
+            # 允许接收频繁的 ping（最小间隔 10 秒）
+            ('grpc.http2.min_recv_ping_interval_without_data_ms', 10000),
+            # 允许无限制的 ping
+            ('grpc.http2.max_ping_strikes', 0),
         ]
         self._server = grpc_aio.server(options=server_options)
 
@@ -172,29 +178,22 @@ class GrpcTransport(Transport):
         self._running = True
         self.logger.debug(f"[{self.node_id}] gRPC 服务端已启动: {address}")
 
-        # 启动控制线程（如果启用）
-        if self._dual_thread_enabled and self.config.heartbeat_enabled:
-            self._start_control_thread()
-            self.logger.debug(f"[{self.node_id}] 双线程模式已启用（心跳独立运行）")
-        else:
-            self.logger.debug(f"[{self.node_id}] 单线程模式（兼容模式）")
-
     async def stop(self) -> None:
         """停止 gRPC 服务端并关闭所有连接"""
         self._running = False
 
-        # *** 关键修复：先清空连接表，防止心跳继续发送 ***
+        # 停止所有 channel 状态监控任务
+        for task in self._channel_watchers.values():
+            task.cancel()
+        self._channel_watchers.clear()
+
         # 保存 channels 引用用于后续关闭
         channels_to_close = list(self._channels.values())
         self._channels.clear()
         self._stubs.clear()
+        self._peer_addresses.clear()
 
-        # 停止控制线程（如果启用）
-        # 此时连接表已清空，心跳循环不会再尝试发送
-        if self._control_running:
-            self._stop_control_thread()
-
-        # 关闭所有 channel
+        # 关闭所有 channels
         for channel in channels_to_close:
             await channel.close()
 
@@ -238,10 +237,15 @@ class GrpcTransport(Transport):
             # TODO: 实现 TLS
             raise NotImplementedError("TLS not yet implemented")
         else:
-            # 设置 gRPC channel 选项
+            # 设置 gRPC channel 选项，包括内置 keepalive
             options = [
                 ('grpc.max_send_message_length', self.config.max_message_length),
                 ('grpc.max_receive_message_length', self.config.max_message_length),
+                # === gRPC 内置 HTTP/2 PING keepalive（传输层，不受应用层阻塞影响）===
+                ('grpc.keepalive_time_ms', 30000),  # 30秒发送一次 PING
+                ('grpc.keepalive_timeout_ms', 10000),  # 10秒内没收到 PONG 则断开
+                ('grpc.keepalive_permit_without_calls', True),  # 允许无调用时发送 keepalive
+                ('grpc.http2.max_pings_without_data', 0),  # 允许无限制发送 ping
             ]
             channel = grpc_aio.insecure_channel(address, options=options)
 
@@ -284,14 +288,27 @@ class GrpcTransport(Transport):
 
         self._channels[node_id] = channel
         self._stubs[node_id] = stub
+        self._peer_addresses[node_id] = address
+
+        # 启动 channel 状态监控任务
+        watcher_task = asyncio.create_task(
+            self._watch_channel_state(node_id, channel)
+        )
+        self._channel_watchers[node_id] = watcher_task
 
         await self.node._on_connect(node_id, address)
         self.logger.debug(f"[{self.node_id}] 节点 '{self.node_id}' 已连接到 '{node_id}' (地址: {address})")
     
     async def disconnect(self, node_id: str) -> None:
         """断开与目标节点的连接"""
+        # 取消 channel 状态监控任务
+        watcher = self._channel_watchers.pop(node_id, None)
+        if watcher:
+            watcher.cancel()
+        
         channel = self._channels.pop(node_id, None)
         self._stubs.pop(node_id, None)
+        self._peer_addresses.pop(node_id, None)
         
         if channel:
             await channel.close()
@@ -517,239 +534,94 @@ class GrpcTransport(Transport):
 
             raise
 
-    # ========== 控制线程实现 ==========
 
-    def _start_control_thread(self):
-        """启动控制线程"""
-        if self._control_running:
-            self.logger.warning(f"[{self.node_id}] Control thread already running")
-            return
+    # ========== Channel 状态监控 ==========
 
-        self._control_running = True
-        self._control_thread = threading.Thread(
-            target=self._run_control_loop,
-            name=f"GRPCControl-{self.node_id}",
-            daemon=True,
-        )
-        self._control_thread.start()
-        self.logger.info(f"[{self.node_id}] 控制线程已启动")
-
-    def _stop_control_thread(self):
-        """停止控制线程"""
-        if not self._control_running:
-            return
-
-        self._control_running = False
-
-        # 通过事件循环设置停止信号
-        if self._control_loop and self._control_stop_event:
-            try:
-                # 跨线程调用：在控制线程的事件循环中设置Event
-                self._control_loop.call_soon_threadsafe(
-                    self._control_stop_event.set
-                )
-            except Exception as e:
-                self.logger.debug(f"[{self.node_id}] 设置停止信号失败: {e}")
-
-        # 等待线程结束（减少超时时间到3秒）
-        if self._control_thread and self._control_thread.is_alive():
-            self._control_thread.join(timeout=3.0)
-            if self._control_thread.is_alive():
-                self.logger.warning(f"[{self.node_id}] 控制线程未在3秒内结束")
-
-        self.logger.debug(f"[{self.node_id}] 控制线程已停止")
-
-    def _run_control_loop(self):
-        """控制线程入口（在独立线程中运行）"""
-        # 创建新的事件循环
-        self._control_loop = asyncio.new_event_loop()
-        asyncio.set_event_loop(self._control_loop)
-
+    async def _watch_channel_state(self, node_id: str, channel: grpc_aio.Channel):
+        """
+        监控 channel 状态变化
+        
+        gRPC 内置 HTTP/2 PING keepalive 在传输层处理连接保活和断开检测。
+        这个方法只是监控 channel 状态，在连接断开时触发失败跟踪。
+        
+        状态说明：
+        - IDLE: 空闲（无活动 RPC）
+        - CONNECTING: 正在连接
+        - READY: 就绪
+        - TRANSIENT_FAILURE: 临时失败（会自动重试）
+        - SHUTDOWN: 已关闭
+        """
+        self.logger.debug(f"[{self.node_id}] 开始监控 channel 状态: {node_id}")
+        
         try:
-            self._control_loop.run_until_complete(self._control_main())
-        except Exception as e:
-            self.logger.error(f"[{self.node_id}] Control loop error: {e}")
-        finally:
-            self._control_loop.close()
-
-    async def _control_main(self):
-        """控制线程主逻辑"""
-        # 在控制线程的事件循环中创建停止事件
-        self._control_stop_event = asyncio.Event()
-
-        tasks = []
-
-        # 心跳任务
-        if self.config.heartbeat_enabled:
-            task = asyncio.create_task(self._heartbeat_loop())
-            tasks.append(task)
-            self.logger.debug(f"[{self.node_id}] 心跳任务已启动")
-
-        # 健康检查任务
-        task = asyncio.create_task(self._health_check_loop())
-        tasks.append(task)
-        self.logger.debug(f"[{self.node_id}] 健康检查任务已启动")
-
-        # 等待所有任务
-        try:
-            await asyncio.gather(*tasks)
-        except asyncio.CancelledError:
-            self.logger.debug(f"[{self.node_id}] Control tasks cancelled")
-        except Exception as e:
-            self.logger.exception(f"[{self.node_id}] Control tasks error: {e}")
-
-    async def _heartbeat_loop(self):
-        """心跳循环（控制线程）"""
-        interval = self.config.heartbeat_interval
-        timeout = self.config.heartbeat_timeout
-
-        self.logger.debug(f"[{self.node_id}] 心跳循环启动: interval={interval}s, timeout={timeout}s")
-
-        while True:
-            try:
-                # 使用wait_for实现可中断等待
-                await asyncio.wait_for(
-                    self._control_stop_event.wait(),
-                    timeout=interval
-                )
-                # 收到停止信号，退出循环
-                self.logger.debug(f"[{self.node_id}] 心跳循环收到停止信号")
-                break
-            except asyncio.TimeoutError:
-                # 正常超时，继续发送心跳
-                pass
-            except asyncio.CancelledError:
-                # 任务被取消
-                self.logger.info(f"[{self.node_id}] 心跳任务被取消")
-                break
-            except Exception as e:
-                self.logger.error(f"[{self.node_id}] 心跳循环异常: {e}")
-                break
-
-            # 发送心跳
-            await self._send_heartbeats()
-
-            # 检查超时
-            await self._check_heartbeat_timeout(timeout)
-
-        self.logger.debug(f"[{self.node_id}] 心跳循环已停止")
-
-    async def _send_heartbeats(self):
-        """发送心跳到所有连接的节点"""
-        # *** 关键修复：检查运行状态，避免在关闭时继续发送 ***
-        if not self._running:
-            self.logger.debug(f"[{self.node_id}] 节点已停止，跳过心跳发送")
-            return
-
-        # 获取所有连接的节点
-        connected_nodes = list(self._stubs.keys())
-        if not connected_nodes:
-            return
-
-        # 发送心跳（跨线程调用主线程的 broadcast）
-        try:
-            results = await self._async_call_main_thread(
-                self.broadcast,
-                targets=connected_nodes,
-                method="_heartbeat",
-                payload={"timestamp": time.time()},
-                timeout=self.config.heartbeat_interval,
-            )
-
-            # *** 关键修复：检查每个节点的结果，失败的节点跟踪连接失败 ***
-            if results:
-                for node_id, result in results.items():
-                    if isinstance(result, Exception):
-                        # 心跳失败，跟踪连接失败
-                        self._track_connection_failure(node_id)
-                    else:
-                        # 心跳成功，记录成功
-                        self._track_connection_success(node_id)
-
-        except Exception as e:
-            # 只在运行时记录错误，关闭时忽略
-            if self._running:
-                self.logger.debug(f"[{self.node_id}] 心跳发送失败: {e}")
-                # 如果整个调用失败，对所有节点调用 _track_connection_failure
-                for node_id in connected_nodes:
-                    self._track_connection_failure(node_id)
-
-    async def _check_heartbeat_timeout(self, timeout: float):
-        """检查心跳超时"""
-        now = time.time()
-        with self._state_lock:
-            connected_nodes = list(self._stubs.keys())
-            for node_id in connected_nodes:
-                last_time = self._shared_state["last_heartbeat"].get(node_id, now)
-                if now - last_time > timeout:
-                    self.logger.warning(
-                        f"[{self.node_id}] 心跳超时: {node_id} "
-                        f"(沉默 {now - last_time:.1f}s)"
+            last_state = channel.get_state(try_to_connect=False)
+            
+            while self._running and node_id in self._channels:
+                try:
+                    # 等待状态变化（最多等 30 秒）
+                    await asyncio.wait_for(
+                        channel.wait_for_state_change(last_state),
+                        timeout=30.0
                     )
-                    # 标记为不健康
-                    self._shared_state["peer_status"][node_id] = {"health": "unhealthy"}
-
-    async def _health_check_loop(self):
-        """健康检查循环（控制线程）"""
-        interval = self.config.heartbeat_check_interval
-
-        self.logger.info(f"[{self.node_id}] 健康检查循环启动: interval={interval}s")
-
-        while True:
-            try:
-                # 使用wait_for实现可中断等待
-                await asyncio.wait_for(
-                    self._control_stop_event.wait(),
-                    timeout=interval
-                )
-                # 收到停止信号，退出循环
-                self.logger.debug(f"[{self.node_id}] 健康检查循环收到停止信号")
-                break
-            except asyncio.TimeoutError:
-                # 正常超时，继续健康检查
-                pass
-            except asyncio.CancelledError:
-                # 任务被取消
-                self.logger.debug(f"[{self.node_id}] 健康检查任务被取消")
-                break
-            except Exception as e:
-                self.logger.error(f"[{self.node_id}] 健康检查循环异常: {e}")
-                break
-
-            # 检查节点健康状态
-            with self._state_lock:
-                for node_id, status in list(self._shared_state["peer_status"].items()):
-                    if status.get("health") == "unhealthy":
-                        self.logger.warning(f"[{self.node_id}] 检测到不健康的节点: {node_id}")
-                        # 可以触发告警、自动隔离等策略
-
-        self.logger.debug(f"[{self.node_id}] 健康检查循环已停止")
-
-    async def _async_call_main_thread(self, func, *args, **kwargs):
-        """
-        从控制线程异步调用主线程方法
-
-        使用 run_coroutine_threadsafe 跨事件循环调用
-        """
-        main_loop = self.node._main_loop  # Node 保存的主循环引用
-        if main_loop is None:
-            self.logger.error(f"[{self.node_id}] Main loop not available")
-            return None
-
-        # 在主线程的事件循环中执行协程
-        future = asyncio.run_coroutine_threadsafe(
-            func(*args, **kwargs),
-            main_loop
-        )
-
-        # 等待结果（在控制线程的事件循环中等待）
-        try:
-            # 使用 asyncio.wrap_future 将 concurrent.futures.Future 转为 asyncio.Future
-            result = await asyncio.wrap_future(future)
-            return result
+                except asyncio.TimeoutError:
+                    # 超时只是继续检查，不是错误
+                    pass
+                except asyncio.CancelledError:
+                    break
+                
+                # 检查节点是否还在连接列表中
+                if node_id not in self._channels:
+                    break
+                
+                # 获取新状态
+                new_state = channel.get_state(try_to_connect=False)
+                
+                if new_state != last_state:
+                    self.logger.debug(
+                        f"[{self.node_id}] Channel {node_id} 状态变化: "
+                        f"{last_state.name} -> {new_state.name}"
+                    )
+                    
+                    # 更新共享状态（转换为上层期望的格式）
+                    health = "unknown"
+                    if new_state == grpc.ChannelConnectivity.READY:
+                        health = "healthy"
+                    elif new_state in (grpc.ChannelConnectivity.TRANSIENT_FAILURE, 
+                                       grpc.ChannelConnectivity.SHUTDOWN):
+                        health = "unhealthy"
+                    elif new_state == grpc.ChannelConnectivity.CONNECTING:
+                        health = "connecting"
+                    elif new_state == grpc.ChannelConnectivity.IDLE:
+                        health = "idle"
+                    
+                    with self._state_lock:
+                        self._shared_state["peer_status"][node_id] = {
+                            "health": health,
+                            "state": new_state.name,
+                        }
+                    
+                    # 处理状态变化
+                    if new_state == grpc.ChannelConnectivity.READY:
+                        # 连接就绪，重置失败跟踪
+                        self._track_connection_success(node_id)
+                    elif new_state == grpc.ChannelConnectivity.TRANSIENT_FAILURE:
+                        # 临时失败，gRPC 会自动重试
+                        # 只触发失败跟踪，让 shutdown 逻辑判断是否需要退出
+                        self._track_connection_failure(node_id)
+                    elif new_state == grpc.ChannelConnectivity.SHUTDOWN:
+                        # Channel 已关闭
+                        self.logger.warning(f"[{self.node_id}] Channel {node_id} 已关闭")
+                        self._track_connection_failure(node_id)
+                        break
+                    
+                    last_state = new_state
+                    
+        except asyncio.CancelledError:
+            pass
         except Exception as e:
-            self.logger.error(f"[{self.node_id}] Call main thread error: {e}")
-            return None
+            self.logger.error(f"[{self.node_id}] Channel 监控异常 {node_id}: {e}")
+        
+        self.logger.debug(f"[{self.node_id}] 停止监控 channel 状态: {node_id}")
 
     # ========== 连接失败跟踪和自动shutdown ==========
 
