@@ -33,13 +33,13 @@ jobs:
           pip install black isort flake8 mypy
 
       - name: Check formatting with black
-        run: black --check --diff src/
+        run: black --check --diff oiafed/
 
       - name: Check imports with isort
-        run: isort --check-only --diff src/
+        run: isort --check-only --diff oiafed/
 
       - name: Lint with flake8
-        run: flake8 src/ --max-line-length=100 --ignore=E501,W503,E203
+        run: flake8 oiafed/ --max-line-length=100 --ignore=E501,W503,E203
 
   # 多版本测试
   test:

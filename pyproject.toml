@@ -4,13 +4,16 @@ build-backend = "hatchling.build"
 
 [project]
 name = "oiafed"
-version = "0.1.0"
+dynamic = ["version"]
 description = "OiaFed: One Framework for All Federation - A unified, modular, and extensible federated learning framework supporting all federation scenarios"
 readme = "README.md"
 requires-python = ">=3.10"
 license = {text = "MIT"}
 authors = [
-    {name = "OiaFed Team"}
+    {name = "OiaFed Team", email = "contact@oiafed.com"}
+]
+maintainers = [
+    {name = "OiaFed Team", email = "contact@oiafed.com"}
 ]
 keywords = [
     "federated-learning",
@@ -19,6 +22,7 @@ keywords = [
     "distributed-computing",
     "continual-learning",
     "personalized-federated-learning",
+    "privacy-preserving",
 ]
 classifiers = [
     "Development Status :: 4 - Beta",
@@ -43,14 +47,26 @@ Issues = "https://github.com/oiafed/oiafed/issues"
 Changelog = "https://github.com/oiafed/oiafed/blob/main/CHANGELOG.md"
 
 [project.scripts]
-# 命令行入口点
 oiafed = "oiafed.cli:main"
 
 [project.optional-dependencies]
-# MLflow 实验追踪（可选）
-mlflow = [
-    "mlflow>=2.0.0",
+mlflow = ["mlflow>=2.0.0"]
+dev = [
+    "pytest>=7.0.0",
+    "pytest-asyncio>=0.20.0",
+    "pytest-html>=3.2.0",
+    "pytest-cov>=4.0.0",
+    "black>=22.0.0",
+    "isort>=5.10.0",
+    "mypy>=0.990",
+    "flake8>=5.0.0",
 ]
+docs = [
+    "sphinx>=5.0.0",
+    "sphinx-rtd-theme>=1.0.0",
+    "myst-parser>=0.18.0",
+]
+all = ["oiafed[mlflow,dev,docs]"]
 
 dependencies = [
     # === 深度学习框架 ===
@@ -86,23 +102,36 @@ dependencies = [
     "openpyxl>=3.0.0",
 ]
 
-[tool.hatch.build.targets.wheel]
-packages = ["src"]
+# ==================== 构建配置 ====================
+[tool.hatch.version]
+path = "oiafed/__init__.py"
 
-[tool.hatch.build.targets.wheel.sources]
-# 将 src 目录映射为 oiafed 包
-"src" = "oiafed"
-
-[dependency-groups]
-dev = [
-    "pytest>=7.0.0",
-    "pytest-asyncio>=0.20.0",
-    "pytest-html>=3.2.0",
-    "black>=22.0.0",
-    "isort>=5.10.0",
-    "mypy>=0.990",
+[tool.hatch.build.targets.sdist]
+include = [
+    "/oiafed",
+    "/configs",
+    "/README.md",
+    "/README_EN.md", 
+    "/LICENSE",
+    "/CHANGELOG.md",
+]
+exclude = [
+    "/.github",
+    "/tests",
+    "/examples",
+    "/docs",
+    "/.git",
+    "__pycache__",
+    "*.pyc",
+    "*.pyo",
+    ".pytest_cache",
+    ".mypy_cache",
 ]
 
+[tool.hatch.build.targets.wheel]
+packages = ["oiafed"]
+
+# ==================== 工具配置 ====================
 [tool.black]
 line-length = 100
 target-version = ["py310", "py311", "py312"]
@@ -126,7 +155,7 @@ exclude = '''
 profile = "black"
 line_length = 100
 skip_gitignore = true
-known_first_party = ["src", "oiafed"]
+known_first_party = ["oiafed"]
 
 [tool.mypy]
 python_version = "3.10"
@@ -144,4 +173,16 @@ addopts = "-v --tb=short"
 filterwarnings = [
     "ignore::DeprecationWarning",
     "ignore::FutureWarning",
+]
+
+[tool.coverage.run]
+source = ["oiafed"]
+omit = ["*/tests/*", "*/__pycache__/*"]
+
+[tool.coverage.report]
+exclude_lines = [
+    "pragma: no cover",
+    "def __repr__",
+    "raise NotImplementedError",
+    "if TYPE_CHECKING:",
 ]

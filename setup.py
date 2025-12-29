@@ -15,7 +15,7 @@ long_description = (this_directory / "README.md").read_text(encoding="utf-8")
 
 # 读取版本号
 def get_version():
-    version_file = this_directory / "src" / "__init__.py"
+    version_file = this_directory / "oiafed" / "__init__.py"
     for line in version_file.read_text().splitlines():
         if line.startswith("__version__"):
             return line.split('"')[1]
@@ -92,7 +92,7 @@ setup(
     name="oiafed",
     version=get_version(),
     author="OiaFed Team",
-    author_email="contact@oiafed.cn",
+    author_email="contact@oiafed.com",
     description="OiaFed: One Framework for All Federation - A unified federated learning framework",
     long_description=long_description,
     long_description_content_type="text/markdown",
@@ -108,7 +108,6 @@ setup(
     
     # 包配置
     packages=find_packages(exclude=["tests", "tests.*", "examples", "docs"]),
-    package_dir={"oiafed": "src"},
     py_modules=[],
     include_package_data=True,
     

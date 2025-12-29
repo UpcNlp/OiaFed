@@ -19,9 +19,9 @@ if str(project_root) not in sys.path:
     sys.path.insert(0, str(project_root))
 
 # Import registry to check registered components
-from src.registry import registry
+from oiafed.registry import registry
 # Import models to ensure they are registered
-import src.methods.models
+import oiafed.methods.models
 
 
 def list_registered_methods():
