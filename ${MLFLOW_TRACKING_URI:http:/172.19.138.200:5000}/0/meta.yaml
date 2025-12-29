@@ -1,6 +1,0 @@
-artifact_location: /home/nlp/ct/projects/OiaFed/${MLFLOW_TRACKING_URI:http:/172.19.138.200:5000}/0
-creation_time: 1767005621460
-experiment_id: '0'
-last_update_time: 1767005621460
-lifecycle_stage: active
-name: Default

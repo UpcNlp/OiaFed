@@ -1,6 +1,0 @@
-artifact_location: /home/nlp/ct/projects/OiaFed/${MLFLOW_TRACKING_URI:http:/172.19.138.200:5000}/116451831936848066
-creation_time: 1767005621468
-experiment_id: '116451831936848066'
-last_update_time: 1767005621468
-lifecycle_stage: active
-name: HFL
