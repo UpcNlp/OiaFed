@@ -1,0 +1,99 @@
+# ==================== GLFC: Global-Local Forgetting Compensation ====================
+
+id: glfc
+name: "GLFC: Federated Class-Incremental Learning"
+category: FCL
+venue: "CVPR"
+year: 2022
+url: "https://arxiv.org/abs/2203.11473"
+description: |
+  通过全局-本地遗忘补偿解决联邦类增量学习问题。
+  使用全局原型和本地知识蒸馏防止灾难性遗忘。
+
+components:
+  learner: cl.glfc
+  aggregator: fedavg
+  trainer: continual
+  model: cifar10_cnn
+  dataset: cifar10
+
+defaults:
+  experiment:
+    num_clients: 5
+    
+  trainer:
+    num_rounds: 50
+    num_tasks: 5
+    rounds_per_task: 10
+    local_epochs: 5
+    client_fraction: 1.0
+    eval_interval: 5
+
+  learner:
+    learning_rate: 0.01
+    batch_size: 32
+    momentum: 0.9
+    # GLFC 特有参数
+    num_tasks: 5
+    classes_per_task: 2
+    lambda_global: 1.0   # 全局蒸馏权重
+    lambda_local: 1.0    # 本地蒸馏权重
+    proto_momentum: 0.9  # 原型更新动量
+
+  aggregator:
+    weighted: true
+
+  model:
+    num_classes: 10
+
+  dataset:
+    data_dir: ./data
+    download: true
+    partition:
+      strategy: dirichlet
+      alpha: 0.5
+
+params:
+  learner.lambda_global:
+    type: float
+    range: [0.0, 10.0]
+    desc: "全局遗忘补偿权重"
+    
+  learner.lambda_local:
+    type: float
+    range: [0.0, 10.0]
+    desc: "本地遗忘补偿权重"
+    
+  learner.proto_momentum:
+    type: float
+    range: [0.0, 0.99]
+    desc: "原型更新动量"
+    
+  learner.num_tasks:
+    type: int
+    range: [2, 20]
+    desc: "任务数量"
+    
+  learner.classes_per_task:
+    type: int
+    range: [1, 10]
+    desc: "每个任务的类别数"
+
+  trainer.num_rounds:
+    type: int
+    range: [1, 500]
+    desc: "总训练轮数"
+
+citation: |
+  @inproceedings{dong2022federated,
+    title={Federated class-incremental learning},
+    author={Dong, Jiahua and Wang, Lixu and Fang, Zhen and Sun, Gan and Xu, Shichao and Wang, Xiao and Zhu, Qi},
+    booktitle={CVPR},
+    year={2022}
+  }
+
+notes: |
+  - 同时处理全局遗忘和本地遗忘
+  - 使用类别原型存储旧知识
+  - lambda_global 和 lambda_local 平衡新旧知识
+  - 适合类别增量学习场景

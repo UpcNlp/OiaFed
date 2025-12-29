@@ -1,0 +1,84 @@
+# ==================== FedProto: Federated Prototype Learning ====================
+
+id: fedproto
+name: "FedProto: Federated Prototype Learning across Heterogeneous Clients"
+category: HFL
+venue: "AAAI"
+year: 2022
+url: "https://arxiv.org/abs/2105.00243"
+description: |
+  基于原型的联邦学习方法。
+  客户端共享类别原型而非模型参数，
+  对模型异构性更友好。
+
+components:
+  learner: fl.fedproto
+  aggregator: fedproto
+  trainer: default
+  model: cifar10_cnn
+  dataset: cifar10
+
+defaults:
+  experiment:
+    num_clients: 10
+    
+  trainer:
+    num_rounds: 100
+    local_epochs: 5
+    client_fraction: 0.1
+    eval_interval: 10
+
+  learner:
+    learning_rate: 0.01
+    batch_size: 32
+    momentum: 0.9
+    # FedProto 特有参数
+    lambda_proto: 1.0  # 原型损失权重
+
+  aggregator:
+    weighted: true
+
+  model:
+    num_classes: 10
+
+  dataset:
+    data_dir: ./data
+    download: true
+    partition:
+      strategy: dirichlet
+      alpha: 0.3
+
+params:
+  learner.lambda_proto:
+    type: float
+    range: [0.1, 10.0]
+    desc: "原型损失权重"
+
+  learner.learning_rate:
+    type: float
+    range: [0.0001, 1.0]
+    desc: "学习率"
+
+  trainer.num_rounds:
+    type: int
+    range: [1, 1000]
+    desc: "联邦训练轮数"
+
+  dataset.partition.alpha:
+    type: float
+    range: [0.01, 100.0]
+    desc: "Dirichlet 分布参数"
+
+citation: |
+  @inproceedings{tan2022fedproto,
+    title={FedProto: Federated Prototype Learning across Heterogeneous Clients},
+    author={Tan, Yue and Long, Guodong and Liu, Lu and Zhou, Tianyi and Lu, Qinghua and Jiang, Jing and Zhang, Chengqi},
+    booktitle={AAAI},
+    year={2022}
+  }
+
+notes: |
+  - 通信内容是类别原型而非模型参数
+  - 支持模型异构 (不同客户端可以用不同模型结构)
+  - 对于类别不均衡数据效果好
+  - lambda_proto 控制原型对齐的重要性

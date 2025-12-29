@@ -1,0 +1,85 @@
+# ==================== FedDBE: Data-Free Knowledge Distillation ====================
+
+id: feddbe
+name: "FedDBE: Communication-Efficient Federated Learning via Data-Free Distillation"
+category: HFL
+venue: "CVPR"
+year: 2022
+url: "https://arxiv.org/abs/2204.11166"
+description: |
+  无数据知识蒸馏的联邦学习方法。
+  服务器端使用生成器生成伪数据进行蒸馏，
+  无需访问真实数据。
+
+components:
+  learner: fl.feddbe
+  aggregator: fedavg
+  trainer: default
+  model: cifar10_cnn
+  dataset: cifar10
+
+defaults:
+  experiment:
+    num_clients: 10
+    
+  trainer:
+    num_rounds: 100
+    local_epochs: 5
+    client_fraction: 0.1
+    eval_interval: 10
+
+  learner:
+    learning_rate: 0.01
+    batch_size: 32
+    momentum: 0.9
+    # FedDBE 特有参数
+    generator_lr: 0.001  # 生成器学习率
+    num_gen_steps: 10    # 生成步数
+
+  aggregator:
+    weighted: true
+
+  model:
+    num_classes: 10
+
+  dataset:
+    data_dir: ./data
+    download: true
+    partition:
+      strategy: dirichlet
+      alpha: 0.5
+
+params:
+  learner.generator_lr:
+    type: float
+    range: [0.0001, 0.01]
+    desc: "生成器学习率"
+    
+  learner.num_gen_steps:
+    type: int
+    range: [1, 50]
+    desc: "生成步数"
+
+  learner.learning_rate:
+    type: float
+    range: [0.0001, 1.0]
+    desc: "学习率"
+
+  trainer.num_rounds:
+    type: int
+    range: [1, 1000]
+    desc: "联邦训练轮数"
+
+citation: |
+  @inproceedings{zhang2022feddbe,
+    title={Data-free knowledge distillation for heterogeneous federated learning},
+    author={Zhang, Yongjie and others},
+    booktitle={CVPR},
+    year={2022}
+  }
+
+notes: |
+  - 服务器无需访问真实数据
+  - 使用生成器生成伪数据
+  - 对数据隐私更友好
+  - num_gen_steps 影响生成质量

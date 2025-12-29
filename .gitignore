@@ -54,7 +54,9 @@ view_table3_results.py
 CINIC-10.tar.gz
 run_failed_simple.sh
 table3.md
+${MLFLOW*
 view_table3_results.py
 .vscode/
 analyze_results.py
+env.*
 run_failed_batch.sh

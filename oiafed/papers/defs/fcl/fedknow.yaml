@@ -1,0 +1,87 @@
+# ==================== FedKNOW: Knowledge Integration ====================
+
+id: fedknow
+name: "FedKNOW: Federated Continual Learning with Signature Task Knowledge Integration"
+category: FCL
+venue: "INFOCOM"
+year: 2023
+url: "https://arxiv.org/abs/2212.01738"
+description: |
+  通过签名任务知识集成实现联邦持续学习。
+  为每个任务维护签名知识，在学习新任务时进行集成。
+
+components:
+  learner: cl.fedknow
+  aggregator: fedavg
+  trainer: continual
+  model: cifar10_cnn
+  dataset: cifar10
+
+defaults:
+  experiment:
+    num_clients: 5
+    
+  trainer:
+    num_rounds: 50
+    num_tasks: 5
+    rounds_per_task: 10
+    local_epochs: 5
+    client_fraction: 1.0
+    eval_interval: 5
+
+  learner:
+    learning_rate: 0.01
+    batch_size: 32
+    momentum: 0.9
+    # FedKNOW 特有参数
+    num_tasks: 5
+    classes_per_task: 2
+    lambda_know: 1.0     # 知识集成权重
+    signature_dim: 128   # 签名向量维度
+
+  aggregator:
+    weighted: true
+
+  model:
+    num_classes: 10
+
+  dataset:
+    data_dir: ./data
+    download: true
+    partition:
+      strategy: dirichlet
+      alpha: 0.5
+
+params:
+  learner.lambda_know:
+    type: float
+    range: [0.0, 10.0]
+    desc: "知识集成权重"
+    
+  learner.signature_dim:
+    type: int
+    range: [32, 512]
+    desc: "签名向量维度"
+    
+  learner.num_tasks:
+    type: int
+    range: [2, 20]
+    desc: "任务数量"
+
+  trainer.num_rounds:
+    type: int
+    range: [1, 500]
+    desc: "总训练轮数"
+
+citation: |
+  @inproceedings{yang2023fedknow,
+    title={Federated continual learning with signature task knowledge integration},
+    author={Yang, Tiantian and others},
+    booktitle={INFOCOM},
+    year={2023}
+  }
+
+notes: |
+  - 使用签名任务知识表示每个任务的关键信息
+  - signature_dim 决定知识压缩程度
+  - lambda_know 平衡新旧任务

@@ -436,12 +436,25 @@ class FederatedSystem:
         self.sys_logger.debug("Initializing infrastructure...")
 
         # Tracker - 直接传递 TrackerConfig
+        self.sys_logger.info(f"[DEBUG] self._config.tracker = {self._config.tracker}")
         if self._config.tracker:
-            self.tracker = CompositeTracker.from_config(
-                tracker_config=self._config.tracker,
-                node_id=self.node_id,
-                is_trainer=self._config.is_trainer(),
-            )
+            self.sys_logger.info(f"[DEBUG] tracker.enabled = {self._config.tracker.enabled}")
+            self.sys_logger.info(f"[DEBUG] tracker.backends = {self._config.tracker.backends}")
+            self.sys_logger.info(f"[DEBUG] exp_name = {self.exp_name}")
+            
+            try:
+                self.tracker = CompositeTracker.from_config(
+                    tracker_config=self._config.tracker,
+                    node_id=self.node_id,
+                    is_trainer=self._config.is_trainer(),
+                    exp_name=self.exp_name,  # 传入实验名称
+                )
+                self.sys_logger.info(f"[DEBUG] Created tracker = {self.tracker}")
+            except Exception as e:
+                self.sys_logger.error(f"[DEBUG] Failed to create tracker: {e}")
+                import traceback
+                self.sys_logger.error(traceback.format_exc())
+                self.tracker = None
 
             if self.tracker:
                 params = {
@@ -507,6 +520,8 @@ class FederatedSystem:
         # 4. 创建 Trainer
         trainer_config = self._config.get_trainer_config()
         self.sys_logger.info(f"正在创建 Trainer: {trainer_config.type}")
+        self.sys_logger.info(f"[DEBUG] 创建 Trainer 时 self.tracker = {self.tracker}")
+        self.sys_logger.info(f"[DEBUG] trainer_config.get_args() = {trainer_config.get_args()}")
 
         # 构建 namespace
         trainer_type = trainer_config.type
@@ -525,6 +540,8 @@ class FederatedSystem:
             tracker=self.tracker,
             callbacks=self.callbacks,
         )
+        
+        self.sys_logger.info(f"[DEBUG] 创建后 self.trainer._tracker = {getattr(self.trainer, '_tracker', 'NO ATTR')}")
 
         self.sys_logger.info(f"Trainer initialized: {trainer_config.type}")
 
@@ -761,12 +778,26 @@ class FederatedSystem:
         """
         # 默认处理：让 MLflow Tracker 加入 Trainer 的 run
         mlflow_run_id = info.get("mlflow_run_id")
+        
+        self.sys_logger.info(f"on_sync_info: mlflow_run_id={mlflow_run_id}, tracker={self.tracker}")
+        
         if mlflow_run_id and self.tracker:
-            for backend in getattr(self.tracker, 'trackers', []):
-                if hasattr(backend, 'join_run'):
+            backends = getattr(self.tracker, 'trackers', [])
+            self.sys_logger.info(f"Found {len(backends)} tracker backends")
+            
+            for i, backend in enumerate(backends):
+                backend_name = type(backend).__name__
+                has_join_run = hasattr(backend, 'join_run')
+                self.sys_logger.info(f"Backend[{i}]: {backend_name}, has_join_run={has_join_run}")
+                
+                if has_join_run:
                     backend.join_run(mlflow_run_id)
                     self.sys_logger.info(f"MLflow Tracker 已加入 run: {mlflow_run_id}")
                     break
+        elif not mlflow_run_id:
+            self.sys_logger.warning("on_sync_info: mlflow_run_id is None")
+        elif not self.tracker:
+            self.sys_logger.warning("on_sync_info: self.tracker is None")
 
     def __repr__(self) -> str:
         """字符串表示"""

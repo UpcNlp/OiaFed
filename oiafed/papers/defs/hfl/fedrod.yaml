@@ -1,0 +1,84 @@
+# ==================== FedRoD: Robust Disentangled Representation ====================
+
+id: fedrod
+name: "FedRoD: Federated Learning with Robust Disentangled Representation"
+category: HFL
+venue: "CVPR"
+year: 2023
+url: "https://arxiv.org/abs/2206.05372"
+description: |
+  通过解耦通用知识和个性化知识实现鲁棒个性化。
+  模型包含共享的通用 head 和个性化 head，
+  同时优化全局性能和本地性能。
+
+components:
+  learner: fl.fedrod
+  aggregator: fedavg
+  trainer: default
+  model: cifar10_cnn
+  dataset: cifar10
+
+defaults:
+  experiment:
+    num_clients: 10
+    
+  trainer:
+    num_rounds: 100
+    local_epochs: 5
+    client_fraction: 0.1
+    eval_interval: 10
+
+  learner:
+    learning_rate: 0.01
+    batch_size: 32
+    momentum: 0.9
+    # FedRoD 特有参数
+    hyper_lambda: 0.5  # 平衡通用和个性化的权重
+
+  aggregator:
+    weighted: true
+
+  model:
+    num_classes: 10
+
+  dataset:
+    data_dir: ./data
+    download: true
+    partition:
+      strategy: dirichlet
+      alpha: 0.3
+
+params:
+  learner.hyper_lambda:
+    type: float
+    range: [0.0, 1.0]
+    desc: "通用/个性化平衡权重"
+
+  learner.learning_rate:
+    type: float
+    range: [0.0001, 1.0]
+    desc: "学习率"
+
+  trainer.num_rounds:
+    type: int
+    range: [1, 1000]
+    desc: "联邦训练轮数"
+
+  dataset.partition.alpha:
+    type: float
+    range: [0.01, 100.0]
+    desc: "Dirichlet 分布参数"
+
+citation: |
+  @inproceedings{chen2023fedrod,
+    title={On bridging generic and personalized federated learning for image classification},
+    author={Chen, Hong-You and Chao, Wei-Lun},
+    booktitle={CVPR},
+    year={2023}
+  }
+
+notes: |
+  - 同时维护通用 head 和个性化 head
+  - hyper_lambda 平衡两者的重要性
+  - 可以同时实现好的全局和本地性能
+  - 比纯个性化方法更鲁棒

@@ -26,11 +26,43 @@ OiaFed 命令行接口
     oiafed list aggregators
     oiafed version
 """
-
+import os
+os.environ["PROTOCOL_BUFFERS_PYTHON_IMPLEMENTATION"] = "python"  # 避免 grpcio 与 protobuf 版本冲突问题
 import argparse
 import sys
+import os
+import re
 from pathlib import Path
 from typing import List, Optional
+
+
+def _load_yaml_with_env(file_path: Path) -> dict:
+    """
+    加载 YAML 文件并替换环境变量
+    
+    支持语法: ${VAR_NAME:default_value} 或 ${VAR_NAME}
+    
+    Args:
+        file_path: YAML 文件路径
+        
+    Returns:
+        解析后的字典
+    """
+    import yaml
+    
+    with open(file_path, "r", encoding="utf-8") as f:
+        content = f.read()
+    
+    # 替换环境变量 ${VAR:default}
+    def replace_env_var(match):
+        var_name = match.group(1)
+        default_value = match.group(2) if match.group(2) else ""
+        return os.environ.get(var_name, default_value)
+    
+    # 匹配 ${VAR:default} 或 ${VAR}
+    content = re.sub(r'\$\{([^}:]+)(?::([^}]*))?\}', replace_env_var, content)
+    
+    return yaml.safe_load(content) or {}
 
 
 def get_version() -> str:
@@ -486,17 +518,15 @@ def _run_from_paper(args: argparse.Namespace, config_file: Optional[Path]) -> in
     # 1. 加载论文默认配置
     paper_defaults = registry.get_defaults(args.paper)
     
-    # 2. 加载配置文件（如果指定）
+    # 2. 加载配置文件（如果指定）- 支持环境变量替换
     file_config = {}
     if config_file and config_file.exists():
-        with open(config_file, "r", encoding="utf-8") as f:
-            file_config = yaml.safe_load(f) or {}
+        file_config = _load_yaml_with_env(config_file)
     elif config_file is None:
         # 尝试加载默认 base.yaml
         default_base = Path("configs/base.yaml")
         if default_base.exists():
-            with open(default_base, "r", encoding="utf-8") as f:
-                file_config = yaml.safe_load(f) or {}
+            file_config = _load_yaml_with_env(default_base)
             print(f"使用默认配置: {default_base}")
     
     # 3. 构建命令行覆盖参数
@@ -810,6 +840,10 @@ def _generate_paper_configs(
             "logging": logging_config,
             "transport": {"mode": "grpc" if mode == "parallel" else "memory"},
         }
+        
+        # Learner 也需要 tracker 配置（用于同步后记录指标）
+        if tracker_config.get("enabled", True) and tracker_config.get("backends"):
+            learner_config["tracker"] = tracker_config
         
         learner_path = output_path / f"learner_{i}.yaml"
         with open(learner_path, "w", encoding="utf-8") as f:
@@ -1311,9 +1345,8 @@ def cmd_generate(args: argparse.Namespace) -> int:
     
     output_dir.mkdir(parents=True, exist_ok=True)
     
-    # 读取基础配置
-    with open(base_path, 'r', encoding='utf-8') as f:
-        base_config = yaml.safe_load(f)
+    # 读取基础配置（支持环境变量替换）
+    base_config = _load_yaml_with_env(base_path)
     
     exp_name = base_config.get('exp_name', 'experiment')
     

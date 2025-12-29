@@ -1,0 +1,90 @@
+# ==================== Fed-CPrompt: Contrastive Prompt ====================
+
+id: fed_cprompt
+name: "Fed-CPrompt: Contrastive Prompt for Rehearsal-Free Federated Continual Learning"
+category: FCL
+venue: "CVPR"
+year: 2023
+url: "https://arxiv.org/abs/2303.04571"
+description: |
+  使用对比提示学习实现无回放的联邦持续学习。
+  通过可学习的提示向量引导模型适应新任务，
+  同时保持对旧任务的记忆。
+
+components:
+  learner: cl.fed_cprompt
+  aggregator: fedavg
+  trainer: continual
+  model: cifar10_cnn
+  dataset: cifar10
+
+defaults:
+  experiment:
+    num_clients: 5
+    
+  trainer:
+    num_rounds: 50
+    num_tasks: 5
+    rounds_per_task: 10
+    local_epochs: 5
+    client_fraction: 1.0
+    eval_interval: 5
+
+  learner:
+    learning_rate: 0.01
+    batch_size: 32
+    momentum: 0.9
+    # Fed-CPrompt 特有参数
+    num_tasks: 5
+    classes_per_task: 2
+    prompt_length: 10    # 提示长度
+    prompt_dim: 768      # 提示维度
+    lambda_contrast: 1.0 # 对比损失权重
+
+  aggregator:
+    weighted: true
+
+  model:
+    num_classes: 10
+
+  dataset:
+    data_dir: ./data
+    download: true
+    partition:
+      strategy: dirichlet
+      alpha: 0.5
+
+params:
+  learner.prompt_length:
+    type: int
+    range: [1, 50]
+    desc: "提示长度"
+    
+  learner.lambda_contrast:
+    type: float
+    range: [0.0, 10.0]
+    desc: "对比损失权重"
+    
+  learner.num_tasks:
+    type: int
+    range: [2, 20]
+    desc: "任务数量"
+
+  trainer.num_rounds:
+    type: int
+    range: [1, 500]
+    desc: "总训练轮数"
+
+citation: |
+  @inproceedings{bagwe2023fed,
+    title={Fed-CPrompt: Contrastive prompt for rehearsal-free federated continual learning},
+    author={Bagwe, Rishi and others},
+    booktitle={CVPR},
+    year={2023}
+  }
+
+notes: |
+  - 基于提示学习 (Prompt Learning) 的方法
+  - 无需存储历史数据
+  - prompt_length 控制提示的表达能力
+  - 适合与预训练模型结合使用

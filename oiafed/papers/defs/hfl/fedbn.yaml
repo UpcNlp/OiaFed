@@ -1,0 +1,82 @@
+# ==================== FedBN: Federated Learning on Non-IID Data ====================
+
+id: fedbn
+name: "FedBN: Federated Learning on Non-IID Features via Local Batch Normalization"
+category: HFL
+venue: "ICLR"
+year: 2021
+url: "https://arxiv.org/abs/2102.07623"
+description: |
+  在聚合时跳过 BatchNorm 层的参数。
+  每个客户端保留自己的 BN 统计量，
+  只聚合其他层的参数，缓解特征漂移问题。
+
+components:
+  learner: default
+  aggregator: fedbn
+  trainer: default
+  model: cifar10_cnn
+  dataset: cifar10
+
+defaults:
+  experiment:
+    num_clients: 10
+    
+  trainer:
+    num_rounds: 100
+    local_epochs: 5
+    client_fraction: 0.1
+    eval_interval: 10
+
+  learner:
+    learning_rate: 0.01
+    batch_size: 32
+    momentum: 0.9
+
+  aggregator:
+    weighted: true
+    skip_bn: true
+
+  model:
+    num_classes: 10
+
+  dataset:
+    data_dir: ./data
+    download: true
+    partition:
+      strategy: dirichlet
+      alpha: 0.3
+
+params:
+  aggregator.skip_bn:
+    type: bool
+    desc: "是否跳过 BatchNorm 层"
+
+  learner.learning_rate:
+    type: float
+    range: [0.0001, 1.0]
+    desc: "学习率"
+
+  trainer.num_rounds:
+    type: int
+    range: [1, 1000]
+    desc: "联邦训练轮数"
+
+  dataset.partition.alpha:
+    type: float
+    range: [0.01, 100.0]
+    desc: "Dirichlet 分布参数"
+
+citation: |
+  @inproceedings{li2021fedbn,
+    title={FedBN: Federated Learning on Non-IID Features via Local Batch Normalization},
+    author={Li, Xiaoxiao and Jiang, Meirui and Zhang, Xiaofei and Kamp, Michael and Dou, Qi},
+    booktitle={ICLR},
+    year={2021}
+  }
+
+notes: |
+  - 特别适合特征分布差异大的场景
+  - BN 层保持本地化，捕获客户端特有的特征统计
+  - 对于没有 BN 层的模型无效
+  - 可与其他方法组合使用

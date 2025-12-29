@@ -369,6 +369,36 @@ class Trainer(ABC):
         """
         return await self._learners.broadcast(method, *args, **kwargs)
 
+    async def broadcast_to_selected(
+        self,
+        learners: List[Any],
+        method: str,
+        *args,
+        **kwargs
+    ) -> List[Any]:
+        """
+        向指定的学习器列表广播调用
+
+        Args:
+            learners: 目标学习器列表（Proxy 对象）
+            method: 方法名
+            *args: 位置参数
+            **kwargs: 关键字参数
+
+        Returns:
+            结果列表（与 learners 顺序对应）
+        """
+        if not learners:
+            return []
+
+        tasks = []
+        for learner in learners:
+            task = getattr(learner, method)(*args, **kwargs)
+            tasks.append(asyncio.create_task(task))
+
+        results = await asyncio.gather(*tasks, return_exceptions=True)
+        return list(results)
+
     async def collect_results(
         self,
         learners: List[Any],

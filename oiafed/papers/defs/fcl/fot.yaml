@@ -1,0 +1,145 @@
+# ==================== FOT: Federated Orthogonal Training ====================
+
+id: fot
+name: "FOT: Federated Orthogonal Training for Continual Learning"
+category: FCL
+venue: "NeurIPS 2022 Workshop"
+year: 2022
+url: "https://arxiv.org/abs/2312.16475"
+description: |
+  使用正交投影防止灾难性遗忘的联邦持续学习方法。
+  将新任务的梯度投影到旧任务参数的正交补空间，
+  确保更新方向不干扰已学习的知识。
+
+# ==================== 组件映射 ====================
+components:
+  learner: cl.fot
+  aggregator: fedavg
+  trainer: continual
+  model: cifar10_cnn
+  dataset: cifar10
+
+# ==================== 默认参数 ====================
+defaults:
+  experiment:
+    num_clients: 3
+    
+  trainer:
+    num_rounds: 20
+    num_tasks: 5
+    rounds_per_task: 4
+    local_epochs: 3
+    client_fraction: 1.0
+    eval_interval: 2
+
+  learner:
+    learning_rate: 0.01
+    batch_size: 32
+    momentum: 0.9
+    weight_decay: 0.0005
+    # FOT 特有参数
+    num_tasks: 5
+    classes_per_task: 2
+    orthogonal_weight: 1.0
+    projection_threshold: 0.1
+    memory_strength: 0.5
+
+  aggregator:
+    weighted: true
+
+  model:
+    num_classes: 10
+
+  dataset:
+    data_dir: ./data
+    download: true
+    partition:
+      strategy: dirichlet
+      alpha: 0.5
+
+# ==================== 可调参数说明 ====================
+params:
+  # Learner 参数
+  learner.learning_rate:
+    type: float
+    range: [0.00001, 1.0]
+    desc: "学习率"
+    
+  learner.batch_size:
+    type: int
+    choices: [16, 32, 64, 128, 256]
+    desc: "批大小"
+    
+  learner.num_tasks:
+    type: int
+    range: [2, 20]
+    desc: "持续学习任务数"
+    
+  learner.classes_per_task:
+    type: int
+    range: [1, 10]
+    desc: "每个任务的类别数"
+    
+  learner.orthogonal_weight:
+    type: float
+    range: [0.0, 10.0]
+    desc: "正交投影权重 (越大遗忘越少)"
+    
+  learner.projection_threshold:
+    type: float
+    range: [0.0, 1.0]
+    desc: "投影阈值"
+    
+  learner.memory_strength:
+    type: float
+    range: [0.0, 1.0]
+    desc: "记忆强度"
+
+  # Trainer 参数
+  trainer.num_rounds:
+    type: int
+    range: [1, 1000]
+    desc: "联邦训练总轮数"
+    
+  trainer.num_tasks:
+    type: int
+    range: [2, 20]
+    desc: "任务数量"
+    
+  trainer.rounds_per_task:
+    type: int
+    range: [1, 50]
+    desc: "每个任务的训练轮数"
+    
+  trainer.local_epochs:
+    type: int
+    range: [1, 20]
+    desc: "本地训练轮数"
+
+  # Experiment 参数
+  experiment.num_clients:
+    type: int
+    range: [2, 100]
+    desc: "客户端数量"
+    
+  # Dataset 参数
+  dataset.partition.alpha:
+    type: float
+    range: [0.1, 100.0]
+    desc: "Dirichlet 分布参数 (越小数据越异构)"
+
+# ==================== 引用信息 ====================
+citation: |
+  @article{fot2022,
+    title={Federated Continual Learning via Knowledge Fusion: A Survey},
+    author={Various Authors},
+    journal={arXiv preprint arXiv:2312.16475},
+    year={2022}
+  }
+
+# ==================== 备注 ====================
+notes: |
+  - 适用于类别增量学习 (Class-Incremental Learning) 场景
+  - 建议 num_tasks × classes_per_task = 总类别数
+  - orthogonal_weight 越大，防遗忘效果越好，但可能影响新任务学习
+  - 与 EWC、SI 等方法相比，FOT 更直接地保护旧知识

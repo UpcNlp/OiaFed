@@ -1,0 +1,89 @@
+# ==================== LGA: Layerwise Gradient Accumulation ====================
+
+id: lga
+name: "LGA: Layerwise Gradient Accumulation for Federated Continual Learning"
+category: FCL
+venue: "TPAMI"
+year: 2023
+url: "https://arxiv.org/abs/2303.10934"
+description: |
+  通过分层梯度累积实现联邦持续学习。
+  对不同层使用不同的梯度累积策略，
+  平衡可塑性和稳定性。
+
+components:
+  learner: cl.lga
+  aggregator: fedavg
+  trainer: continual
+  model: cifar10_cnn
+  dataset: cifar10
+
+defaults:
+  experiment:
+    num_clients: 5
+    
+  trainer:
+    num_rounds: 50
+    num_tasks: 5
+    rounds_per_task: 10
+    local_epochs: 5
+    client_fraction: 1.0
+    eval_interval: 5
+
+  learner:
+    learning_rate: 0.01
+    batch_size: 32
+    momentum: 0.9
+    # LGA 特有参数
+    num_tasks: 5
+    classes_per_task: 2
+    accumulation_ratio: 0.5  # 梯度累积比例
+    layer_decay: 0.9         # 层间衰减
+
+  aggregator:
+    weighted: true
+
+  model:
+    num_classes: 10
+
+  dataset:
+    data_dir: ./data
+    download: true
+    partition:
+      strategy: dirichlet
+      alpha: 0.5
+
+params:
+  learner.accumulation_ratio:
+    type: float
+    range: [0.0, 1.0]
+    desc: "梯度累积比例"
+    
+  learner.layer_decay:
+    type: float
+    range: [0.5, 1.0]
+    desc: "层间衰减系数"
+    
+  learner.num_tasks:
+    type: int
+    range: [2, 20]
+    desc: "任务数量"
+
+  trainer.num_rounds:
+    type: int
+    range: [1, 500]
+    desc: "总训练轮数"
+
+citation: |
+  @article{dong2023lga,
+    title={No One Left Behind: Real-World Federated Class-Incremental Learning},
+    author={Dong, Jiahua and others},
+    journal={TPAMI},
+    year={2023}
+  }
+
+notes: |
+  - 不同层使用不同的学习策略
+  - 底层更稳定，顶层更可塑
+  - layer_decay 控制层间差异程度
+  - accumulation_ratio 控制历史梯度的影响

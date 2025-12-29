@@ -1,0 +1,105 @@
+# ==================== 论文定义模板 ====================
+# 
+# 复制此文件创建新的论文定义
+# 文件名应与 id 一致，如 fot.yaml
+#
+# ======================================================
+
+# ==================== 元信息 ====================
+id: template                               # 唯一标识（与文件名一致）
+name: "Paper Name: Full Title"             # 论文全名
+category: HFL                              # 类别: HFL/VFL/FCL/FU
+venue: "Conference/Journal Name"           # 发表会议/期刊
+year: 2024                                 # 发表年份
+url: "https://arxiv.org/abs/xxxx.xxxxx"    # 论文链接
+description: |
+  论文的简要描述。
+  可以是多行文本。
+
+# ==================== 组件映射 ====================
+# 指定论文使用的各组件类型
+components:
+  learner: default                         # Learner 类型 (必需)
+  aggregator: fedavg                       # Aggregator 类型 (必需)
+  trainer: default                         # Trainer 类型 (必需)
+  model: mnist_cnn                         # 推荐模型 (可选)
+  dataset: mnist                           # 推荐数据集 (可选)
+
+# ==================== 默认参数 ====================
+# 论文推荐的默认参数值
+defaults:
+  # 实验配置
+  experiment:
+    num_clients: 3                         # 客户端数量
+    
+  # Trainer 参数
+  trainer:
+    num_rounds: 20                         # 联邦训练轮数
+    local_epochs: 3                        # 本地训练轮数
+    client_fraction: 1.0                   # 客户端参与比例
+    eval_interval: 2                       # 评估间隔
+
+  # Learner 参数
+  learner:
+    learning_rate: 0.01
+    batch_size: 32
+    momentum: 0.9
+    weight_decay: 0.0005
+
+  # Aggregator 参数
+  aggregator:
+    weighted: true
+
+  # Model 参数
+  model:
+    num_classes: 10
+
+  # Dataset 参数
+  dataset:
+    data_dir: ./data
+    download: true
+    partition:
+      strategy: iid                        # iid / dirichlet / pathological
+      # alpha: 0.5                         # Dirichlet 参数 (如适用)
+
+# ==================== 可调参数说明 ====================
+# 定义用户可调整的参数及其约束
+params:
+  learner.learning_rate:
+    type: float
+    range: [0.00001, 1.0]
+    desc: "学习率"
+    
+  learner.batch_size:
+    type: int
+    choices: [16, 32, 64, 128, 256]
+    desc: "批大小"
+
+  trainer.num_rounds:
+    type: int
+    range: [1, 1000]
+    desc: "联邦训练总轮数"
+    
+  trainer.local_epochs:
+    type: int
+    range: [1, 20]
+    desc: "本地训练轮数"
+
+  experiment.num_clients:
+    type: int
+    range: [2, 100]
+    desc: "客户端数量"
+
+# ==================== 引用信息（可选）====================
+citation: |
+  @inproceedings{author2024paper,
+    title={Paper Title},
+    author={Author, First and Author, Second},
+    booktitle={Conference},
+    year={2024}
+  }
+
+# ==================== 备注（可选）====================
+notes: |
+  - 使用说明或注意事项
+  - 可以是多条

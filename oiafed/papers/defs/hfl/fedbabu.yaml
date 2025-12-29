@@ -1,0 +1,84 @@
+# ==================== FedBABU: Body and Bottom-up ====================
+
+id: fedbabu
+name: "FedBABU: Towards Enhanced Representation for Federated Image Classification"
+category: HFL
+venue: "ICLR"
+year: 2022
+url: "https://arxiv.org/abs/2106.06042"
+description: |
+  只聚合模型的 body 部分（特征提取器）。
+  初始化时使用全局模型，但 head 部分从不聚合，
+  让每个客户端保持自己的分类器。
+
+components:
+  learner: fl.fedbabu
+  aggregator: fedavg
+  trainer: default
+  model: cifar10_cnn
+  dataset: cifar10
+
+defaults:
+  experiment:
+    num_clients: 10
+    
+  trainer:
+    num_rounds: 100
+    local_epochs: 5
+    client_fraction: 0.1
+    eval_interval: 10
+
+  learner:
+    learning_rate: 0.01
+    batch_size: 32
+    momentum: 0.9
+    # FedBABU 特有参数
+    finetune_epochs: 5  # 微调轮数
+
+  aggregator:
+    weighted: true
+
+  model:
+    num_classes: 10
+
+  dataset:
+    data_dir: ./data
+    download: true
+    partition:
+      strategy: dirichlet
+      alpha: 0.3
+
+params:
+  learner.finetune_epochs:
+    type: int
+    range: [1, 20]
+    desc: "本地微调轮数"
+
+  learner.learning_rate:
+    type: float
+    range: [0.0001, 1.0]
+    desc: "学习率"
+
+  trainer.num_rounds:
+    type: int
+    range: [1, 1000]
+    desc: "联邦训练轮数"
+
+  dataset.partition.alpha:
+    type: float
+    range: [0.01, 100.0]
+    desc: "Dirichlet 分布参数"
+
+citation: |
+  @inproceedings{oh2022fedbabu,
+    title={FedBABU: Towards enhanced representation for federated image classification},
+    author={Oh, Jaehoon and Kim, Sangmook and Yun, Se-Young},
+    booktitle={ICLR},
+    year={2022}
+  }
+
+notes: |
+  - 与 FedPer 的区别：训练过程中 head 始终本地化
+  - finetune_epochs 用于测试前的本地适应
+  - 适合高度异构的标签分布
+  - 简单但效果好

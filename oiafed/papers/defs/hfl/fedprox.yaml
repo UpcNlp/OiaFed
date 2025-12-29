@@ -1,0 +1,88 @@
+# ==================== FedProx: Federated Optimization ====================
+
+id: fedprox
+name: "FedProx: Federated Optimization in Heterogeneous Networks"
+category: HFL
+venue: "MLSys"
+year: 2020
+url: "https://arxiv.org/abs/1812.06127"
+description: |
+  通过添加近端项约束本地更新，解决数据异构性问题。
+  本地目标函数添加 μ/2 ||w - w_global||² 正则项，
+  限制本地模型与全局模型的偏离程度。
+
+components:
+  learner: default
+  aggregator: fedprox
+  trainer: default
+  model: cifar10_cnn
+  dataset: cifar10
+
+defaults:
+  experiment:
+    num_clients: 10
+    
+  trainer:
+    num_rounds: 100
+    local_epochs: 5
+    client_fraction: 0.1
+    eval_interval: 10
+
+  learner:
+    learning_rate: 0.01
+    batch_size: 32
+    momentum: 0.9
+
+  aggregator:
+    weighted: true
+    mu: 0.01  # 近端项系数
+
+  model:
+    num_classes: 10
+
+  dataset:
+    data_dir: ./data
+    download: true
+    partition:
+      strategy: dirichlet
+      alpha: 0.3
+
+params:
+  aggregator.mu:
+    type: float
+    range: [0.0001, 1.0]
+    desc: "近端项系数 (越大约束越强)"
+    
+  learner.learning_rate:
+    type: float
+    range: [0.0001, 1.0]
+    desc: "学习率"
+
+  trainer.num_rounds:
+    type: int
+    range: [1, 1000]
+    desc: "联邦训练轮数"
+    
+  trainer.local_epochs:
+    type: int
+    range: [1, 20]
+    desc: "本地训练轮数"
+
+  dataset.partition.alpha:
+    type: float
+    range: [0.01, 100.0]
+    desc: "Dirichlet 分布参数"
+
+citation: |
+  @inproceedings{li2020federated,
+    title={Federated optimization in heterogeneous networks},
+    author={Li, Tian and Sahu, Anit Kumar and Zaheer, Manzil and Sanjabi, Maziar and Talwalkar, Ameet and Smith, Virginia},
+    booktitle={MLSys},
+    year={2020}
+  }
+
+notes: |
+  - mu=0 时退化为 FedAvg
+  - 数据越异构，mu 应该越大
+  - 适合处理系统异构和数据异构
+  - 比 FedAvg 收敛更稳定

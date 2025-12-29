@@ -1,0 +1,83 @@
+# ==================== GPFL: Generalized Personalized FL ====================
+
+id: gpfl
+name: "GPFL: Generalized Personalized Federated Learning"
+category: HFL
+venue: "NeurIPS"
+year: 2022
+url: "https://arxiv.org/abs/2212.05632"
+description: |
+  广义个性化联邦学习框架。
+  通过分离共享和个性化参数，
+  并使用正则化约束，实现灵活的个性化。
+
+components:
+  learner: fl.gpfl
+  aggregator: fedavg
+  trainer: default
+  model: cifar10_cnn
+  dataset: cifar10
+
+defaults:
+  experiment:
+    num_clients: 10
+    
+  trainer:
+    num_rounds: 100
+    local_epochs: 5
+    client_fraction: 0.1
+    eval_interval: 10
+
+  learner:
+    learning_rate: 0.01
+    batch_size: 32
+    momentum: 0.9
+    # GPFL 特有参数
+    lambda_reg: 0.1  # 正则化系数
+
+  aggregator:
+    weighted: true
+
+  model:
+    num_classes: 10
+
+  dataset:
+    data_dir: ./data
+    download: true
+    partition:
+      strategy: dirichlet
+      alpha: 0.3
+
+params:
+  learner.lambda_reg:
+    type: float
+    range: [0.001, 1.0]
+    desc: "正则化系数"
+
+  learner.learning_rate:
+    type: float
+    range: [0.0001, 1.0]
+    desc: "学习率"
+
+  trainer.num_rounds:
+    type: int
+    range: [1, 1000]
+    desc: "联邦训练轮数"
+
+  dataset.partition.alpha:
+    type: float
+    range: [0.01, 100.0]
+    desc: "Dirichlet 分布参数"
+
+citation: |
+  @inproceedings{zhang2022gpfl,
+    title={Personalized Federated Learning via Variational Bayesian Inference},
+    author={Zhang, Xu and others},
+    booktitle={NeurIPS},
+    year={2022}
+  }
+
+notes: |
+  - 统一的个性化联邦学习框架
+  - lambda_reg 控制个性化程度
+  - 理论上有收敛保证

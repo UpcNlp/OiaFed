@@ -1,0 +1,83 @@
+# ==================== FedDyn: Dynamic Regularization ====================
+
+id: feddyn
+name: "FedDyn: Federated Learning based on Dynamic Regularizer"
+category: HFL
+venue: "ICLR"
+year: 2021
+url: "https://arxiv.org/abs/2111.04263"
+description: |
+  使用动态正则化器对齐客户端目标与全局目标。
+  服务器维护动态正则项，自动调整以减少客户端漂移，
+  理论上可以达到线性收敛速度。
+
+components:
+  learner: default
+  aggregator: feddyn
+  trainer: default
+  model: cifar10_cnn
+  dataset: cifar10
+
+defaults:
+  experiment:
+    num_clients: 10
+    
+  trainer:
+    num_rounds: 100
+    local_epochs: 5
+    client_fraction: 0.1
+    eval_interval: 10
+
+  learner:
+    learning_rate: 0.01
+    batch_size: 32
+    momentum: 0.9
+
+  aggregator:
+    weighted: true
+    alpha: 0.01  # 动态正则化系数
+
+  model:
+    num_classes: 10
+
+  dataset:
+    data_dir: ./data
+    download: true
+    partition:
+      strategy: dirichlet
+      alpha: 0.3
+
+params:
+  aggregator.alpha:
+    type: float
+    range: [0.001, 1.0]
+    desc: "动态正则化系数"
+
+  learner.learning_rate:
+    type: float
+    range: [0.0001, 1.0]
+    desc: "学习率"
+
+  trainer.num_rounds:
+    type: int
+    range: [1, 1000]
+    desc: "联邦训练轮数"
+
+  dataset.partition.alpha:
+    type: float
+    range: [0.01, 100.0]
+    desc: "Dirichlet 分布参数"
+
+citation: |
+  @inproceedings{acar2021federated,
+    title={Federated learning based on dynamic regularization},
+    author={Acar, Durmus Alp Emre and Zhao, Yue and Matas, Ramon and Mattina, Matthew and Whatmough, Paul and Saber, Venkatesh},
+    booktitle={ICLR},
+    year={2021}
+  }
+
+notes: |
+  - 理论上可达到线性收敛速度
+  - 动态正则化自动适应数据异构程度
+  - alpha 越大正则化越强
+  - 对于高度异构数据效果好

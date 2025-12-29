@@ -1,0 +1,89 @@
+# ==================== FedRep: Representation Learning ====================
+
+id: fedrep
+name: "FedRep: Exploiting Shared Representations for Personalized FL"
+category: HFL
+venue: "ICML"
+year: 2021
+url: "https://arxiv.org/abs/2102.07078"
+description: |
+  通过学习共享表示和个性化头部实现个性化。
+  与 FedPer 类似但训练方式不同：
+  先固定头部训练表示，再固定表示训练头部。
+
+components:
+  learner: fl.fedrep
+  aggregator: fedavg
+  trainer: default
+  model: cifar10_cnn
+  dataset: cifar10
+
+defaults:
+  experiment:
+    num_clients: 10
+    
+  trainer:
+    num_rounds: 100
+    local_epochs: 5
+    client_fraction: 0.1
+    eval_interval: 10
+
+  learner:
+    learning_rate: 0.01
+    batch_size: 32
+    momentum: 0.9
+    # FedRep 特有参数
+    head_epochs: 1  # 头部训练轮数
+
+  aggregator:
+    weighted: true
+
+  model:
+    num_classes: 10
+
+  dataset:
+    data_dir: ./data
+    download: true
+    partition:
+      strategy: dirichlet
+      alpha: 0.3
+
+params:
+  learner.head_epochs:
+    type: int
+    range: [1, 10]
+    desc: "头部训练轮数"
+
+  learner.learning_rate:
+    type: float
+    range: [0.0001, 1.0]
+    desc: "学习率"
+
+  trainer.num_rounds:
+    type: int
+    range: [1, 1000]
+    desc: "联邦训练轮数"
+    
+  trainer.local_epochs:
+    type: int
+    range: [1, 20]
+    desc: "本地训练轮数（表示层）"
+
+  dataset.partition.alpha:
+    type: float
+    range: [0.01, 100.0]
+    desc: "Dirichlet 分布参数"
+
+citation: |
+  @inproceedings{collins2021exploiting,
+    title={Exploiting shared representations for personalized federated learning},
+    author={Collins, Liam and Hassani, Hamed and Mokhtari, Aryan and Shakkottai, Sanjay},
+    booktitle={ICML},
+    year={2021}
+  }
+
+notes: |
+  - 交替训练表示层和头部
+  - 理论上收敛性有保证
+  - head_epochs 控制头部微调程度
+  - 比 FedPer 训练更稳定

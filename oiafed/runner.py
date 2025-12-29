@@ -11,6 +11,10 @@
 - 只使用配置类，不使用字典操作
 """
 
+# 必须在所有 import 之前设置，解决 protobuf 兼容性问题
+import os
+os.environ["PROTOCOL_BUFFERS_PYTHON_IMPLEMENTATION"] = "python"
+
 import asyncio
 import atexit
 import signal

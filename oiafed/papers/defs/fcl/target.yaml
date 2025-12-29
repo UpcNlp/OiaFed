@@ -1,0 +1,95 @@
+# ==================== TARGET: Exemplar-Free Distillation ====================
+
+id: target
+name: "TARGET: Federated Class-Continual Learning via Exemplar-Free Distillation"
+category: FCL
+venue: "ICCV"
+year: 2023
+url: "https://arxiv.org/abs/2303.06910"
+description: |
+  无需样本回放的联邦持续学习方法。
+  通过特征蒸馏和关系蒸馏保持旧知识，
+  不需要存储历史数据。
+
+components:
+  learner: cl.target
+  aggregator: fedavg
+  trainer: continual
+  model: cnn
+  dataset: cifar10
+
+defaults:
+  experiment:
+    num_clients: 5
+    
+  trainer:
+    num_rounds: 50
+    num_tasks: 5
+    rounds_per_task: 10
+    local_epochs: 5
+    client_fraction: 1.0
+    eval_interval: 5
+
+  learner:
+    learning_rate: 0.01
+    batch_size: 32
+    momentum: 0.9
+    # TARGET 特有参数
+    num_tasks: 5
+    classes_per_task: 2
+    lambda_feat: 1.0     # 特征蒸馏权重
+    lambda_rel: 1.0      # 关系蒸馏权重
+    temperature: 2.0     # 蒸馏温度
+
+  aggregator:
+    weighted: true
+
+  model:
+    num_classes: 10
+
+  dataset:
+    data_dir: ./data
+    download: true
+    partition:
+      strategy: dirichlet
+      alpha: 0.5
+
+params:
+  learner.lambda_feat:
+    type: float
+    range: [0.0, 10.0]
+    desc: "特征蒸馏权重"
+    
+  learner.lambda_rel:
+    type: float
+    range: [0.0, 10.0]
+    desc: "关系蒸馏权重"
+    
+  learner.temperature:
+    type: float
+    range: [1.0, 10.0]
+    desc: "蒸馏温度"
+    
+  learner.num_tasks:
+    type: int
+    range: [2, 20]
+    desc: "任务数量"
+
+  trainer.num_rounds:
+    type: int
+    range: [1, 500]
+    desc: "总训练轮数"
+
+citation: |
+  @inproceedings{zhang2023target,
+    title={TARGET: Federated Class-Continual Learning via Exemplar-Free Distillation},
+    author={Zhang, Jie and others},
+    booktitle={ICCV},
+    year={2023}
+  }
+
+notes: |
+  - 无需存储历史样本，更隐私友好
+  - 使用特征蒸馏和关系蒸馏防止遗忘
+  - temperature 影响蒸馏的软化程度
+  - 内存开销比回放方法小

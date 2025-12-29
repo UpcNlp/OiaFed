@@ -1,0 +1,82 @@
+# ==================== FedCP: Contrastive Personalization ====================
+
+id: fedcp
+name: "FedCP: Separating Feature Information for Personalized FL via Conditional Policy"
+category: HFL
+venue: "KDD"
+year: 2023
+url: "https://arxiv.org/abs/2307.01217"
+description: |
+  使用条件策略分离通用和个性化特征信息。
+  通过对比学习区分共享知识和客户端特有知识。
+
+components:
+  learner: fl.fedcp
+  aggregator: fedavg
+  trainer: default
+  model: cifar10_cnn
+  dataset: cifar10
+
+defaults:
+  experiment:
+    num_clients: 10
+    
+  trainer:
+    num_rounds: 100
+    local_epochs: 5
+    client_fraction: 0.1
+    eval_interval: 10
+
+  learner:
+    learning_rate: 0.01
+    batch_size: 32
+    momentum: 0.9
+    # FedCP 特有参数
+    temperature: 0.5
+
+  aggregator:
+    weighted: true
+
+  model:
+    num_classes: 10
+
+  dataset:
+    data_dir: ./data
+    download: true
+    partition:
+      strategy: dirichlet
+      alpha: 0.3
+
+params:
+  learner.temperature:
+    type: float
+    range: [0.1, 1.0]
+    desc: "对比学习温度"
+
+  learner.learning_rate:
+    type: float
+    range: [0.0001, 1.0]
+    desc: "学习率"
+
+  trainer.num_rounds:
+    type: int
+    range: [1, 1000]
+    desc: "联邦训练轮数"
+
+  dataset.partition.alpha:
+    type: float
+    range: [0.01, 100.0]
+    desc: "Dirichlet 分布参数"
+
+citation: |
+  @inproceedings{zhang2023fedcp,
+    title={FedCP: Separating Feature Information for Personalized Federated Learning via Conditional Policy},
+    author={Zhang, Jiaqi and others},
+    booktitle={KDD},
+    year={2023}
+  }
+
+notes: |
+  - 结合对比学习和条件策略
+  - 自动分离通用和个性化特征
+  - temperature 控制对比学习的区分度

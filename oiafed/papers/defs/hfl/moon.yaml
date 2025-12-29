@@ -1,0 +1,90 @@
+# ==================== MOON: Model-Contrastive Federated Learning ====================
+
+id: moon
+name: "MOON: Model-Contrastive Federated Learning"
+category: HFL
+venue: "CVPR"
+year: 2021
+url: "https://arxiv.org/abs/2103.16257"
+description: |
+  利用对比学习减少本地模型与全局模型的表示差异。
+  通过最大化当前模型与全局模型表示的相似度，
+  同时最小化与前一轮本地模型的相似度。
+
+components:
+  learner: fl.moon
+  aggregator: fedavg
+  trainer: default
+  model: cifar10_cnn
+  dataset: cifar10
+
+defaults:
+  experiment:
+    num_clients: 10
+    
+  trainer:
+    num_rounds: 100
+    local_epochs: 5
+    client_fraction: 0.1
+    eval_interval: 10
+
+  learner:
+    learning_rate: 0.01
+    batch_size: 32
+    momentum: 0.9
+    # MOON 特有参数
+    mu: 5.0           # 对比损失权重
+    temperature: 0.5  # 对比学习温度
+
+  aggregator:
+    weighted: true
+
+  model:
+    num_classes: 10
+
+  dataset:
+    data_dir: ./data
+    download: true
+    partition:
+      strategy: dirichlet
+      alpha: 0.3
+
+params:
+  learner.mu:
+    type: float
+    range: [0.1, 10.0]
+    desc: "对比损失权重"
+    
+  learner.temperature:
+    type: float
+    range: [0.1, 1.0]
+    desc: "对比学习温度参数"
+
+  learner.learning_rate:
+    type: float
+    range: [0.0001, 1.0]
+    desc: "学习率"
+
+  trainer.num_rounds:
+    type: int
+    range: [1, 1000]
+    desc: "联邦训练轮数"
+
+  dataset.partition.alpha:
+    type: float
+    range: [0.01, 100.0]
+    desc: "Dirichlet 分布参数"
+
+citation: |
+  @inproceedings{li2021model,
+    title={Model-contrastive federated learning},
+    author={Li, Qinbin and He, Bingsheng and Song, Dawn},
+    booktitle={CVPR},
+    year={2021}
+  }
+
+notes: |
+  - 利用对比学习思想改进联邦学习
+  - mu 控制对比损失的重要性
+  - temperature 影响对比学习的区分度
+  - 需要存储前一轮的本地模型

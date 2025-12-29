@@ -1,0 +1,84 @@
+# ==================== FedPer: Personalization Layers ====================
+
+id: fedper
+name: "FedPer: Federated Learning with Personalization Layers"
+category: HFL
+venue: "AISTATS"
+year: 2020
+url: "https://arxiv.org/abs/1912.00818"
+description: |
+  将模型分为基础层和个性化层。
+  基础层（特征提取）全局共享，
+  个性化层（分类器）本地保留，实现个性化。
+
+components:
+  learner: fl.fedper
+  aggregator: fedavg
+  trainer: default
+  model: cifar10_cnn
+  dataset: cifar10
+
+defaults:
+  experiment:
+    num_clients: 10
+    
+  trainer:
+    num_rounds: 100
+    local_epochs: 5
+    client_fraction: 0.1
+    eval_interval: 10
+
+  learner:
+    learning_rate: 0.01
+    batch_size: 32
+    momentum: 0.9
+    # FedPer 特有参数
+    num_base_layers: -1  # 基础层数量，-1表示除最后一层外都是基础层
+
+  aggregator:
+    weighted: true
+
+  model:
+    num_classes: 10
+
+  dataset:
+    data_dir: ./data
+    download: true
+    partition:
+      strategy: dirichlet
+      alpha: 0.3
+
+params:
+  learner.num_base_layers:
+    type: int
+    range: [-1, 10]
+    desc: "基础层数量 (-1 表示自动)"
+
+  learner.learning_rate:
+    type: float
+    range: [0.0001, 1.0]
+    desc: "学习率"
+
+  trainer.num_rounds:
+    type: int
+    range: [1, 1000]
+    desc: "联邦训练轮数"
+
+  dataset.partition.alpha:
+    type: float
+    range: [0.01, 100.0]
+    desc: "Dirichlet 分布参数"
+
+citation: |
+  @inproceedings{arivazhagan2019federated,
+    title={Federated learning with personalization layers},
+    author={Arivazhagan, Manoj Ghuhan and Aggarwal, Vinay and Singh, Aaditya Kumar and Choudhary, Sunav},
+    booktitle={AISTATS},
+    year={2020}
+  }
+
+notes: |
+  - 简单有效的个性化方法
+  - 基础层学习通用特征，个性化层适应本地数据
+  - num_base_layers=-1 时只保留最后一层为个性化层
+  - 适合标签分布差异大的场景

@@ -53,9 +53,17 @@ class DefaultTrainer(Trainer):
         fit_config = config.get("fit_config", {"epochs": 5})
         eval_interval = config.get("eval_interval", 10)
 
+        # DEBUG: 输出配置信息
+        self.logger.info(f"[Round {round_num}] DEBUG: config keys = {list(config.keys())}")
+        self.logger.info(f"[Round {round_num}] DEBUG: client_fraction = {client_fraction}")
+
         # 1. 选择学习器
         connected = self.get_connected_learners()
+        self.logger.info(f"[Round {round_num}] DEBUG: len(connected) = {len(connected)}")
+        
         num_selected = max(1, int(len(connected) * client_fraction))
+        self.logger.info(f"[Round {round_num}] DEBUG: num_selected = {num_selected}")
+        
         selected = self.select_learners(num_selected, strategy="random")
 
         # DEBUG: 记录所有已连接和选中的学习器
@@ -127,10 +135,10 @@ class DefaultTrainer(Trainer):
             self.model.set_weights(new_weights)
         self.logger.info(f"轮次 {round_num}: 聚合完成")
 
-        # 5. 广播新权重
-        self.logger.info(f"[Round {round_num}] 开始广播新权重到 {len(selected)} 个学习器")
+        # 5. 广播新权重到选中的学习器（而非所有学习器）
+        self.logger.info(f"[Round {round_num}] 开始广播新权重到 {len(selected)} 个选中的学习器")
         self.logger.debug(f"[Round {round_num}] 广播目标: {[getattr(l, '_target_id', 'unknown') for l in selected]}")
-        await self.broadcast_to_learners("set_weights", new_weights)
+        await self.broadcast_to_selected(selected, "set_weights", new_weights)
         self.logger.info(f"[Round {round_num}] 广播完成")
 
         # 6. 聚合后立即评估全局模型（如果配置）

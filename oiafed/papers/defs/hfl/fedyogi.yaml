@@ -1,0 +1,90 @@
+# ==================== FedYogi: Adaptive Federated Optimization ====================
+
+id: fedyogi
+name: "FedYogi: Adaptive Federated Optimization with Yogi"
+category: HFL
+venue: "ICLR"
+year: 2021
+url: "https://arxiv.org/abs/2003.00295"
+description: |
+  将 Yogi 优化器应用于联邦学习的服务器端聚合。
+  相比 Adam，Yogi 对二阶动量的更新更保守，
+  在联邦学习中表现更稳定。
+
+components:
+  learner: default
+  aggregator: fedyogi
+  trainer: default
+  model: cifar10_cnn
+  dataset: cifar10
+
+defaults:
+  experiment:
+    num_clients: 10
+    
+  trainer:
+    num_rounds: 100
+    local_epochs: 5
+    client_fraction: 0.1
+    eval_interval: 10
+
+  learner:
+    learning_rate: 0.01
+    batch_size: 32
+    momentum: 0.9
+
+  aggregator:
+    server_lr: 0.01
+    beta1: 0.9
+    beta2: 0.99
+    epsilon: 1e-3
+    tau: 0.001
+
+  model:
+    num_classes: 10
+
+  dataset:
+    data_dir: ./data
+    download: true
+    partition:
+      strategy: dirichlet
+      alpha: 0.5
+
+params:
+  aggregator.server_lr:
+    type: float
+    range: [0.0001, 1.0]
+    desc: "服务器端学习率"
+    
+  aggregator.beta1:
+    type: float
+    range: [0.0, 0.999]
+    desc: "一阶动量系数"
+    
+  aggregator.beta2:
+    type: float
+    range: [0.0, 0.9999]
+    desc: "二阶动量系数"
+
+  learner.learning_rate:
+    type: float
+    range: [0.0001, 1.0]
+    desc: "客户端学习率"
+
+  trainer.num_rounds:
+    type: int
+    range: [1, 1000]
+    desc: "联邦训练轮数"
+
+citation: |
+  @inproceedings{reddi2021adaptive,
+    title={Adaptive federated optimization},
+    author={Reddi, Sashank and others},
+    booktitle={ICLR},
+    year={2021}
+  }
+
+notes: |
+  - Yogi 的二阶动量更新更保守，避免过度适应
+  - 在联邦学习中通常比 FedAdam 更稳定
+  - 推荐作为自适应优化的默认选择

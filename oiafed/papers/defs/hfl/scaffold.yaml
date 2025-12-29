@@ -1,0 +1,88 @@
+# ==================== SCAFFOLD: Stochastic Controlled Averaging ====================
+
+id: scaffold
+name: "SCAFFOLD: Stochastic Controlled Averaging for Federated Learning"
+category: HFL
+venue: "ICML"
+year: 2020
+url: "https://arxiv.org/abs/1910.06378"
+description: |
+  使用控制变量校正客户端漂移。
+  每个客户端维护一个控制变量来估计本地梯度与全局梯度的差异，
+  在本地训练时进行校正，减少客户端漂移。
+
+components:
+  learner: default
+  aggregator: scaffold
+  trainer: default
+  model: cifar10_cnn
+  dataset: cifar10
+
+defaults:
+  experiment:
+    num_clients: 10
+    
+  trainer:
+    num_rounds: 100
+    local_epochs: 5
+    client_fraction: 0.1
+    eval_interval: 10
+
+  learner:
+    learning_rate: 0.01
+    batch_size: 32
+    momentum: 0.0  # SCAFFOLD 通常不用动量
+
+  aggregator:
+    weighted: true
+    server_lr: 1.0  # 服务器学习率
+
+  model:
+    num_classes: 10
+
+  dataset:
+    data_dir: ./data
+    download: true
+    partition:
+      strategy: dirichlet
+      alpha: 0.3
+
+params:
+  aggregator.server_lr:
+    type: float
+    range: [0.1, 2.0]
+    desc: "服务器学习率"
+    
+  learner.learning_rate:
+    type: float
+    range: [0.0001, 1.0]
+    desc: "客户端学习率"
+
+  trainer.num_rounds:
+    type: int
+    range: [1, 1000]
+    desc: "联邦训练轮数"
+    
+  trainer.local_epochs:
+    type: int
+    range: [1, 20]
+    desc: "本地训练轮数"
+
+  dataset.partition.alpha:
+    type: float
+    range: [0.01, 100.0]
+    desc: "Dirichlet 分布参数"
+
+citation: |
+  @inproceedings{karimireddy2020scaffold,
+    title={SCAFFOLD: Stochastic controlled averaging for federated learning},
+    author={Karimireddy, Sai Praneeth and Kale, Satyen and Mohri, Mehryar and Reddi, Sashank and Stich, Sebastian and Suresh, Ananda Theertha},
+    booktitle={ICML},
+    year={2020}
+  }
+
+notes: |
+  - 理论上收敛速度优于 FedAvg 和 FedProx
+  - 需要额外通信控制变量
+  - 对高度异构数据效果好
+  - 建议不使用动量 (momentum=0)

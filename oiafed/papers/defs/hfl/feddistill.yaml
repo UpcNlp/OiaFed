@@ -1,0 +1,90 @@
+# ==================== FedDistill: Knowledge Distillation ====================
+
+id: feddistill
+name: "FedDistill: Communication-Efficient Federated Learning via Knowledge Distillation"
+category: HFL
+venue: "NeurIPS Workshop"
+year: 2020
+url: "https://arxiv.org/abs/2006.07242"
+description: |
+  使用知识蒸馏减少通信开销。
+  客户端发送模型输出（logits）而非模型参数，
+  服务器进行知识聚合。
+
+components:
+  learner: fl.feddistill
+  aggregator: fedavg
+  trainer: default
+  model: cifar10_cnn
+  dataset: cifar10
+
+defaults:
+  experiment:
+    num_clients: 10
+    
+  trainer:
+    num_rounds: 100
+    local_epochs: 5
+    client_fraction: 0.1
+    eval_interval: 10
+
+  learner:
+    learning_rate: 0.01
+    batch_size: 32
+    momentum: 0.9
+    # FedDistill 特有参数
+    temperature: 3.0     # 蒸馏温度
+    alpha: 0.5           # 蒸馏损失权重
+
+  aggregator:
+    weighted: true
+
+  model:
+    num_classes: 10
+
+  dataset:
+    data_dir: ./data
+    download: true
+    partition:
+      strategy: dirichlet
+      alpha: 0.5
+
+params:
+  learner.temperature:
+    type: float
+    range: [1.0, 10.0]
+    desc: "蒸馏温度"
+    
+  learner.alpha:
+    type: float
+    range: [0.0, 1.0]
+    desc: "蒸馏损失权重"
+
+  learner.learning_rate:
+    type: float
+    range: [0.0001, 1.0]
+    desc: "学习率"
+
+  trainer.num_rounds:
+    type: int
+    range: [1, 1000]
+    desc: "联邦训练轮数"
+
+  dataset.partition.alpha:
+    type: float
+    range: [0.01, 100.0]
+    desc: "Dirichlet 分布参数"
+
+citation: |
+  @article{lin2020feddistill,
+    title={Ensemble distillation for robust model fusion in federated learning},
+    author={Lin, Tao and others},
+    journal={NeurIPS},
+    year={2020}
+  }
+
+notes: |
+  - 通信开销比传参数小
+  - temperature 越高输出越软化
+  - alpha 平衡蒸馏损失和真实标签损失
+  - 支持模型异构

@@ -45,6 +45,8 @@ Federation Framework - 联邦学习框架
     - 支持 Hugging Face Transformers 和 Datasets
     - 配置驱动，统一初始化
 """
+import os
+os.environ["PROTOCOL_BUFFERS_PYTHON_IMPLEMENTATION"] = "python" # 避免 grpcio 与 protobuf 版本冲突问题
 
 __version__ = "0.2.0"
 

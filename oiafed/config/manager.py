@@ -157,8 +157,8 @@ class ConfigManager:
             raise ConfigLoadError(f"Config file not found: {path_obj}")
         
         try:
-            with open(path_obj, "r", encoding="utf-8") as f:
-                data = yaml.safe_load(f) or {}
+            # 使用 _load_yaml 方法，支持环境变量替换 ${VAR:default}
+            data = self._load_yaml(path_obj)
         except yaml.YAMLError as e:
             raise ConfigLoadError(f"Failed to parse YAML: {path_obj}\n{e}")
         

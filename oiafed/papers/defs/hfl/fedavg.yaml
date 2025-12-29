@@ -1,0 +1,98 @@
+# ==================== FedAvg: Federated Averaging ====================
+
+id: fedavg
+name: "FedAvg: Communication-Efficient Learning of Deep Networks"
+category: HFL
+venue: "AISTATS"
+year: 2017
+url: "https://arxiv.org/abs/1602.05629"
+description: |
+  联邦学习的奠基性工作。
+  通过在客户端本地训练多个epoch后聚合模型参数，
+  大幅减少通信开销，同时保持模型性能。
+
+components:
+  learner: default
+  aggregator: fedavg
+  trainer: default
+  model: cnn
+  dataset: cifar10
+
+defaults:
+  experiment:
+    num_clients: 10
+    
+  trainer:
+    num_rounds: 100
+    local_epochs: 5
+    client_fraction: 0.1
+    eval_interval: 10
+
+  learner:
+    learning_rate: 0.01
+    batch_size: 32
+    momentum: 0.9
+    weight_decay: 0.0005
+
+  aggregator:
+    weighted: true
+
+  model:
+    num_classes: 10
+
+  dataset:
+    data_dir: ./data
+    download: true
+    partition:
+      strategy: dirichlet
+      alpha: 0.5
+
+params:
+  learner.learning_rate:
+    type: float
+    range: [0.0001, 1.0]
+    desc: "学习率"
+    
+  learner.batch_size:
+    type: int
+    choices: [16, 32, 64, 128]
+    desc: "批大小"
+
+  trainer.num_rounds:
+    type: int
+    range: [1, 1000]
+    desc: "联邦训练轮数"
+    
+  trainer.local_epochs:
+    type: int
+    range: [1, 20]
+    desc: "本地训练轮数"
+    
+  trainer.client_fraction:
+    type: float
+    range: [0.01, 1.0]
+    desc: "每轮参与客户端比例"
+
+  experiment.num_clients:
+    type: int
+    range: [2, 1000]
+    desc: "客户端总数"
+    
+  dataset.partition.alpha:
+    type: float
+    range: [0.01, 100.0]
+    desc: "Dirichlet 分布参数"
+
+citation: |
+  @inproceedings{mcmahan2017communication,
+    title={Communication-efficient learning of deep networks from decentralized data},
+    author={McMahan, Brendan and Moore, Eider and Ramage, Daniel and Hampson, Seth and y Arcas, Blaise Aguera},
+    booktitle={AISTATS},
+    year={2017}
+  }
+
+notes: |
+  - 联邦学习的基础算法，其他方法多在此基础上改进
+  - local_epochs 越大通信效率越高，但可能导致客户端漂移
+  - alpha 越小数据越异构，训练越困难
+  - 适合作为基准对比

@@ -1,0 +1,141 @@
+# ==================== FedEraser: Federated Unlearning ====================
+
+id: faderaser
+name: "FedEraser: Enabling Efficient Client-Level Data Removal"
+category: FU
+venue: "IEEE INFOCOM"
+year: 2022
+url: "https://arxiv.org/abs/2111.08096"
+description: |
+  高效删除特定客户端数据对模型影响的联邦遗忘方法。
+  通过记录训练历史和校准重训实现快速遗忘，
+  无需从头完全重新训练模型。
+  适用于 GDPR 数据删除、恶意客户端移除等场景。
+
+# ==================== 组件映射 ====================
+components:
+  learner: default
+  aggregator: faderaser
+  trainer: target
+  model: cifar10_cnn
+  dataset: cifar10
+
+# ==================== 默认参数 ====================
+defaults:
+  experiment:
+    num_clients: 5
+    
+  trainer:
+    num_rounds: 20
+    local_epochs: 3
+    client_fraction: 1.0
+    eval_interval: 2
+    # 遗忘触发配置
+    unlearn_after_round: 10
+    target_clients:
+      - learner_4
+
+  learner:
+    learning_rate: 0.01
+    batch_size: 32
+    momentum: 0.9
+
+  aggregator:
+    history_dir: ./fed_history
+    calibration_rounds: 5
+    unlearn_strategy: recalibrate
+    record_history: true
+
+  model:
+    num_classes: 10
+
+  dataset:
+    data_dir: ./data
+    download: true
+    partition:
+      strategy: dirichlet
+      alpha: 0.5
+
+# ==================== 可调参数说明 ====================
+params:
+  # Aggregator 参数 (FedEraser 核心)
+  aggregator.calibration_rounds:
+    type: int
+    range: [1, 50]
+    desc: "遗忘后校准轮数"
+    
+  aggregator.unlearn_strategy:
+    type: str
+    choices: [recalibrate, rollback, finetune]
+    desc: "遗忘策略"
+    
+  aggregator.record_history:
+    type: bool
+    desc: "是否记录训练历史"
+    
+  aggregator.history_dir:
+    type: str
+    desc: "历史记录保存目录"
+
+  # Trainer 参数
+  trainer.num_rounds:
+    type: int
+    range: [1, 200]
+    desc: "联邦训练总轮数"
+    
+  trainer.unlearn_after_round:
+    type: int
+    range: [1, 100]
+    desc: "第几轮后触发遗忘"
+    
+  trainer.target_clients:
+    type: list
+    desc: "要遗忘的客户端 ID 列表"
+    
+  trainer.local_epochs:
+    type: int
+    range: [1, 20]
+    desc: "本地训练轮数"
+
+  # Learner 参数
+  learner.learning_rate:
+    type: float
+    range: [0.0001, 0.1]
+    desc: "学习率"
+    
+  learner.batch_size:
+    type: int
+    choices: [16, 32, 64, 128]
+    desc: "批大小"
+
+  # Experiment 参数
+  experiment.num_clients:
+    type: int
+    range: [3, 100]
+    desc: "客户端数量 (至少 3 个，以便有可遗忘的)"
+    
+  # Dataset 参数
+  dataset.partition.alpha:
+    type: float
+    range: [0.1, 100.0]
+    desc: "Dirichlet 分布参数"
+
+# ==================== 引用信息 ====================
+citation: |
+  @inproceedings{faderaser2022,
+    title={FedEraser: Enabling Efficient Client-Level Data Removal from Federated Learning Models},
+    author={Liu, Gaoyang and Ma, Xiaoqiang and Yang, Yang and Wang, Chen and Liu, Jiangchuan},
+    booktitle={IEEE INFOCOM 2022},
+    year={2022}
+  }
+
+# ==================== 备注 ====================
+notes: |
+  - 遗忘策略说明:
+    * recalibrate: 从检查点重新校准历史更新 (推荐)
+    * rollback: 直接回滚到检查点
+    * finetune: 在回滚后用剩余客户端微调
+  - record_history 必须为 true 才能执行遗忘
+  - calibration_rounds 越大，遗忘效果越好，但耗时越长
+  - 遗忘后模型准确率可能略有下降，这是正常的
+  - 适用于 GDPR 数据删除请求、客户端退出、恶意客户端移除

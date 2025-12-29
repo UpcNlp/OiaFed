@@ -1,0 +1,81 @@
+# ==================== FedNova: Normalized Averaging ====================
+
+id: fednova
+name: "FedNova: Tackling Objective Inconsistency in Heterogeneous FL"
+category: HFL
+venue: "NeurIPS"
+year: 2020
+url: "https://arxiv.org/abs/2007.07481"
+description: |
+  通过归一化本地更新解决目标不一致问题。
+  考虑不同客户端本地训练步数不同的情况，
+  对更新进行归一化以消除偏差。
+
+components:
+  learner: default
+  aggregator: fednova
+  trainer: default
+  model: cifar10_cnn
+  dataset: cifar10
+
+defaults:
+  experiment:
+    num_clients: 10
+    
+  trainer:
+    num_rounds: 100
+    local_epochs: 5
+    client_fraction: 0.1
+    eval_interval: 10
+
+  learner:
+    learning_rate: 0.01
+    batch_size: 32
+    momentum: 0.9
+
+  aggregator:
+    weighted: true
+
+  model:
+    num_classes: 10
+
+  dataset:
+    data_dir: ./data
+    download: true
+    partition:
+      strategy: dirichlet
+      alpha: 0.5
+
+params:
+  learner.learning_rate:
+    type: float
+    range: [0.0001, 1.0]
+    desc: "学习率"
+
+  trainer.num_rounds:
+    type: int
+    range: [1, 1000]
+    desc: "联邦训练轮数"
+    
+  trainer.local_epochs:
+    type: int
+    range: [1, 20]
+    desc: "本地训练轮数"
+
+  dataset.partition.alpha:
+    type: float
+    range: [0.01, 100.0]
+    desc: "Dirichlet 分布参数"
+
+citation: |
+  @inproceedings{wang2020tackling,
+    title={Tackling the objective inconsistency problem in heterogeneous federated optimization},
+    author={Wang, Jianyu and Liu, Qinghua and Liang, Hao and Joshi, Gauri and Poor, H Vincent},
+    booktitle={NeurIPS},
+    year={2020}
+  }
+
+notes: |
+  - 特别适合客户端计算能力差异大的场景
+  - 允许不同客户端执行不同数量的本地步数
+  - 归一化消除了本地步数差异带来的偏差

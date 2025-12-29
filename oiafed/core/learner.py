@@ -286,6 +286,21 @@ class Learner(ABC):
             epoch_history=epoch_history
         )
 
+        # 记录训练指标到 Tracker（如果有）
+        if self._tracker:
+            metrics_to_log = {
+                'train_loss': final_loss,
+                'train_samples': float(total_samples),
+            }
+            # 添加其他指标
+            for k, v in aggregated_metrics.items():
+                if isinstance(v, (int, float)):
+                    metrics_to_log[f'train_{k}'] = float(v)
+            
+            # 使用全局 epoch 计数器作为 step
+            self._tracker.log_metrics(metrics_to_log, step=self._global_epoch_counter)
+            self.logger.debug(f"[{self._node_id}] Logged train metrics to tracker: {list(metrics_to_log.keys())}")
+
         return train_metrics
 
     # ==================== 轮次层 (Epoch Level) ====================
