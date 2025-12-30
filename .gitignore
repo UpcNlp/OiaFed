@@ -8,8 +8,7 @@ wheels/
 PM/
 # Virtual environments
 .venv
-data/
-!src/data
+/data/
 !src/papers/
 logs/
 configs/
