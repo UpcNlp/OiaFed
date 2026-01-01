@@ -37,7 +37,7 @@ from typing import Any, Dict, List, Optional, Type, TypeVar, Union
 
 import yaml
 
-from .types import (
+from .schema import (
     GlobalConfig,
     LogConfig,
     TrackerConfig,
@@ -348,7 +348,7 @@ class ConfigManager:
             },
         }
         
-        # 日志配置
+        # 日志配置（exp_name, run_name, log_dir 从 global_config 获取，不重复存储）
         if config.logging:
             result["logging"] = {
                 "level": config.logging.level,
@@ -359,9 +359,8 @@ class ConfigManager:
                 "compression": config.logging.compression,
                 "format": config.logging.format,
                 "diagnose": config.logging.diagnose,
-                "log_dir": config.logging.log_dir,
-                "exp_name": config.logging.exp_name,
-                "run_name": config.logging.run_name,
+                # 注意：log_dir, exp_name, run_name 不在此处序列化
+                # 它们从 global_config 获取，避免重复
             }
         
         # 追踪配置
@@ -397,12 +396,6 @@ class ConfigManager:
             result["datasets"] = [
                 self._component_to_dict(ds) for ds in config.datasets
             ]
-        if config.test_datasets:
-            result["test_datasets"] = [
-                self._component_to_dict(ds) for ds in config.test_datasets
-            ]
-        if config.dataset:
-            result["dataset"] = self._component_to_dict(config.dataset)
         
         # 回调配置
         if config.callbacks:
@@ -616,8 +609,15 @@ class ConfigManager:
         2. 根级别 exp_name / run_name
         3. logging.exp_name / logging.run_name
         """
-        # 支持 "global" 和 "global_" 两种键名（后者用于 Python 关键字规避）
-        global_data = data.get("global", data.get("global_", {}))
+        # 支持多种键名：
+        # - "global_config" (推荐，generator 使用)
+        # - "global" (YAML 常用)
+        # - "global_" (Python 关键字规避)
+        global_data = (
+            data.get("global_config") or 
+            data.get("global") or 
+            data.get("global_", {})
+        )
         logging_data = data.get("logging", {})
         
         # 按优先级获取 exp_name: global > 根级别 > logging
@@ -861,6 +861,13 @@ class ConfigManager:
         """
         创建 Trainer 配置的便捷方法
         
+        .. deprecated::
+            此方法已废弃，请使用 ConfigGenerator.generate_trainer() 替代。
+            
+            from oiafed.config import ConfigGenerator
+            generator = ConfigGenerator()
+            config = generator.generate_trainer(...)
+        
         Args:
             node_id: 节点 ID
             exp_name: 实验名称
@@ -873,6 +880,13 @@ class ConfigManager:
         Returns:
             NodeConfig 实例
         """
+        import warnings
+        warnings.warn(
+            "ConfigManager.create_trainer_config() 已废弃，请使用 ConfigGenerator.generate_trainer()",
+            DeprecationWarning,
+            stacklevel=2
+        )
+        
         data = {
             "node_id": node_id,
             "role": "trainer",
@@ -899,6 +913,13 @@ class ConfigManager:
         """
         创建 Learner 配置的便捷方法
         
+        .. deprecated::
+            此方法已废弃，请使用 ConfigGenerator.generate_learner() 替代。
+            
+            from oiafed.config import ConfigGenerator
+            generator = ConfigGenerator()
+            config = generator.generate_learner(index=0, num_clients=10, ...)
+        
         Args:
             node_id: 节点 ID
             connect_to: 连接目标列表
@@ -910,6 +931,13 @@ class ConfigManager:
         Returns:
             NodeConfig 实例
         """
+        import warnings
+        warnings.warn(
+            "ConfigManager.create_learner_config() 已废弃，请使用 ConfigGenerator.generate_learner()",
+            DeprecationWarning,
+            stacklevel=2
+        )
+        
         data = {
             "node_id": node_id,
             "role": "learner",

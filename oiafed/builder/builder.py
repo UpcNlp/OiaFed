@@ -76,8 +76,8 @@ class ComponentBuilder:
     - 管理组件依赖关系
     
     Example:
-        from federation import load_config
-        from federation.registry import registry
+        from oiafed import load_config
+        from oiafed.registry import registry
         
         config = load_config("trainer.yaml")
         builder = ComponentBuilder(registry)

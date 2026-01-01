@@ -2,8 +2,10 @@
 配置系统 v3.0
 
 重构设计：
-- types.py: 纯数据类定义
-- manager.py: 配置管理器（加载、合并、同步、验证）
+- schema.py: 配置 Schema 定义（纯数据类）
+- manager.py: 配置管理器（加载、保存、合并、验证）
+- generator.py: 配置生成器（统一的配置生成入口）
+- defaults.py: 默认值定义
 
 主要特性：
 1. 层次化配置（GlobalConfig → NodeConfig）
@@ -39,7 +41,7 @@ Quick Start:
 
 # ==================== 类型定义 ====================
 
-from .types import (
+from .schema import (
     # 枚举
     LogLevel,
     TransportMode,
@@ -101,6 +103,36 @@ from .manager import (
     create_client_config,
 )
 
+# ==================== 配置生成器 ====================
+
+from .generator import (
+    ConfigGenerator,
+    generate_federation,
+)
+
+# ==================== 默认值 ====================
+
+from .defaults import (
+    DEFAULT_TRAINER_PORT,
+    DEFAULT_LEARNER_BASE_PORT,
+    DEFAULT_HOST,
+    DEFAULT_LOCALHOST,
+    DEFAULT_MAX_MESSAGE_SIZE,
+    DEFAULT_TIMEOUT,
+    DEFAULT_TRAINER_TYPE,
+    DEFAULT_LEARNER_TYPE,
+    DEFAULT_AGGREGATOR_TYPE,
+    DEFAULT_MODEL_TYPE,
+    DEFAULT_DATASET_TYPE,
+    DEFAULT_PARTITION_STRATEGY,
+    DEFAULT_PARTITION_ALPHA,
+    DEFAULT_LOG_LEVEL,
+    DEFAULT_LOG_DIR,
+    DEFAULT_SERIALIZATION,
+    DEFAULT_TRANSPORT_MODE,
+    DEFAULT_EXP_NAME,
+)
+
 
 # ==================== 向后兼容别名 ====================
 
@@ -152,12 +184,36 @@ __all__ = [
     "ConfigManager",
     "get_default_manager",
     
+    # 生成器
+    "ConfigGenerator",
+    "generate_federation",
+    
     # 便捷函数
     "load_config",
     "load_config_from_dict",
     "save_config",
     "validate_config",
     "config_to_dict",
+    
+    # 默认值
+    "DEFAULT_TRAINER_PORT",
+    "DEFAULT_LEARNER_BASE_PORT",
+    "DEFAULT_HOST",
+    "DEFAULT_LOCALHOST",
+    "DEFAULT_MAX_MESSAGE_SIZE",
+    "DEFAULT_TIMEOUT",
+    "DEFAULT_TRAINER_TYPE",
+    "DEFAULT_LEARNER_TYPE",
+    "DEFAULT_AGGREGATOR_TYPE",
+    "DEFAULT_MODEL_TYPE",
+    "DEFAULT_DATASET_TYPE",
+    "DEFAULT_PARTITION_STRATEGY",
+    "DEFAULT_PARTITION_ALPHA",
+    "DEFAULT_LOG_LEVEL",
+    "DEFAULT_LOG_DIR",
+    "DEFAULT_SERIALIZATION",
+    "DEFAULT_TRANSPORT_MODE",
+    "DEFAULT_EXP_NAME",
     
     # 向后兼容
     "load_node_config",

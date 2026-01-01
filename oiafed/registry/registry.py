@@ -219,7 +219,7 @@ def register(namespace: str) -> Callable[[Type], Type]:
     全局注册装饰器
     
     Example:
-        from federation.registry import register
+        from oiafed.registry import register
         
         @register("federated.trainer.my_trainer")
         class MyTrainer(Trainer):

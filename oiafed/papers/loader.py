@@ -4,7 +4,7 @@
 功能：
 1. 从 YAML 文件加载论文定义
 2. 提供查询接口（列表、搜索、获取）
-3. 配置生成与合并
+3. 配置生成与合并（委托给 ConfigGenerator）
 4. 参数验证
 """
 
@@ -17,6 +17,7 @@ from typing import Any, Dict, List, Optional, Union
 import yaml
 
 from ..infra import get_module_logger
+from ..config import ConfigGenerator, ConfigManager
 
 logger = get_module_logger(__name__)
 
@@ -175,6 +176,10 @@ class PaperRegistry:
             defs_dir: 论文定义目录，默认为 src/papers/defs/
         """
         self.papers: Dict[str, PaperDef] = {}
+        
+        # 配置生成器和管理器
+        self._generator = ConfigGenerator()
+        self._manager = ConfigManager()
         
         if defs_dir is None:
             defs_dir = Path(__file__).parent / "defs"
@@ -384,18 +389,23 @@ class PaperRegistry:
         override: Optional[Dict[str, Any]] = None,
         num_clients: Optional[int] = None,
         output_dir: Optional[str] = None,
-    ) -> List[Dict[str, Any]]:
+        return_objects: bool = False,
+    ) -> Union[List[Dict[str, Any]], List]:
         """
         生成节点配置文件
+        
+        使用 ConfigGenerator 生成配置，确保与 NodeConfig 完全兼容。
         
         Args:
             paper_id: 论文 ID
             override: 用户覆盖配置
             num_clients: 客户端数量（覆盖默认值）
             output_dir: 输出目录（如果指定，则写入文件）
+            return_objects: 是否返回 NodeConfig 对象（默认返回字典）
             
         Returns:
-            配置字典列表 [trainer_config, learner_0_config, learner_1_config, ...]
+            如果 return_objects=False: 配置字典列表
+            如果 return_objects=True: NodeConfig 对象列表
         """
         paper = self.get(paper_id)
         if not paper:
@@ -408,152 +418,153 @@ class PaperRegistry:
         if num_clients is None:
             num_clients = merged.get("experiment", {}).get("num_clients", 2)
         
-        configs = []
+        # 提取 ConfigGenerator 需要的参数
+        params = self._extract_generator_params(paper, merged, num_clients)
         
-        # 生成 Trainer 配置
-        trainer_config = self._generate_trainer_config(paper, merged, num_clients)
-        configs.append(trainer_config)
-        
-        # 生成 Learner 配置
-        for i in range(num_clients):
-            learner_config = self._generate_learner_config(paper, merged, i, num_clients)
-            configs.append(learner_config)
+        # 使用 ConfigGenerator 生成配置
+        configs = self._generator.generate_federation(**params)
         
         # 写入文件（如果指定）
         if output_dir:
-            self._write_configs(configs, output_dir)
+            self._generator.save_configs(configs, output_dir)
         
-        return configs
+        # 返回格式
+        if return_objects:
+            return configs
+        else:
+            # 转换为字典（向后兼容）
+            return [self._manager.to_dict(config) for config in configs]
     
-    def _generate_trainer_config(
+    def _extract_generator_params(
         self,
         paper: PaperDef,
         merged: Dict,
         num_clients: int,
     ) -> Dict[str, Any]:
-        """生成 Trainer 配置"""
-        config = {
-            "node_id": "trainer",
-            "role": "trainer",
-            "listen": {
-                "host": "localhost",
-                "port": 50051,
-            },
-            "min_peers": num_clients,
-            "transport": {
-                "mode": "grpc",
-                "grpc": {"max_message_size": 104857600},
-            },
-            "logging": {
-                "level": "INFO",
-                "console": True,
-            },
-            "serialization": {"default": "pickle"},
+        """
+        从合并后的配置中提取 ConfigGenerator 需要的参数
+        
+        将 PaperDef 和用户 override 转换为 ConfigGenerator.generate_federation() 的参数。
+        """
+        params = {
+            "num_clients": num_clients,
         }
         
-        # Trainer 组件
-        trainer_type = paper.get_component("trainer") or "default"
-        config["trainer"] = {
-            "type": trainer_type,
-            "args": merged.get("trainer", {}),
-        }
+        # ===== 组件类型（先提取，用于生成 exp_name）=====
+        params["trainer_type"] = paper.get_component("trainer") or "default"
+        params["learner_type"] = paper.get_component("learner") or "default"
+        params["aggregator_type"] = paper.get_component("aggregator") or "fedavg"
+        params["model_type"] = paper.get_component("model") or "mnist_cnn"
+        params["dataset_type"] = paper.get_component("dataset") or "mnist"
         
-        # Aggregator 组件
-        aggregator_type = paper.get_component("aggregator") or "fedavg"
-        config["aggregator"] = {
-            "type": aggregator_type,
-            "args": merged.get("aggregator", {}),
-        }
+        # ===== 组件参数（从 merged 提取）=====
+        # Trainer 参数
+        trainer_override = merged.get("trainer", {})
+        if "type" in trainer_override:
+            params["trainer_type"] = trainer_override["type"]
+        params["trainer_args"] = {k: v for k, v in trainer_override.items() if k != "type"}
         
-        # Model
-        model_type = paper.get_component("model") or "mnist_cnn"
-        config["model"] = {
-            "type": model_type,
-            "args": merged.get("model", {}),
-        }
+        # Learner 参数
+        learner_override = merged.get("learner", {})
+        if "type" in learner_override:
+            params["learner_type"] = learner_override["type"]
+        params["learner_args"] = {k: v for k, v in learner_override.items() if k != "type"}
         
-        return config
+        # Aggregator 参数
+        aggregator_override = merged.get("aggregator", {})
+        if "type" in aggregator_override:
+            params["aggregator_type"] = aggregator_override["type"]
+        params["aggregator_args"] = {k: v for k, v in aggregator_override.items() if k != "type"}
+        
+        # Model 参数
+        model_override = merged.get("model", {})
+        if "type" in model_override:
+            params["model_type"] = model_override["type"]
+        params["model_args"] = {k: v for k, v in model_override.items() if k != "type"}
+        
+        # ===== 数据集和划分配置 =====
+        self._extract_dataset_params(merged, params)
+        
+        # ===== 全局配置 =====
+        global_config = merged.get("global_config", {})
+        
+        # exp_name: 如果指定了就用，否则传 None 让 ConfigGenerator 自动生成
+        params["exp_name"] = global_config.get("exp_name")  # None 表示自动生成
+        
+        params["run_name"] = global_config.get("run_name")
+        params["log_dir"] = global_config.get("log_dir", "./logs")
+        
+        # ===== 可选配置 =====
+        if "tracker" in merged:
+            params["tracker"] = merged["tracker"]
+        if "callbacks" in merged:
+            params["callbacks"] = merged["callbacks"]
+        if "logging" in merged:
+            params["logging"] = merged["logging"]
+        if "default_timeout" in merged:
+            params["default_timeout"] = merged["default_timeout"]
+        
+        # ===== 网络配置 =====
+        listen = merged.get("listen", {})
+        if "host" in listen:
+            params["trainer_host"] = listen["host"]
+            params["learner_host"] = listen["host"]
+        if "port" in listen:
+            params["trainer_port"] = listen["port"]
+        
+        # ===== 传输配置 =====
+        transport = merged.get("transport", {})
+        if "mode" in transport:
+            params["transport_mode"] = transport["mode"]
+        
+        return params
     
-    def _generate_learner_config(
-        self,
-        paper: PaperDef,
-        merged: Dict,
-        index: int,
-        num_clients: int,
-    ) -> Dict[str, Any]:
-        """生成 Learner 配置"""
-        config = {
-            "node_id": f"learner_{index}",
-            "role": "learner",
-            "listen": {
-                "host": "localhost",
-                "port": 50052 + index,
-            },
-            "connect_to": ["trainer@localhost:50051"],
-            "transport": {
-                "mode": "grpc",
-                "grpc": {"max_message_size": 104857600},
-            },
-            "logging": {
-                "level": "INFO",
-                "console": True,
-            },
-            "serialization": {"default": "pickle"},
-        }
+    def _extract_dataset_params(self, merged: Dict, params: Dict) -> None:
+        """从 merged 中提取数据集相关参数"""
         
-        # Learner 组件
-        learner_type = paper.get_component("learner") or "default"
-        config["learner"] = {
-            "type": learner_type,
-            "args": merged.get("learner", {}),
-        }
-        
-        # Model
-        model_type = paper.get_component("model") or "mnist_cnn"
-        config["model"] = {
-            "type": model_type,
-            "args": merged.get("model", {}),
-        }
-        
-        # Dataset
-        dataset_type = paper.get_component("dataset") or "mnist"
-        dataset_config = merged.get("dataset", {})
-        partition_config = dataset_config.pop("partition", {})
-        
-        config["datasets"] = [
-            {
-                "type": dataset_type,
-                "split": "train",
-                "args": dataset_config.copy(),
-                "partition": {
-                    **partition_config,
-                    "num_partitions": num_clients,
-                    "partition_id": index,
-                },
-            },
-            {
-                "type": dataset_type,
-                "split": "test",
-                "args": {k: v for k, v in dataset_config.items() if k != "download"},
-            },
-        ]
-        
-        return config
-    
-    def _write_configs(self, configs: List[Dict], output_dir: str) -> None:
-        """写入配置文件"""
-        output_path = Path(output_dir)
-        output_path.mkdir(parents=True, exist_ok=True)
-        
-        for config in configs:
-            node_id = config["node_id"]
-            file_path = output_path / f"{node_id}.yaml"
+        # 标准格式: datasets (复数)
+        if "datasets" in merged:
+            datasets = merged["datasets"]
+            # 查找 train 数据集
+            train_ds = None
+            for ds in datasets:
+                if ds.get("split") == "train":
+                    train_ds = ds
+                    break
             
-            with open(file_path, "w", encoding="utf-8") as f:
-                yaml.dump(config, f, default_flow_style=False, allow_unicode=True)
+            if train_ds:
+                # 数据集类型
+                if "type" in train_ds:
+                    params["dataset_type"] = train_ds["type"]
+                
+                # 数据集参数
+                params["dataset_args"] = train_ds.get("args", {})
+                
+                # 划分配置
+                partition = train_ds.get("partition", {})
+                if "strategy" in partition:
+                    params["partition_strategy"] = partition["strategy"]
+                if "alpha" in partition:
+                    params["partition_alpha"] = partition["alpha"]
+        
+        # 简化格式: dataset (单数，向后兼容)
+        elif "dataset" in merged:
+            dataset_config = copy.deepcopy(merged["dataset"])
             
-            logger.info(f"已生成: {file_path}")
-    
+            # 提取 partition
+            partition = dataset_config.pop("partition", {})
+            
+            # 数据集类型和参数
+            if "type" in dataset_config:
+                params["dataset_type"] = dataset_config.pop("type")
+            params["dataset_args"] = dataset_config
+            
+            # 划分配置
+            if "strategy" in partition:
+                params["partition_strategy"] = partition["strategy"]
+            if "alpha" in partition:
+                params["partition_alpha"] = partition["alpha"]
+
     # ==================== 验证 ====================
     
     def validate_override(

@@ -35,10 +35,10 @@ import copy
 import os
 import json
 
-from oiafed.core.aggregator import Aggregator
-from oiafed.core.types import ClientUpdate
-from oiafed.registry import aggregator
-from oiafed.infra import get_module_logger
+from ...core.aggregator import Aggregator
+from ...core.types import ClientUpdate
+from ...registry import aggregator
+from ...infra import get_module_logger
 
 logger = get_module_logger(__name__)
 

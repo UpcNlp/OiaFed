@@ -25,7 +25,7 @@ def get_model_weights(model: "nn.Module") -> List[Any]:
 
     Example:
         import torch.nn as nn
-        from federation.core.model import get_model_weights
+        from oiafed.core.model import get_model_weights
 
         model = nn.Linear(10, 2)
         weights = get_model_weights(model)
@@ -47,7 +47,7 @@ def set_model_weights(model: "nn.Module", weights: List[Any]) -> None:
         weights: numpy 数组列表
 
     Example:
-        from federation.core.model import set_model_weights
+        from oiafed.core.model import set_model_weights
 
         set_model_weights(model, weights)
     """
@@ -71,7 +71,7 @@ def clone_model_weights(model: "nn.Module") -> List[Any]:
         权重深拷贝
 
     Example:
-        from federation.core.model import clone_model_weights
+        from oiafed.core.model import clone_model_weights
 
         cloned_weights = clone_model_weights(model)
     """
@@ -90,7 +90,7 @@ def get_num_parameters(model: "nn.Module") -> int:
         参数数量
 
     Example:
-        from federation.core.model import get_num_parameters
+        from oiafed.core.model import get_num_parameters
 
         num_params = get_num_parameters(model)
         print(f"Model has {num_params:,} parameters")
@@ -112,7 +112,7 @@ def get_transformers_model_weights(model) -> List[Any]:
 
     Example:
         from transformers import BertModel
-        from federation.core.model import get_transformers_model_weights
+        from oiafed.core.model import get_transformers_model_weights
 
         model = BertModel.from_pretrained('bert-base-uncased')
         weights = get_transformers_model_weights(model)
@@ -130,7 +130,7 @@ def set_transformers_model_weights(model, weights: List[Any]) -> None:
         weights: numpy 数组列表
 
     Example:
-        from federation.core.model import set_transformers_model_weights
+        from oiafed.core.model import set_transformers_model_weights
 
         set_transformers_model_weights(model, weights)
     """

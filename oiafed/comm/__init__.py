@@ -8,13 +8,14 @@ Node 通信层
 - 类型安全：统一的消息格式和错误处理
 
 Example:
-    from node_comm import Node, NodeConfig, load_config
+    from oiafed.comm import Node
+    from oiafed.config import NodeCommConfig
     
     async def handle_train(payload, ctx):
         return {"status": "completed"}
     
-    config = load_config("config.yaml")
-    node = Node("my_node", config)
+    config = NodeCommConfig(node_id="my_node")
+    node = Node(config)
     node.register("train", handle_train)
     
     async with node:
@@ -26,12 +27,20 @@ Public Extension APIs:
     
     # 添加自定义拦截器
     node.add_interceptor(my_interceptor)
+
+Migration:
+    # 配置类已移至 oiafed.config
+    # 旧代码:
+    from oiafed.comm import NodeConfig, load_config
+    # 新代码:
+    from oiafed.config import NodeCommConfig, load_config
 """
 
 from .node import Node
 from .config import (
-    NodeConfig,
-    TransportConfig,
+    # 内部配置类
+    CommTransportConfig,
+    TransportConfig,  # 别名
     MemoryTransportConfig,
     GrpcTransportConfig,
     TlsConfig,
@@ -42,6 +51,10 @@ from .config import (
     RetryConfig,
     HeartbeatConfig,
     MethodOptions,
+    # 适配器
+    from_node_comm_config,
+    # 向后兼容（已废弃）
+    NodeConfig,
     load_config,
 )
 from .message import (
@@ -82,15 +95,18 @@ from .interceptor import (
     AuthInterceptor,
 )
 
-__version__ = "1.1.0"
+# 向后兼容别名
+TransportConfig = CommTransportConfig
+
+__version__ = "2.0.0"
 
 __all__ = [
     # 核心
     "Node",
     
-    # 配置
-    "NodeConfig",
-    "TransportConfig",
+    # 配置（内部）
+    "CommTransportConfig",
+    "TransportConfig",  # 向后兼容别名
     "MemoryTransportConfig",
     "GrpcTransportConfig",
     "TlsConfig",
@@ -101,6 +117,12 @@ __all__ = [
     "RetryConfig",
     "HeartbeatConfig",
     "MethodOptions",
+    
+    # 适配器
+    "from_node_comm_config",
+    
+    # 向后兼容（已废弃）
+    "NodeConfig",
     "load_config",
     
     # 消息
@@ -139,6 +161,4 @@ __all__ = [
     "InterceptorContext",
     "LoggingInterceptor",
     "AuthInterceptor",
-    
-    # 工具
 ]

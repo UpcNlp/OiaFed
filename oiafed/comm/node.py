@@ -8,9 +8,12 @@ import traceback
 import uuid
 from collections import defaultdict
 from dataclasses import dataclass, field
-from typing import Any, Awaitable, Callable, Dict, List, Optional, Set
+from typing import Any, Awaitable, Callable, Dict, List, Optional, Set, Union
 
-from .config import NodeConfig, MethodOptions
+# 导入配置类
+from .config import MethodOptions
+# 从主配置模块导入 NodeCommConfig（统一的配置定义）
+from ..config import NodeCommConfig
 from .message import (
     Message,
     MessageType,
@@ -79,23 +82,36 @@ class Node:
     
     def __init__(
         self,
-        node_id: str,
-        config: Optional[NodeConfig] = None,
+        node_id_or_config: Union[str, NodeCommConfig],
+        config: Optional[NodeCommConfig] = None,
     ):
-        # 节点标识
-        self.node_id: str = node_id
-        self.config: NodeConfig = config or NodeConfig(node_id=node_id)
-
+        """
+        创建 Node 实例
+        
+        支持两种调用方式:
+        1. Node(node_id, config)  - 传统方式
+        2. Node(config)           - 新方式，从 config.node_id 获取 ID
+        
+        Args:
+            node_id_or_config: 节点 ID（字符串）或 NodeCommConfig 实例
+            config: 配置对象（仅当第一个参数是 node_id 时使用）
+        """
+        # 处理两种调用方式
+        if isinstance(node_id_or_config, str):
+            # 传统方式: Node(node_id, config)
+            self.node_id = node_id_or_config
+            self.config = config or NodeCommConfig(node_id=self.node_id)
+        else:
+            # 新方式: Node(config)
+            self.config = node_id_or_config
+            self.node_id = self.config.node_id
+        
+        # 确保 config.node_id 一致
+        if self.config.node_id != self.node_id:
+            self.config.node_id = self.node_id
+        
         # 创建绑定了 node_id 和 log_type 的 logger
-        self.logger = get_logger(node_id=node_id, log_type="system")
-
-        # 确保 config.node_id 与参数一致
-        if self.config.node_id and self.config.node_id != node_id:
-            self.self.logger.warning(
-                f"Config node_id '{self.config.node_id}' differs from parameter '{node_id}', "
-                f"using parameter value"
-            )
-        self.config.node_id = node_id
+        self.logger = get_logger(node_id=self.node_id, log_type="system")
         
         # 核心表
         self._method_table: Dict[str, MethodEntry] = {}
@@ -1117,15 +1133,18 @@ class Node:
         self._serializer_registry = SerializerRegistry(self.config.serialization)
         self._interceptor_chain = InterceptorChain()
 
-        # 添加日志拦截器
-        if self.config.interceptors.logging:
+        # 获取拦截器配置（可能为 None）
+        interceptors = self.config.interceptors
+        
+        # 添加日志拦截器（默认启用）
+        if interceptors is None or getattr(interceptors, 'logging', True):
             self.logger.debug("添加日志拦截器")
             self._interceptor_chain.add(LoggingInterceptor(node_id=self.node_id))
 
         # 添加认证拦截器
-        if self.config.interceptors.auth:
+        if interceptors is not None and getattr(interceptors, 'auth', False):
             self.logger.debug("添加认证拦截器")
-            auth_config = self.config.interceptors.auth_config
+            auth_config = interceptors.auth_config
             auth_interceptor = AuthInterceptor(
                 token=auth_config.token,
             )

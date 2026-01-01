@@ -46,7 +46,7 @@ class FederatedSystem:
     - 连接在 run() 入口建立，支持重试
 
     Example:
-        from federation import load_config, FederatedSystem
+        from oiafed import load_config, FederatedSystem
 
         config = load_config("configs/trainer.yaml")
         system = FederatedSystem(config)

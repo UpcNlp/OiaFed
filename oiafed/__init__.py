@@ -13,7 +13,7 @@ Federation Framework - 联邦学习框架
 
 使用方式：
     # 方式1：FederationRunner 类（推荐）
-    from federation import FederationRunner
+    from oiafed import FederationRunner
 
     # 单配置文件
     runner = FederationRunner("configs/trainer.yaml")
@@ -24,11 +24,11 @@ Federation Framework - 联邦学习框架
     result = runner.run_sync()
 
     # 方式2：配置文件驱动函数
-    from federation import run_from_config_sync
+    from oiafed import run_from_config_sync
     result = run_from_config_sync("config.yaml")
 
     # 方式3：编程方式
-    from federation import FederatedSystem
+    from oiafed import FederatedSystem
     system = FederatedSystem(config)
     await system.initialize()
     await system.run()

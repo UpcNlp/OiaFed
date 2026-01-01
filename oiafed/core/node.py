@@ -33,8 +33,8 @@ class Node:
     重要：node_comm 是 Node 的内部实现细节，外部组件不应感知
 
     Example:
-        from federation import load_config
-        from federation.core import Node
+        from oiafed import load_config
+        from oiafed.core import Node
 
         config = load_config("configs/trainer.yaml")
         comm_config = config.get_comm_config()
