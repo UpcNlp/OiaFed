@@ -133,14 +133,13 @@ class Learner(ABC):
         self._state = NodeState.TRAINING
 
         try:
-            # DEBUG: 记录接收到 fit 请求
-            self.logger.debug(f"[{self._node_id}] 接收到 fit 请求, config={config}")
+            # [业务层] 记录接收到 fit 请求
+            self.logger.info(f"{self._node_id} 开始训练")
+            self.logger.debug(f"配置: {config}")
 
             # 合并配置
             run_config = {**self._config, **(config or {})}
             epochs = run_config.get("epochs", 1)
-
-            self.logger.debug(f"[{self._node_id}] 合并后配置: epochs={epochs}, run_config={run_config}")
 
             # 触发 fit 开始回调
             if self._callbacks:
@@ -182,6 +181,12 @@ class Learner(ABC):
                     num_samples=self.get_num_samples(),
                     metrics=train_metrics,
                     metadata=self.get_metadata()
+                )
+
+                # [业务层] 记录训练完成
+                self.logger.success(
+                    f"[{self._node_id}], Round: {self._global_epoch_counter} 训练完成: "
+                    f"samples={result.num_samples}, loss={train_metrics.final_loss:.4f}"
                 )
 
                 # 触发 fit 结束回调
@@ -643,7 +648,9 @@ class Learner(ABC):
         Returns:
             True 表示设置成功
         """
-        self.logger.info(f"[{self.node_id}] 收到 set_weights 请求")
+        # [业务层] 记录接收到请求
+        self.logger.debug(f"[LEARNER-SET-WEIGHTS] {self.node_id} 收到 set_weights 请求")
+
         try:
             # 检查是否是 PyTorch 模型
             try:
@@ -651,7 +658,7 @@ class Learner(ABC):
                 if isinstance(self._model, nn.Module):
                     # 使用 strict=False 以支持部分参数加载（例如 FedBN 不包含 BN 层参数）
                     self._model.load_state_dict(weights, strict=False)
-                    self.logger.info(f"[{self.node_id}] set_weights 成功 (PyTorch)")
+                    self.logger.debug(f"[LEARNER-SET-WEIGHTS] {self.node_id} set_weights 成功 (PyTorch)")
                     return True
             except ImportError:
                 pass
@@ -659,12 +666,12 @@ class Learner(ABC):
             # 尝试调用模型的 set_weights 方法
             if hasattr(self._model, 'set_weights'):
                 self._model.set_weights(weights)
-                self.logger.info(f"[{self.node_id}] set_weights 成功")
+                self.logger.debug(f"[LEARNER-SET-WEIGHTS] {self.node_id} set_weights 成功")
                 return True
 
             # 直接设置模型（可能是numpy数组等）
             self._model = weights
-            self.logger.info(f"[{self.node_id}] set_weights 成功 (direct)")
+            self.logger.debug(f"[LEARNER-SET-WEIGHTS] {self.node_id} set_weights 成功 (direct)")
             return True
 
         except Exception as e:

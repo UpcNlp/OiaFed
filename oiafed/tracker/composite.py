@@ -86,31 +86,23 @@ class CompositeTracker(Tracker):
             tracker = CompositeTracker.from_config(config, "trainer", is_trainer=True)
         """
         # 处理 TrackerConfig 类型
-        print(f"[CompositeTracker-DEBUG] from_config called with tracker_config type: {type(tracker_config)}")
-        logger.info(f"[DEBUG] from_config called with tracker_config type: {type(tracker_config)}")
+        logger.debug(f"from_config called with tracker_config type: {type(tracker_config)}")
         if hasattr(tracker_config, 'enabled'):
             # TrackerConfig 对象
             enabled = tracker_config.enabled
             backends = tracker_config.get_backends() if hasattr(tracker_config, 'get_backends') else []
-            print(f"[CompositeTracker-DEBUG] TrackerConfig: enabled={enabled}, backends count={len(backends)}")
-            logger.info(f"[DEBUG] TrackerConfig: enabled={enabled}, backends={backends}")
+            logger.debug(f"TrackerConfig: enabled={enabled}")
         else:
             # 字典格式（向后兼容）
             enabled = tracker_config.get("enabled", True)
             backends = tracker_config.get("backends", [{"type": "file"}])
-            print(f"[CompositeTracker-DEBUG] Dict config: enabled={enabled}, backends count={len(backends)}")
-            logger.info(f"[DEBUG] Dict config: enabled={enabled}, backends={backends}")
+            logger.debug(f"Dict config: enabled={enabled}")
         
         # 检查是否启用
         if not enabled:
             logger.debug("Tracker is disabled")
             return None
 
-        print(f"[CompositeTracker-DEBUG] backends type: {type(backends)}")
-        print(f"[CompositeTracker-DEBUG] backends count: {len(backends)}")
-        print(f"[CompositeTracker-DEBUG] exp_name: {exp_name}")
-        for i, b in enumerate(backends):
-            print(f"[CompositeTracker-DEBUG] backend[{i}] type: {type(b)}, value: {b}")
         logger.debug(f"Tracker backends: {backends}")
 
         # 创建所有后端
@@ -119,12 +111,9 @@ class CompositeTracker(Tracker):
             tracker = cls._create_backend(backend_config, node_id, is_trainer, exp_name)
             if tracker:
                 trackers.append(tracker)
-
-        print(f"[CompositeTracker-DEBUG] Created {len(trackers)} trackers")
         
         # 返回 CompositeTracker 或 None
         if len(trackers) == 0:
-            print(f"[CompositeTracker-DEBUG] No trackers created, returning None")
             logger.debug("No trackers created")
             return None
         else:
@@ -154,22 +143,16 @@ class CompositeTracker(Tracker):
         """
         from ..registry import registry
 
-        print(f"[_create_backend-DEBUG] backend_config type: {type(backend_config)}")
-        print(f"[_create_backend-DEBUG] backend_config: {backend_config}")
-
         # 支持两种格式
         if isinstance(backend_config, dict):
             backend_type = backend_config.get("type")
             backend_args = backend_config.get("args", {})
-            print(f"[_create_backend-DEBUG] Dict format: type={backend_type}, args={backend_args}")
         else:
             # TrackerBackendConfig 对象
             backend_type = backend_config.type
             backend_args = backend_config.get_args()
-            print(f"[_create_backend-DEBUG] TrackerBackendConfig: type={backend_type}, args={backend_args}")
 
         if not backend_type:
-            print(f"[_create_backend-DEBUG] ERROR: backend_type is None or empty!")
             return None
 
         logger.debug(f"Creating tracker backend: {backend_type}")
@@ -183,27 +166,21 @@ class CompositeTracker(Tracker):
         backend_args = CompositeTracker._apply_backend_specific_config(
             backend_type, backend_args, node_id, is_trainer, exp_name
         )
-        print(f"[_create_backend-DEBUG] After apply config: args={backend_args}")
 
         # 使用注册表创建 Tracker
         namespace = f"federated.tracker.{backend_type}"
-        print(f"[_create_backend-DEBUG] Creating with namespace: {namespace}")
         
         try:
             tracker = registry.create(
                 namespace=namespace,
                 **backend_args
             )
-            print(f"[_create_backend-DEBUG] SUCCESS: Created tracker {tracker}")
             logger.debug(f"Created Tracker backend: {backend_type}")
             return tracker
         except Exception as e:
-            print(f"[_create_backend-DEBUG] FAILED: {e}")
-            import traceback
-            print(traceback.format_exc())
-            logger.error(f"Failed to create tracker backend {backend_type}: {e}")
+            logger.exception(f"Failed to create tracker backend {backend_type}: {e}")
             return None
-
+    
     @staticmethod
     def _apply_backend_specific_config(
         backend_type: str,

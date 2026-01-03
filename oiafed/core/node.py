@@ -15,9 +15,10 @@ import time
 from typing import Any, Dict, List, Optional, TYPE_CHECKING
 
 if TYPE_CHECKING:
-    from node_comm import CommNode
+    from ..comm import Node as CommNode
 
 from ..config import NodeCommConfig, TransportConfig
+from ..infra import get_logger
 
 
 class Node:
@@ -53,7 +54,7 @@ class Node:
         """
         self._config = config
         self._node_id = config.node_id
-
+        self.logger = get_logger(self._node_id,"system")
         # node_comm 实例（延迟创建）
         self._comm: Optional["CommNode"] = None
 
@@ -112,45 +113,30 @@ class Node:
             return
 
         # 从 node_comm 包导入
-        from ..comm import Node as CommNode, NodeConfig as CommNodeConfig
-        from ..comm.config import (
-            _parse_transport_config,
-            _parse_serialization_config,
-            _parse_heartbeat_config,
-        )
+        from ..comm import Node as CommNode
+        from oiafed.config import NodeCommConfig
+        
+        # 如果有 heartbeat 配置，需要将其合并到 transport.grpc 中
+        # 这样 GrpcTransport 可以获取 critical_peers 等配置
+        transport = self._config.transport
+        if self._config.heartbeat:
+            # 更新 grpc 配置中的 heartbeat 相关字段
+            heartbeat = self._config.heartbeat
+            if isinstance(heartbeat, dict):
+                transport.grpc.critical_peers = heartbeat.get("critical_peers", [])
+                transport.grpc.max_connection_wait_time = heartbeat.get("max_connection_wait_time", 300.0)
+                transport.grpc.auto_shutdown_on_failure = heartbeat.get("auto_shutdown_on_failure", True)
 
-        # 将 TransportConfig 转换为 node_comm 需要的格式
-        # *** 关键修复：将 heartbeat 配置传递给 grpc ***
-        transport_dict = {
-            "mode": self._config.transport.mode,
-            "grpc": {
-                "host": self._config.transport.grpc.host,
-                "port": self._config.transport.grpc.port,
-                "max_message_size": self._config.transport.grpc.max_message_size,
-                # 添加 heartbeat 配置（包含 critical_peers）
-                "heartbeat": self._config.heartbeat or {},
-            },
-        }
-
-        # 解析配置（将字典转换为 node_comm 配置对象）
-        transport_config = _parse_transport_config(transport_dict)
-        serialization_config = _parse_serialization_config(
-            self._config.serialization or {}
-        )
-        heartbeat_config = _parse_heartbeat_config(
-            self._config.heartbeat or {}
-        )
-
-        # 创建 node_comm 的 NodeConfig
-        comm_node_config = CommNodeConfig(
+        # 创建 NodeCommConfig（直接使用 schema.py 中的配置类）
+        comm_node_config = NodeCommConfig(
             node_id=self._config.node_id,
-            debug=self._config.debug,
             default_timeout=self._config.default_timeout,
-            advertised_address=self._config.advertised_address,
+            debug=getattr(self._config, 'debug', False),
+            advertised_address=getattr(self._config, 'advertised_address', None),
             listen=self._config.listen,
-            transport=transport_config,
-            serialization=serialization_config,
-            heartbeat=heartbeat_config,
+            transport=transport,
+            serialization=self._config.serialization,
+            heartbeat=self._config.heartbeat,
         )
 
         # 创建 node_comm.Node 实例

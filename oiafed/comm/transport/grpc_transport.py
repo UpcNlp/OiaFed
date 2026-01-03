@@ -16,9 +16,11 @@ import grpc
 from grpc import aio as grpc_aio
 
 from .base import Transport
-from ..config import GrpcTransportConfig
 from ..message import Message, MessageType, ErrorInfo
 from ..exceptions import NodeNotConnectedError
+
+# 使用 config/schema.py 中的配置类
+from ...config import GrpcConfig
 
 # Proto 生成的代码
 from ..proto import node_service_pb2 as pb2
@@ -86,9 +88,9 @@ class GrpcTransport(Transport):
     - 所有逻辑在主线程（与 Memory 模式类似）
     """
 
-    def __init__(self, node: "Node", config: Optional[GrpcTransportConfig] = None):
+    def __init__(self, node: "Node", config: Optional[GrpcConfig] = None):
         self.node = node
-        self.config = config or GrpcTransportConfig()
+        self.config = config or GrpcConfig()
         self.node_id = node.node_id
 
         # 创建绑定了 node_id 和 log_type 的 logger
@@ -133,11 +135,12 @@ class GrpcTransport(Transport):
     async def start(self) -> None:
         """启动 gRPC 服务端"""
         self.logger.debug(f"[{self.node_id}] 正在启动 gRPC 服务端")
+        self.logger.debug(f"[{self.node_id}] gRPC max_message_size = {self.config.max_message_size}")
 
         # 设置 gRPC server 选项
         server_options = [
-            ('grpc.max_send_message_length', self.config.max_message_length),
-            ('grpc.max_receive_message_length', self.config.max_message_length),
+            ('grpc.max_send_message_length', self.config.max_message_size),
+            ('grpc.max_receive_message_length', self.config.max_message_size),
             # === gRPC 内置 HTTP/2 PING keepalive（传输层）===
             # 允许客户端在无调用时发送 keepalive ping
             ('grpc.keepalive_permit_without_calls', True),
@@ -239,8 +242,8 @@ class GrpcTransport(Transport):
         else:
             # 设置 gRPC channel 选项，包括内置 keepalive
             options = [
-                ('grpc.max_send_message_length', self.config.max_message_length),
-                ('grpc.max_receive_message_length', self.config.max_message_length),
+                ('grpc.max_send_message_length', self.config.max_message_size),
+                ('grpc.max_receive_message_length', self.config.max_message_size),
                 # === gRPC 内置 HTTP/2 PING keepalive（传输层，不受应用层阻塞影响）===
                 ('grpc.keepalive_time_ms', 30000),  # 30秒发送一次 PING
                 ('grpc.keepalive_timeout_ms', 10000),  # 10秒内没收到 PONG 则断开

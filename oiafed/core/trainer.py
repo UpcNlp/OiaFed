@@ -123,6 +123,82 @@ class Trainer(ABC):
     def current_round(self) -> int:
         """获取当前轮次"""
         return self._current_round
+
+    @property
+    def datasets(self) -> Dict[str, List[Any]]:
+        """获取数据集字典"""
+        return self._datasets
+
+    @property
+    def test_dataset(self) -> Optional[Any]:
+        """
+        获取全局测试集
+        
+        返回 datasets["test"] 中的第一个数据集，用于在 Trainer 端评估全局模型
+        """
+        test_datasets = self._datasets.get("test", [])
+        return test_datasets[0] if test_datasets else None
+
+    @property
+    def has_global_test(self) -> bool:
+        """是否有全局测试集"""
+        return self.test_dataset is not None
+    
+    # ==================== 模型权重操作 ====================
+    
+    def get_weights(self) -> Any:
+        """
+        获取全局模型权重
+        
+        支持原生 nn.Module，返回 state_dict 格式（与 Learner 一致）
+        
+        Returns:
+            模型权重（state_dict 格式）
+        """
+        if self._model is None:
+            return None
+        
+        # 检查是否是 PyTorch 模型
+        try:
+            import torch.nn as nn
+            if isinstance(self._model, nn.Module):
+                return self._model.state_dict()
+        except ImportError:
+            pass
+        
+        # 尝试调用模型的 get_weights 方法（如果有的话）
+        if hasattr(self._model, 'get_weights'):
+            return self._model.get_weights()
+        
+        return self._model
+    
+    def set_weights(self, weights: Any) -> None:
+        """
+        设置全局模型权重
+        
+        支持原生 nn.Module，接收 state_dict 格式（与 Learner 一致）
+        
+        Args:
+            weights: 模型权重（state_dict 格式）
+        """
+        if self._model is None:
+            return
+        
+        # 检查是否是 PyTorch 模型
+        try:
+            import torch.nn as nn
+            if isinstance(self._model, nn.Module):
+                self._model.load_state_dict(weights, strict=False)
+                return
+        except ImportError:
+            pass
+        
+        # 尝试调用模型的 set_weights 方法
+        if hasattr(self._model, 'set_weights'):
+            self._model.set_weights(weights)
+            return
+        
+        self._model = weights
     
     # ==================== 核心方法（分层训练） ====================
 
@@ -162,7 +238,7 @@ class Trainer(ABC):
 
         # 广播初始权重（如果有模型）
         if self._model:
-            initial_weights = self._model.get_weights()
+            initial_weights = self.get_weights()
             await self.broadcast_to_learners("set_weights", initial_weights)
 
         # 训练循环
@@ -186,7 +262,7 @@ class Trainer(ABC):
 
             # 显示进度信息
             self.logger.info(
-                f"{'='*70}\n"
+                f"\n{'='*70}\n"
                 f"轮次 {round_num}/{max_rounds} ({progress_pct:.1f}%) | "
                 f"已用时: {self._format_time(elapsed)} | 预计剩余: {eta_str}\n"
                 f"{'='*70}"

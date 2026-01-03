@@ -139,6 +139,9 @@ class ConfigGenerator:
         model_args: Optional[Dict[str, Any]] = None,
         dataset_args: Optional[Dict[str, Any]] = None,
         
+        # Trainer 的数据集配置（用于全局测试集评估）
+        trainer_datasets: Optional[List[Dict[str, Any]]] = None,
+        
         # 数据划分
         partition_strategy: str = DEFAULT_PARTITION_STRATEGY,
         partition_alpha: float = DEFAULT_PARTITION_ALPHA,
@@ -207,7 +210,7 @@ class ConfigGenerator:
         
         configs = []
         
-        # 生成 Trainer 配置
+        # 生成 Trainer 配置（包含全局测试集）
         trainer_config = self.generate_trainer(
             exp_name=exp_name,
             run_name=run_name,
@@ -218,6 +221,10 @@ class ConfigGenerator:
             trainer_args=trainer_args,
             aggregator_args=aggregator_args,
             model_args=model_args,
+            # Trainer 的数据集配置（用于全局评估）
+            datasets=trainer_datasets,  # 优先使用用户指定的
+            dataset_type=dataset_type,
+            dataset_args=dataset_args,
             tracker=tracker,
             callbacks=callbacks,
             logging=logging,
@@ -274,6 +281,10 @@ class ConfigGenerator:
         trainer_args: Optional[Dict[str, Any]] = None,
         aggregator_args: Optional[Dict[str, Any]] = None,
         model_args: Optional[Dict[str, Any]] = None,
+        # 新增：Trainer 的数据集配置（用于全局测试集评估）
+        datasets: Optional[List[Dict[str, Any]]] = None,
+        dataset_type: str = DEFAULT_DATASET_TYPE,
+        dataset_args: Optional[Dict[str, Any]] = None,
         tracker: Optional[Dict[str, Any]] = None,
         callbacks: Optional[List[Dict[str, Any]]] = None,
         logging: Optional[Dict[str, Any]] = None,
@@ -297,6 +308,9 @@ class ConfigGenerator:
             trainer_args: Trainer 参数
             aggregator_args: Aggregator 参数
             model_args: 模型参数
+            datasets: 数据集配置列表（用于全局测试集评估）
+            dataset_type: 默认数据集类型（当 datasets=None 时使用）
+            dataset_args: 默认数据集参数（当 datasets=None 时使用）
             tracker: 追踪配置
             callbacks: 回调配置
             logging: 日志配置
@@ -341,6 +355,21 @@ class ConfigGenerator:
                 "args": model_args or {},
             },
         }
+        
+        # 添加数据集配置（用于全局测试集评估）
+        if datasets is not None:
+            # 使用用户提供的完整数据集配置
+            config_dict["datasets"] = datasets
+        elif dataset_type:
+            # 自动生成测试集配置（用于 Trainer 端全局评估）
+            config_dict["datasets"] = [
+                {
+                    "type": dataset_type,
+                    "split": "test",
+                    "args": dataset_args or {},  # 如果没有传递参数，使用空字典
+                    # 注意：没有 partition 配置，表示使用完整测试集
+                }
+            ]
         
         # 添加可选配置
         self._add_optional_config(config_dict, tracker, callbacks, logging)
@@ -607,13 +636,18 @@ class ConfigGenerator:
     ) -> Dict[str, Any]:
         """从合并后的配置中提取 generate_federation 需要的参数"""
         
+        # 获取 exp_name（如果是 "default" 或空，则使用 None 让 generate_federation 自动生成）
+        exp_name = merged.get("global_config", {}).get("exp_name") or merged.get("global", {}).get("exp_name")
+        if exp_name in (None, "", "default", DEFAULT_EXP_NAME):
+            exp_name = None  # 让 generate_federation 自动生成
+        
         params: Dict[str, Any] = {
             "num_clients": num_clients,
             
             # 全局配置
-            "exp_name": merged.get("global_config", {}).get("exp_name", DEFAULT_EXP_NAME),
-            "run_name": merged.get("global_config", {}).get("run_name"),
-            "log_dir": merged.get("global_config", {}).get("log_dir", DEFAULT_LOG_DIR),
+            "exp_name": exp_name,
+            "run_name": merged.get("global_config", {}).get("run_name") or merged.get("global", {}).get("run_name"),
+            "log_dir": merged.get("global_config", {}).get("log_dir") or merged.get("global", {}).get("log_dir") or DEFAULT_LOG_DIR,
             
             # 组件类型：优先用 paper_components，其次用 merged 中的 override
             "trainer_type": paper_components.get("trainer") or merged.get("trainer", {}).get("type") or DEFAULT_TRAINER_TYPE,

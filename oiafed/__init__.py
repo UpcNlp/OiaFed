@@ -33,12 +33,6 @@ Federation Framework - 联邦学习框架
     await system.initialize()
     await system.run()
 
-    # 方式4：CLI
-    $ federation run config.yaml
-    $ federation run configs/experiment/  # 文件夹
-    $ federation list
-    $ federation init -n my_experiment
-
 设计原则：
     - 直接使用 PyTorch nn.Module，不重复定义模型基类
     - 直接使用 torch.utils.data.Dataset，不重复定义数据集基类

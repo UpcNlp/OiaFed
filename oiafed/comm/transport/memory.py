@@ -7,10 +7,12 @@ import copy
 from typing import ClassVar, Dict, Set, Optional, List, Any, TYPE_CHECKING
 
 from .base import Transport
-from ..config import MemoryTransportConfig
 from ..message import Message
 from ..exceptions import NodeNotConnectedError
 from .retry import connect_with_retry, create_retry_config, RetryConfig
+
+# 使用 config/schema.py 中的配置类
+from ...config import MemoryTransportConfig
 
 if TYPE_CHECKING:
     from ..node import Node

@@ -206,11 +206,14 @@ def _parse_grpc_transport_config(data: Dict[str, Any]) -> GrpcTransportConfig:
     # 解析心跳配置
     heartbeat = data.get("heartbeat", {})
 
-    return GrpcTransportConfig(
+    # 兼容两种字段名：max_message_size（配置文件）和 max_message_length（代码）
+    max_msg_size = data.get("max_message_size") or data.get("max_message_length", 104857600)
+
+    grpc_transport_config = GrpcTransportConfig(
         host=data.get("host", "0.0.0.0"),
         port=data.get("port", 50051),
         max_workers=data.get("max_workers", 10),
-        max_message_length=data.get("max_message_length", 104857600),
+        max_message_length=max_msg_size,
         tls=_parse_tls_config(data.get("tls", {})),
 
         # 双线程配置
@@ -227,6 +230,8 @@ def _parse_grpc_transport_config(data: Dict[str, Any]) -> GrpcTransportConfig:
         auto_shutdown_on_failure=heartbeat.get("auto_shutdown_on_failure", True),
         critical_peers=heartbeat.get("critical_peers", []),
     )
+
+    return grpc_transport_config
 
 
 def _parse_transport_config(data: Dict[str, Any]) -> CommTransportConfig:

@@ -37,21 +37,27 @@ from typing import Any, Dict, List, Optional, Type, TypeVar, Union
 
 import yaml
 
-from .schema import (
-    GlobalConfig,
-    LogConfig,
-    TrackerConfig,
-    TrackerBackendConfig,
-    TransportConfig,
-    GrpcConfig,
-    ConnectionRetryConfig,
-    ComponentConfig,
-    DatasetConfig,
-    CallbackConfig,
-    NodeConfig,
-    MLflowConfig,
-    WandbConfig,
-    TensorBoardConfig,
+# 从新模块导入配置类和解析方法
+from .transport import (
+    TlsConfig, GrpcConfig, MemoryTransportConfig, TransportConfig, ConnectionRetryConfig,
+    parse_transport_config, parse_connection_retry_config,
+)
+from .comm import (
+    SerializationConfig, InterceptorConfig, HeartbeatConfig,
+    parse_serialization_config, parse_interceptor_config, parse_heartbeat_config,
+)
+from .logging_config import LogConfig, parse_log_config
+from .tracker import (
+    TrackerConfig, TrackerBackendConfig, MLflowConfig, WandbConfig, TensorBoardConfig,
+    parse_tracker_config,
+)
+from .component import (
+    ComponentConfig, DatasetConfig, CallbackConfig,
+    parse_component_config, parse_datasets_config, parse_callbacks_config,
+)
+from .node import (
+    GlobalConfig, NodeCommConfig, NodeConfig,
+    parse_global_config, parse_node_config,
 )
 
 
@@ -365,10 +371,22 @@ class ConfigManager:
         
         # 追踪配置
         if config.tracker:
+            # backends 需要转换为字典列表
+            backends_list = None
+            if config.tracker.backends:
+                backends_list = []
+                for backend in config.tracker.backends:
+                    if isinstance(backend, TrackerBackendConfig):
+                        backends_list.append(backend.to_dict())
+                    elif isinstance(backend, dict):
+                        backends_list.append(backend)
+                    else:
+                        backends_list.append(backend)
+            
             result["tracker"] = {
                 "enabled": config.tracker.enabled,
                 "tracking_dir": config.tracker.tracking_dir,
-                "backends": config.tracker.backends,
+                "backends": backends_list,
             }
         
         # 连接重试配置
@@ -515,14 +533,18 @@ class ConfigManager:
         同步到 LogConfig 和 TrackerConfig。
         """
         if logging_config:
-            logging_config._exp_name = global_config.exp_name
-            logging_config._run_name = global_config.run_name
-            logging_config._log_dir = global_config.log_dir
+            logging_config.sync_from_global(
+                log_dir=global_config.log_dir,
+                exp_name=global_config.exp_name,
+                run_name=global_config.run_name,
+            )
         
         if tracker_config:
-            tracker_config._exp_name = global_config.exp_name
-            tracker_config._run_name = global_config.run_name
-            tracker_config._log_dir = global_config.log_dir
+            tracker_config.sync_from_global(
+                log_dir=global_config.log_dir,
+                exp_name=global_config.exp_name,
+                run_name=global_config.run_name,
+            )
     
     def _auto_inject_tracker_callbacks(
         self,
@@ -650,23 +672,8 @@ class ConfigManager:
     
     def _parse_log_config(self, data: Dict[str, Any]) -> LogConfig:
         """解析日志配置"""
-        if not data:
-            return LogConfig()
-        
-        return LogConfig(
-            level=data.get("level", "INFO"),
-            console=data.get("console", True),
-            console_level=data.get("console_level", "INFO"),
-            rotation=data.get("rotation", "10 MB"),
-            retention=data.get("retention", "30 days"),
-            compression=data.get("compression", "zip"),
-            format=data.get("format", LogConfig.format),
-            diagnose=data.get("diagnose", False),
-            # 添加实验相关字段
-            log_dir=data.get("log_dir", "./logs"),
-            exp_name=data.get("exp_name"),
-            run_name=data.get("run_name"),
-        )
+        # 使用 logging_config 模块的解析函数
+        return parse_log_config(data)
     
     def _parse_tracker_config(
         self,
@@ -675,46 +682,21 @@ class ConfigManager:
         """解析追踪配置"""
         if not data:
             return None
-        
-        return TrackerConfig(
-            enabled=data.get("enabled", True),
-            tracking_dir=data.get("tracking_dir", "tracking"),
-            backends=data.get("backends"),
-        )
+        # 使用 tracker 模块的解析函数
+        return parse_tracker_config(data)
     
     def _parse_transport_config(self, data: Dict[str, Any]) -> TransportConfig:
         """解析传输配置"""
-        if not data:
-            return TransportConfig()
-        
-        grpc_data = data.get("grpc", {})
-        grpc_config = GrpcConfig(
-            host=grpc_data.get("host", "0.0.0.0"),
-            port=grpc_data.get("port", 50051),
-            max_message_size=grpc_data.get("max_message_size", 100 * 1024 * 1024),
-        )
-        
-        return TransportConfig(
-            mode=data.get("mode", "memory"),
-            grpc=grpc_config,
-        )
+        # 使用 transport 模块的解析函数
+        return parse_transport_config(data)
     
     def _parse_connection_retry_config(
         self,
         data: Dict[str, Any],
     ) -> ConnectionRetryConfig:
         """解析连接重试配置"""
-        if not data:
-            return ConnectionRetryConfig()
-        
-        return ConnectionRetryConfig(
-            enabled=data.get("enabled", True),
-            max_retries=data.get("max_retries", 10),
-            retry_interval=data.get("retry_interval", 2.0),
-            timeout=data.get("timeout", 60.0),
-            backoff=data.get("backoff", "exponential"),
-            backoff_factor=data.get("backoff_factor", 1.5),
-        )
+        # 使用 transport 模块的解析函数
+        return parse_connection_retry_config(data)
     
     # ==================== 工具方法 ====================
     

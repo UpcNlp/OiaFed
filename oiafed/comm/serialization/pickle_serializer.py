@@ -28,13 +28,17 @@ class PickleSerializer(Serializer):
             return pickle.loads(data)
         except ModuleNotFoundError as e:
             # 调试：分析 pickle 数据
-            print(f"=== Pickle 反序列化失败: {e} ===")
             import pickletools
             import io
+            msg = ''
             output = io.StringIO()
             pickletools.dis(data, output)
             # 只打印包含 federation 的行
             for line in output.getvalue().split('\n'):
                 if 'federation' in line.lower():
-                    print(line)
-            raise
+                    msg += line + '\n'
+            
+            raise ModuleNotFoundError(
+                f"反序列化失败，缺少模块: {e}. "
+                f"Pickle 反序列化内容相关行:\n{msg}"
+            ) from e

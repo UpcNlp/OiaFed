@@ -10,8 +10,8 @@ from collections import defaultdict
 from dataclasses import dataclass, field
 from typing import Any, Awaitable, Callable, Dict, List, Optional, Set, Union
 
-# 导入配置类
-from .config import MethodOptions
+# 导入配置类（从统一的 config 模块）
+from ..config import MethodOptions
 # 从主配置模块导入 NodeCommConfig（统一的配置定义）
 from ..config import NodeCommConfig
 from .message import (
@@ -37,7 +37,6 @@ from .interceptor import InterceptorChain, LoggingInterceptor, AuthInterceptor, 
 
 # 使用 loguru 统一日志（会继承调用方的 node_id 和 log_type）
 from ..infra.logging import get_logger
-# logger 将在 __init__ 中绑定 node_id
 
 # 类型定义
 MethodHandler = Callable[[Any, MessageContext], Awaitable[Any]]
@@ -317,7 +316,6 @@ class Node:
                         return await asyncio.to_thread(m, payload)
 
             # 注册方法（Memory 模式默认使用 pickle 序列化器）
-            from .config import MethodOptions
             # 检查是否是 Memory 模式
             is_memory_mode = (
                 hasattr(self, 'config') and
@@ -818,15 +816,15 @@ class Node:
 
             # DEBUG: 打印payload的格式
             if message.method == "set_weights":
-                self.logger.debug(f"[DEBUG] set_weights payload type: {type(payload)}")
+                self.logger.debug(f" set_weights payload type: {type(payload)}")
                 if isinstance(payload, dict):
-                    self.logger.debug(f"[DEBUG] set_weights payload keys: {payload.keys()}")
+                    self.logger.debug(f" set_weights payload keys: {payload.keys()}")
                     if "args" in payload:
-                        self.logger.debug(f"[DEBUG] set_weights args: type={type(payload['args'])}, len={len(payload.get('args', ()))}")
+                        self.logger.debug(f" set_weights args: type={type(payload['args'])}, len={len(payload.get('args', ()))}")
                         if payload.get('args'):
-                            self.logger.debug(f"[DEBUG] set_weights first arg type: {type(payload['args'][0])}")
+                            self.logger.debug(f" set_weights first arg type: {type(payload['args'][0])}")
                     if "kwargs" in payload:
-                        self.logger.debug(f"[DEBUG] set_weights kwargs keys: {payload.get('kwargs', {}).keys()}")
+                        self.logger.debug(f" set_weights kwargs keys: {payload.get('kwargs', {}).keys()}")
 
             # 4. 执行 handler
             try:

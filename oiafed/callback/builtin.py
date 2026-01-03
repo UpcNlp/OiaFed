@@ -319,47 +319,32 @@ class MLflowCallback(Callback):
 
     async def on_round_end(self, trainer: Any, round_num: int, context: Dict[str, Any] = None):
         """Trainer Round 结束时记录指标到 MLflow"""
-        print(f"[MLflowCallback-DEBUG] on_round_end called: round={round_num}, log_round={self.log_round}")
 
         if not self.log_round:
-            print(f"[MLflowCallback-DEBUG] Skipping: log_round is False")
             return
 
         tracker = getattr(trainer, "_tracker", None)
-        print(f"[MLflowCallback-DEBUG] Tracker: {tracker}, type={type(tracker).__name__ if tracker else 'None'}")
 
         if not tracker:
-            print(f"[MLflowCallback-DEBUG] No tracker found on trainer!")
             return
 
-        print(f"[MLflowCallback-DEBUG] Checking context... context={bool(context)}, has_metrics={'metrics' in context if context else False}")
 
         if context and "metrics" in context:
             metrics = context["metrics"]
-            print(f"[MLflowCallback-DEBUG] Metrics found: type={type(metrics).__name__}")
 
             # 从 RoundMetrics 中提取信息
             if hasattr(metrics, "metrics"):
                 # RoundMetrics 对象
                 metrics_dict = dict(metrics.metrics)
-                print(f"[MLflowCallback-DEBUG] Extracted from RoundMetrics.metrics: {list(metrics_dict.keys())}")
             elif isinstance(metrics, dict):
                 # 字典格式（兼容）
                 metrics_dict = metrics.get("metrics", {})
-                print(f"[MLflowCallback-DEBUG] Extracted from dict: {list(metrics_dict.keys())}")
             else:
-                print(f"[MLflowCallback-DEBUG] Cannot extract metrics from {type(metrics)}")
                 return
 
-            print(f"[MLflowCallback-DEBUG] Calling tracker.log_metrics() with {len(metrics_dict)} metrics at step={round_num}")
-            print(f"[MLflowCallback-DEBUG] Metrics to log: {metrics_dict}")
 
             # 记录到 tracker，使用 round_num 作为 step
             tracker.log_metrics(metrics_dict, step=round_num)
-
-            print(f"[MLflowCallback-DEBUG] ✓ Successfully logged metrics for round {round_num}")
-        else:
-            print(f"[MLflowCallback-DEBUG] No metrics in context! context keys: {list(context.keys()) if context else 'None'}")
 
     async def on_evaluate_end(self, learner: Any, result: Any = None, context: Dict[str, Any] = None):
         """Learner 评估结束时记录评估指标到 MLflow"""

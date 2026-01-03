@@ -7,7 +7,9 @@ from typing import TYPE_CHECKING
 from .base import Transport
 from .memory import MemoryTransport
 from .grpc_transport import GrpcTransport
-from ..config import TransportConfig
+
+# 使用 config/schema.py 中的配置类
+from ...config import TransportConfig
 
 if TYPE_CHECKING:
     from ..node import Node
@@ -18,7 +20,7 @@ def create_transport(config: TransportConfig, node: "Node") -> Transport:
     根据配置创建 Transport 实例
     
     Args:
-        config: 传输层配置
+        config: 传输层配置 (oiafed.config.TransportConfig)
         node: 所属节点
         
     Returns:

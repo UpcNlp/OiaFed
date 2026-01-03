@@ -1,81 +1,145 @@
 """
-配置系统 v3.0
+配置系统 v4.0
 
-重构设计：
-- schema.py: 配置 Schema 定义（纯数据类）
-- manager.py: 配置管理器（加载、保存、合并、验证）
-- generator.py: 配置生成器（统一的配置生成入口）
-- defaults.py: 默认值定义
+葡萄结构：每个配置类与其解析方法在同一模块中，自包含。
 
-主要特性：
-1. 层次化配置（GlobalConfig → NodeConfig）
-2. 自动同步共享字段（exp_name, run_name, log_dir）
-3. 配置继承（extend 字段）
-4. 完整的类型提示和验证
+结构：
+    config/
+    ├── transport.py    # 传输层配置
+    ├── comm.py         # 通信层配置
+    ├── logging_config.py # 日志配置
+    ├── tracker.py      # 追踪配置
+    ├── component.py    # 组件配置
+    ├── node.py         # 节点配置（根）
+    ├── manager.py      # 高层管理器
+    ├── generator.py    # 配置生成
+    └── defaults.py     # 默认值常量
+
+配置树：
+    NodeConfig (根)
+    ├── GlobalConfig (共享字段源: exp_name, run_name, log_dir)
+    ├── LogConfig
+    ├── TrackerConfig
+    │   └── TrackerBackendConfig
+    ├── TransportConfig
+    │   ├── GrpcConfig
+    │   │   └── TlsConfig
+    │   └── MemoryTransportConfig
+    ├── SerializationConfig
+    ├── InterceptorConfig
+    ├── HeartbeatConfig
+    ├── ConnectionRetryConfig
+    ├── ComponentConfig (trainer/learner/aggregator/model)
+    ├── DatasetConfig[]
+    └── CallbackConfig[]
 
 Quick Start:
+    from oiafed.config import load_config, NodeConfig
+    
     # 从文件加载
-    from config import load_config
     config = load_config("configs/trainer.yaml")
     
-    # 从字典创建
-    from config import load_config_from_dict
-    config = load_config_from_dict({
-        "node_id": "trainer",
-        "global": {"exp_name": "my_experiment"},
-        "listen": {"port": 50051},
-        "trainer": {"type": "federated.trainer.fedavg"},
-        "aggregator": {"type": "federated.aggregator.fedavg"},
-    })
+    # 访问配置
+    print(config.node_id)
+    print(config.exp_name)  # 从 GlobalConfig 同步
+    print(config.transport.grpc.max_message_size)
     
-    # 访问自动同步的字段
-    print(config.exp_name)              # "my_experiment"
-    print(config.logging.exp_name)      # "my_experiment" (自动同步)
-    
-    # 使用管理器
-    from config import ConfigManager
-    manager = ConfigManager()
-    config = manager.load("config.yaml")
-    manager.save(config, "output.yaml")
+    # 获取通信配置
+    comm_config = config.get_comm_config()
 """
 
-# ==================== 类型定义 ====================
+# ==================== 传输层配置 ====================
 
-from .schema import (
+from .transport import (
+    # 配置类
+    TlsConfig,
+    GrpcConfig,
+    MemoryTransportConfig,
+    TransportConfig,
+    ConnectionRetryConfig,
+    # 解析方法
+    parse_tls_config,
+    parse_grpc_config,
+    parse_memory_config,
+    parse_transport_config,
+    parse_connection_retry_config,
+)
+
+# ==================== 通信层配置 ====================
+
+from .comm import (
+    # 序列化
+    MethodSerializationConfig,
+    SerializationConfig,
+    parse_method_serialization_config,
+    parse_serialization_config,
+    # 认证
+    AuthConfig,
+    parse_auth_config,
+    # 重试
+    RetryConfig,
+    parse_retry_config,
+    # 拦截器
+    InterceptorConfig,
+    parse_interceptor_config,
+    # 心跳
+    HeartbeatConfig,
+    parse_heartbeat_config,
+    # 方法选项
+    MethodOptions,
+)
+
+# ==================== 日志配置 ====================
+
+from .logging_config import (
+    LogConfig,
+    parse_log_config,
+)
+
+# ==================== 追踪配置 ====================
+
+from .tracker import (
+    MLflowConfig,
+    parse_mlflow_config,
+    WandbConfig,
+    parse_wandb_config,
+    TensorBoardConfig,
+    parse_tensorboard_config,
+    TrackerBackendConfig,
+    parse_tracker_backend_config,
+    TrackerConfig,
+    parse_tracker_config,
+)
+
+# ==================== 组件配置 ====================
+
+from .component import (
+    ComponentConfig,
+    parse_component_config,
+    DatasetConfig,
+    parse_dataset_config,
+    parse_datasets_config,
+    CallbackConfig,
+    parse_callback_config,
+    parse_callbacks_config,
+)
+
+# ==================== 节点配置（根）====================
+
+from .node import (
     # 枚举
     LogLevel,
     TransportMode,
     BackoffStrategy,
     NodeRole,
-    
     # 全局配置
     GlobalConfig,
-    
-    # 日志配置
-    LogConfig,
-    
-    # 追踪配置
-    TrackerBackendConfig,
-    MLflowConfig,
-    WandbConfig,
-    TensorBoardConfig,
-    TrackerConfig,
-    
-    # 传输配置
-    GrpcConfig,
-    TransportConfig,
-    ConnectionRetryConfig,
-    
-    # 组件配置
-    ComponentConfig,
-    DatasetConfig,
-    CallbackConfig,
-    
+    parse_global_config,
     # 通信节点配置
     NodeCommConfig,
-    
     # 节点配置
     NodeConfig,
+    parse_node_config,
 )
 
 # ==================== 管理器 ====================
@@ -85,18 +149,15 @@ from .manager import (
     ConfigError,
     ConfigValidationError,
     ConfigLoadError,
-    
     # 管理器
     ConfigManager,
     get_default_manager,
-    
     # 便捷函数
     load_config,
     load_config_from_dict,
     save_config,
     validate_config,
     config_to_dict,
-    
     # 向后兼容
     load_node_config,
     deep_merge,
@@ -133,18 +194,16 @@ from .defaults import (
     DEFAULT_EXP_NAME,
 )
 
-
 # ==================== 向后兼容别名 ====================
 
-# 保留旧的类型别名
+# 旧名称映射
+GrpcTransportConfig = GrpcConfig  # 向后兼容
 FederationConfig = NodeConfig
 LoggingConfig = LogConfig
 
-
 # ==================== 版本信息 ====================
 
-__version__ = "3.0.0"
-
+__version__ = "4.0.0"
 
 # ==================== 导出 ====================
 
@@ -158,22 +217,70 @@ __all__ = [
     "BackoffStrategy",
     "NodeRole",
     
-    # 配置类
-    "GlobalConfig",
+    # 传输配置
+    "TlsConfig",
+    "GrpcConfig",
+    "GrpcTransportConfig",  # 向后兼容
+    "MemoryTransportConfig",
+    "TransportConfig",
+    "ConnectionRetryConfig",
+    "parse_tls_config",
+    "parse_grpc_config",
+    "parse_memory_config",
+    "parse_transport_config",
+    "parse_connection_retry_config",
+    
+    # 通信配置
+    "MethodSerializationConfig",
+    "SerializationConfig",
+    "AuthConfig",
+    "RetryConfig",
+    "InterceptorConfig",
+    "HeartbeatConfig",
+    "MethodOptions",
+    "parse_method_serialization_config",
+    "parse_serialization_config",
+    "parse_auth_config",
+    "parse_retry_config",
+    "parse_interceptor_config",
+    "parse_heartbeat_config",
+    
+    # 日志配置
     "LogConfig",
-    "TrackerBackendConfig",
+    "parse_log_config",
+    
+    # 追踪配置
     "MLflowConfig",
     "WandbConfig",
     "TensorBoardConfig",
+    "TrackerBackendConfig",
     "TrackerConfig",
-    "GrpcConfig",
-    "TransportConfig",
-    "ConnectionRetryConfig",
+    "parse_mlflow_config",
+    "parse_wandb_config",
+    "parse_tensorboard_config",
+    "parse_tracker_backend_config",
+    "parse_tracker_config",
+    
+    # 组件配置
     "ComponentConfig",
     "DatasetConfig",
     "CallbackConfig",
+    "parse_component_config",
+    "parse_dataset_config",
+    "parse_datasets_config",
+    "parse_callback_config",
+    "parse_callbacks_config",
+    
+    # 全局配置
+    "GlobalConfig",
+    "parse_global_config",
+    
+    # 通信节点配置
     "NodeCommConfig",
+    
+    # 节点配置（根）
     "NodeConfig",
+    "parse_node_config",
     
     # 异常
     "ConfigError",

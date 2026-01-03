@@ -80,22 +80,22 @@ class DefaultLearner(Learner):
                 if device_config.startswith("cuda"):
                     # 检查 CUDA 是否可用
                     if torch.cuda.is_available():
-                        self.logger.info(f"[{self._node_id}] 使用配置的设备: {device_config}")
+                        self.logger.info(f"使用配置的设备: {device_config}")
                         return device_config
                     else:
-                        self.logger.warning(f"[{self._node_id}] CUDA 不可用，回退到 CPU")
+                        self.logger.warning(f"CUDA 不可用，回退到 CPU")
                         return "cpu"
                 else:
-                    self.logger.info(f"[{self._node_id}] 使用配置的设备: {device_config}")
+                    self.logger.info(f"使用配置的设备: {device_config}")
                     return device_config
             else:
                 # 未指定设备，自动检测
                 if torch.cuda.is_available():
                     device = "cuda"
-                    self.logger.info(f"[{self._node_id}] 自动检测到 CUDA，使用设备: {device}")
+                    self.logger.info(f"自动检测到 CUDA，使用设备: {device}")
                 else:
                     device = "cpu"
-                    self.logger.info(f"[{self._node_id}] 使用设备: {device}")
+                    self.logger.info(f"使用设备: {device}")
                 return device
 
         except ImportError as e:
@@ -142,10 +142,10 @@ class DefaultLearner(Learner):
                     batch_size=batch_size,
                     shuffle=True
                 )
-                self.logger.info(f"[{self._node_id}] 训练数据加载器已创建，样本数: {len(train_dataset)}, batch_size: {batch_size}")
+                self.logger.info(f"训练数据加载器已创建，样本数: {len(train_dataset)}, batch_size: {batch_size}")
             else:
                 self._train_dataloader = []
-                self.logger.warning(f"[{self._node_id}] 未提供训练数据，训练数据加载器为空")
+                self.logger.warning(f"未提供训练数据，训练数据加载器为空")
 
             # 创建优化器
             if self._optimizer is None:
@@ -153,14 +153,14 @@ class DefaultLearner(Learner):
                     torch_model.parameters(),
                     lr=learning_rate,
                 )
-                self.logger.info(f"[{self._node_id}] 优化器已创建: SGD, lr={learning_rate}")
+                self.logger.info(f"优化器已创建: SGD, lr={learning_rate}")
 
             # 创建损失函数
             if self._criterion is None:
                 self._criterion = nn.CrossEntropyLoss()
-                self.logger.info(f"[{self._node_id}] 损失函数已创建: CrossEntropyLoss")
+                self.logger.info(f"损失函数已创建: CrossEntropyLoss")
             else:
-                self.logger.info(f"[{self._node_id}] 使用提供的损失函数: {type(self._criterion)}")
+                self.logger.info(f"使用提供的损失函数: {type(self._criterion)}")
 
         except ImportError:
             raise NotImplementedError("PyTorch is not installed")

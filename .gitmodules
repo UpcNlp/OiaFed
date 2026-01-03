@@ -1,0 +1,3 @@
+[submodule "OiaFed"]
+	path = OiaFed
+	url = git@github.com:UpcNlp/OiaFed.git

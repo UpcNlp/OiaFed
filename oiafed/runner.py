@@ -48,7 +48,12 @@ def _run_single_node(config_path: str, adjusted_min_peers: int = None) -> None:
         adjusted_min_peers: 调整后的 min_peers 值（多进程模式下传递）
     """
     import sys
+    import os
     from pathlib import Path
+
+    # 设置环境变量供调试使用
+    node_id = Path(config_path).stem
+    os.environ['OIAFED_NODE_ID'] = node_id
 
     src_dir = Path(__file__).parent
     project_root = src_dir.parent

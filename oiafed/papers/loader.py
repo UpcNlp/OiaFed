@@ -527,10 +527,12 @@ class PaperRegistry:
             datasets = merged["datasets"]
             # 查找 train 数据集
             train_ds = None
+            test_ds = None
             for ds in datasets:
                 if ds.get("split") == "train":
                     train_ds = ds
-                    break
+                elif ds.get("split") == "test":
+                    test_ds = ds
             
             if train_ds:
                 # 数据集类型
@@ -546,6 +548,18 @@ class PaperRegistry:
                     params["partition_strategy"] = partition["strategy"]
                 if "alpha" in partition:
                     params["partition_alpha"] = partition["alpha"]
+            
+            # ⭐ 新增：提取 Trainer 的测试集配置（用于全局评估）
+            if test_ds:
+                # 为 Trainer 构建测试集配置（不划分）
+                params["trainer_datasets"] = [
+                    {
+                        "type": test_ds.get("type", params.get("dataset_type", "mnist")),
+                        "split": "test",
+                        "args": test_ds.get("args", params.get("dataset_args", {})),
+                        # 注意：没有 partition，使用完整测试集
+                    }
+                ]
         
         # 简化格式: dataset (单数，向后兼容)
         elif "dataset" in merged:

@@ -277,34 +277,8 @@ class FederatedSystem:
 
     async def _create_node(self):
         """创建通信节点"""
-        # *** 关键修复：在调用 get_comm_config() 之前设置 critical_peers ***
-        # 自动设置 critical_peers：如果配置为空且使用 gRPC，将 connect_to 中的节点设为关键节点
-        if (self._config.transport.mode == "grpc" and self._config.connect_to):
-
-            # heartbeat 配置中可能包含 critical_peers
-            heartbeat_config = self._config.heartbeat or {}
-            existing_critical_peers = heartbeat_config.get("critical_peers", [])
-
-            # 如果 critical_peers 为空，则自动填充
-            if not existing_critical_peers:
-                # 从 connect_to 提取节点 ID（格式: "trainer@localhost:50051" -> "trainer"）
-                critical_peers = []
-                for addr in self._config.connect_to:
-                    if '@' in addr:
-                        node_id = addr.split('@')[0]
-                        critical_peers.append(node_id)
-
-                # 更新 heartbeat 配置（必须在 get_comm_config() 之前）
-                if not self._config.heartbeat:
-                    self._config.heartbeat = {}
-                self._config.heartbeat["critical_peers"] = critical_peers
-
-                if self.sys_logger and critical_peers:
-                    self.sys_logger.info(
-                        f"[{self.node_id}] 自动设置关键节点: {critical_peers}"
-                    )
-
-        # 从 NodeConfig 获取 NodeCommConfig（此时 heartbeat 配置已更新）
+        # 从 NodeConfig 获取 NodeCommConfig
+        # critical_peers 自动填充逻辑已在 get_comm_config() 中处理
         comm_config = self._config.get_comm_config()
 
         self.node = Node(comm_config)
@@ -348,15 +322,15 @@ class FederatedSystem:
 
     def _get_retry_config(self) -> Dict[str, Any]:
         """获取连接重试配置"""
-        cfg = self._config.connection_retry
-        return {
-            "enabled": cfg.enabled,
-            "max_retries": cfg.max_retries,
-            "retry_interval": cfg.retry_interval,
-            "timeout": cfg.timeout,
-            "backoff": cfg.backoff,
-            "backoff_factor": cfg.backoff_factor,
-        }
+        return self._config.connection_retry.to_dict()
+
+    def _extract_config_params(self) -> Dict[str, Any]:
+        """
+        提取配置参数用于记录到 MLflow
+        
+        委托给 NodeConfig.get_tracking_params()
+        """
+        return self._config.get_tracking_params()
 
     def _parse_address(self, addr: str) -> tuple:
         """解析地址字符串"""
@@ -436,11 +410,9 @@ class FederatedSystem:
         self.sys_logger.debug("Initializing infrastructure...")
 
         # Tracker - 直接传递 TrackerConfig
-        self.sys_logger.info(f"[DEBUG] self._config.tracker = {self._config.tracker}")
+        self.sys_logger.debug(f" self._config.tracker = {self._config.tracker}")
         if self._config.tracker:
-            self.sys_logger.info(f"[DEBUG] tracker.enabled = {self._config.tracker.enabled}")
-            self.sys_logger.info(f"[DEBUG] tracker.backends = {self._config.tracker.backends}")
-            self.sys_logger.info(f"[DEBUG] exp_name = {self.exp_name}")
+            self.sys_logger.debug(f" tracker.enabled = {self._config.tracker.enabled}")
             
             try:
                 self.tracker = CompositeTracker.from_config(
@@ -449,31 +421,23 @@ class FederatedSystem:
                     is_trainer=self._config.is_trainer(),
                     exp_name=self.exp_name,  # 传入实验名称
                 )
-                self.sys_logger.info(f"[DEBUG] Created tracker = {self.tracker}")
+                self.sys_logger.debug(f" Created tracker = {self.tracker}")
             except Exception as e:
-                self.sys_logger.error(f"[DEBUG] Failed to create tracker: {e}")
+                self.sys_logger.debug(f" Failed to create tracker: {e}")
                 import traceback
-                self.sys_logger.error(traceback.format_exc())
+                self.sys_logger.exception(traceback.format_exc())
                 self.tracker = None
 
             if self.tracker:
-                params = {
-                    "node_id": self.node_id,
-                    "exp_name": self.exp_name,
-                }
-                if self.run_name:
-                    params["run_name"] = self.run_name
-
-                # 添加 trainer 参数
-                trainer_config = self._config.get_trainer_config()
-                if trainer_config:
-                    params.update(trainer_config.get_args())
-
+                # ===== 记录节点配置到 MLflow =====
+                params = self._extract_config_params()
                 self.tracker.log_params(params)
+                
                 self.tracker.set_tags({
                     "node_id": self.node_id,
                     "exp_name": self.exp_name,
-                    "framework": "federation",
+                    "role": "trainer" if self._config.is_trainer() else "learner",
+                    "framework": "oiafed",
                 })
 
         # Callbacks
@@ -512,6 +476,7 @@ class FederatedSystem:
 
         aggregator = components.get("aggregator")
         datasets_dict = components.get("datasets", {})
+        model = components.get("model")  # ⭐ 获取模型（用于全局评估）
 
         # 向后兼容：取第一个训练数据集
         train_datasets = datasets_dict.get("train", [])
@@ -520,8 +485,9 @@ class FederatedSystem:
         # 4. 创建 Trainer
         trainer_config = self._config.get_trainer_config()
         self.sys_logger.info(f"正在创建 Trainer: {trainer_config.type}")
-        self.sys_logger.info(f"[DEBUG] 创建 Trainer 时 self.tracker = {self.tracker}")
-        self.sys_logger.info(f"[DEBUG] trainer_config.get_args() = {trainer_config.get_args()}")
+        self.sys_logger.debug(f" 创建 Trainer 时 self.tracker = {self.tracker}")
+        self.sys_logger.debug(f" trainer_config.get_args() = {trainer_config.get_args()}")
+        self.sys_logger.debug(f" model = {model}")  # ⭐ 打印模型信息
 
         # 构建 namespace
         trainer_type = trainer_config.type
@@ -537,11 +503,12 @@ class FederatedSystem:
             aggregator=aggregator,
             dataset=dataset,         # 向后兼容：第一个训练数据集
             datasets=datasets_dict,  # 新方式：完整的数据集字典
+            model=model,             # ⭐ 传递模型（用于全局评估）
             tracker=self.tracker,
             callbacks=self.callbacks,
         )
         
-        self.sys_logger.info(f"[DEBUG] 创建后 self.trainer._tracker = {getattr(self.trainer, '_tracker', 'NO ATTR')}")
+        self.sys_logger.debug(f" 创建后 self.trainer._tracker = {getattr(self.trainer, '_tracker', 'NO ATTR')}")
 
         self.sys_logger.info(f"Trainer initialized: {trainer_config.type}")
 
@@ -757,7 +724,7 @@ class FederatedSystem:
                 self.sys_logger.warning("运行时信息同步返回空结果")
                 
         except Exception as e:
-            self.sys_logger.warning(f"运行时信息同步失败: {e}")
+            self.sys_logger.exception(f"运行时信息同步失败: {e}")
             # 不抛出异常，允许继续运行（使用本地配置）
 
     def on_sync_info(self, info: Dict[str, Any]) -> None:

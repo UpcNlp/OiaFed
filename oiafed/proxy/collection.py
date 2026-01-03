@@ -219,14 +219,30 @@ class ProxyCollection:
         if not target_ids:
             return {}
 
+        # [业务层] 记录广播开始
+        self._node.logger.info(f"[BROADCAST-START] 向 {len(target_ids)} 个目标发送 {method} 请求")
+        self._node.logger.debug(f"[BROADCAST-START] 目标列表: {target_ids}")
+
         # 通过 Node 层广播
-        return await self._node.broadcast(
+        results = await self._node.broadcast(
             target_ids,
             method,
             *args,
             timeout=timeout,
             **kwargs
         )
+
+        # [业务层] 记录广播结果
+        success_count = sum(1 for r in results.values() if not isinstance(r, Exception))
+        failed_count = len(results) - success_count
+        self._node.logger.info(
+            f"[BROADCAST-END] {method} 完成: 成功={success_count}/{len(results)}, 失败={failed_count}"
+        )
+        if failed_count > 0:
+            failed_ids = [nid for nid, r in results.items() if isinstance(r, Exception)]
+            self._node.logger.warning(f"[BROADCAST-END] 失败的节点: {failed_ids}")
+
+        return results
 
     # ========== 健康过滤 ==========
 

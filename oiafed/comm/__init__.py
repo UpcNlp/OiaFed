@@ -21,29 +21,30 @@ Example:
     async with node:
         result = await node.call("other_node", "train", {"epochs": 10})
 
-Public Extension APIs:
-    # 注册自定义序列化器
-    node.register_serializer(my_serializer)
-    
-    # 添加自定义拦截器
-    node.add_interceptor(my_interceptor)
-
-Migration:
-    # 配置类已移至 oiafed.config
-    # 旧代码:
-    from oiafed.comm import NodeConfig, load_config
-    # 新代码:
-    from oiafed.config import NodeCommConfig, load_config
+配置说明：
+    所有配置类已统一到 oiafed.config 模块：
+    from oiafed.config import (
+        NodeCommConfig,       # 通信节点配置
+        TransportConfig,      # 传输层配置
+        GrpcConfig,           # gRPC 配置
+        MemoryTransportConfig, # Memory 传输配置
+        SerializationConfig,  # 序列化配置
+        InterceptorConfig,    # 拦截器配置
+        HeartbeatConfig,      # 心跳配置
+        MethodOptions,        # 方法选项
+    )
 """
 
 from .node import Node
-from .config import (
-    # 内部配置类
-    CommTransportConfig,
-    TransportConfig,  # 别名
-    MemoryTransportConfig,
-    GrpcTransportConfig,
+
+# 所有配置类从 oiafed.config 导入
+from ..config import (
+    # 传输配置
     TlsConfig,
+    GrpcConfig,
+    MemoryTransportConfig,
+    TransportConfig,
+    # 通信配置
     SerializationConfig,
     MethodSerializationConfig,
     InterceptorConfig,
@@ -51,12 +52,12 @@ from .config import (
     RetryConfig,
     HeartbeatConfig,
     MethodOptions,
-    # 适配器
-    from_node_comm_config,
-    # 向后兼容（已废弃）
-    NodeConfig,
+    # 节点配置
+    NodeCommConfig,
+    # 便捷函数
     load_config,
 )
+
 from .message import (
     Message,
     MessageType,
@@ -96,20 +97,23 @@ from .interceptor import (
 )
 
 # 向后兼容别名
-TransportConfig = CommTransportConfig
+NodeConfig = NodeCommConfig  # 已废弃，使用 NodeCommConfig
+GrpcTransportConfig = GrpcConfig  # 向后兼容
 
-__version__ = "2.0.0"
+__version__ = "3.0.0"
 
 __all__ = [
     # 核心
     "Node",
     
-    # 配置（内部）
-    "CommTransportConfig",
-    "TransportConfig",  # 向后兼容别名
-    "MemoryTransportConfig",
-    "GrpcTransportConfig",
+    # 传输配置（从 oiafed.config）
     "TlsConfig",
+    "GrpcConfig",
+    "GrpcTransportConfig",  # 向后兼容别名
+    "MemoryTransportConfig",
+    "TransportConfig",
+    
+    # 通信配置（从 oiafed.config）
     "SerializationConfig",
     "MethodSerializationConfig",
     "InterceptorConfig",
@@ -118,11 +122,11 @@ __all__ = [
     "HeartbeatConfig",
     "MethodOptions",
     
-    # 适配器
-    "from_node_comm_config",
+    # 节点配置（从 oiafed.config）
+    "NodeCommConfig",
+    "NodeConfig",  # 向后兼容别名
     
-    # 向后兼容（已废弃）
-    "NodeConfig",
+    # 便捷函数
     "load_config",
     
     # 消息

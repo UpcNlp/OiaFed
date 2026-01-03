@@ -87,19 +87,13 @@ class DefaultTrainer(Trainer):
             # CRITICAL DEBUG: 强制记录每个learner的返回结果
             self.logger.debug(f"[Round {round_num}] Learner {learner_id} 返回: type={type(result).__name__}, is_Exception={isinstance(result, Exception)}")
 
-            # 详细调试信息
-            # self.logger.debug(f"[DEBUG-{learner_id}] result.__class__: {result.__class__}")
-            # self.logger.debug(f"[DEBUG-{learner_id}] result.__class__.__module__: {result.__class__.__module__}")
-            # self.logger.debug(f"[DEBUG-{learner_id}] TrainResult class: {TrainResult}")
-            # self.logger.debug(f"[DEBUG-{learner_id}] TrainResult.__module__: {TrainResult.__module__}")
-            # self.logger.debug(f"[DEBUG-{learner_id}] isinstance check: {isinstance(result, TrainResult)}")
-            # self.logger.debug(f"[DEBUG-{learner_id}] type match: {type(result) == TrainResult}")
-            # self.logger.debug(f"[DEBUG-{learner_id}] hasattr num_samples: {hasattr(result, 'num_samples')}")
+
             if hasattr(result, 'num_samples'):
                 self.logger.debug(f"[DEBUG-{learner_id}] result.num_samples: {result.num_samples}")
 
             if isinstance(result, TrainResult):
-                self.logger.info(f"samples={result.num_samples}, metrics_type={type(result.metrics)}")
+                self.logger.debug(f"[Round {round_num}] Learner {learner_id} 返回: num_samples={result.num_samples}, metrics={result.metrics}")
+                # self.logger.info(f"samples={result.num_samples}, metrics_type={type(result.metrics)}")
 
             if isinstance(result, Exception):
                 # DEBUG: 记录失败的学习器
@@ -132,7 +126,7 @@ class DefaultTrainer(Trainer):
         self.logger.debug(f"[Round {round_num}] updates来源: {[u.client_id for u in updates]}")
         new_weights = self.aggregator.aggregate(updates, self.model)
         if self.model:
-            self.model.set_weights(new_weights)
+            self.set_weights(new_weights)
         self.logger.info(f"轮次 {round_num}: 聚合完成")
 
         # 5. 广播新权重到选中的学习器（而非所有学习器）
@@ -158,16 +152,22 @@ class DefaultTrainer(Trainer):
             f"训练样本数={round_metrics.total_samples}"
         )
 
-        # 8. 定期评估（在所有客户端上评估，如果到了评估间隔）
+        # 8. 定期评估（使用聚合后的全局模型在全局测试集上评估）
         if eval_interval > 0 and round_num % eval_interval == 0:
-            eval_metrics = await self._evaluate_round(round_num, selected)
-            # 将评估指标合并到轮次指标
-            round_metrics.metrics.update(eval_metrics)
+            if self.has_global_test:
+                eval_metrics = await self._evaluate_on_global_test(round_num)
+                # 将评估指标合并到轮次指标
+                round_metrics.metrics.update(eval_metrics)
 
-            # 显著的日志输出：评估结果
-            if eval_metrics:
-                eval_str = ", ".join([f"{k}={v:.4f}" for k, v in eval_metrics.items()])
-                self.logger.info(f"轮次 {round_num} 评估结果: {eval_str}")
+                # 显著的日志输出：评估结果
+                if eval_metrics:
+                    eval_str = ", ".join([f"{k}={v:.4f}" for k, v in eval_metrics.items() if isinstance(v, float)])
+                    self.logger.info(f"轮次 {round_num} 评估结果: {eval_str}")
+            else:
+                self.logger.warning(
+                    f"轮次 {round_num}: 跳过评估（Trainer 未配置全局测试集）。"
+                    f"请在 trainer.yaml 中添加 datasets 配置。"
+                )
 
         result = RoundResult(
             round_num=round_num,
@@ -177,18 +177,8 @@ class DefaultTrainer(Trainer):
         )
 
         # 触发轮次结束回调
-        print(f"[DefaultTrainer-DEBUG] After round {round_num}: self.callbacks={self.callbacks}, bool={bool(self.callbacks)}")
-        logger.info(f"[DefaultTrainer] After round {round_num}: self.callbacks={self.callbacks}, bool={bool(self.callbacks)}")
-
         if self.callbacks:
-            print(f"[DefaultTrainer-DEBUG] Calling callbacks.on_round_end for round {round_num}")
-            logger.info(f"[DefaultTrainer] Calling callbacks.on_round_end for round {round_num}")
             await self.callbacks.on_round_end(self, round_num, {"metrics": round_metrics})
-            print(f"[DefaultTrainer-DEBUG] callbacks.on_round_end completed for round {round_num}")
-            logger.info(f"[DefaultTrainer] callbacks.on_round_end completed for round {round_num}")
-        else:
-            print(f"[DefaultTrainer-DEBUG] NO CALLBACKS! self.callbacks is None or empty")
-            logger.warning(f"[DefaultTrainer] NO CALLBACKS! self.callbacks is None or empty")
 
         return result
 
@@ -228,71 +218,117 @@ class DefaultTrainer(Trainer):
             metrics=aggregated_metrics
         )
     
-    async def _evaluate_round(
-        self,
-        round_num: int,
-        learners: List[Any],
-    ) -> Dict[str, float]:
-        """执行评估（在客户端测试集上）"""
-        self.logger.info(f"轮次 {round_num} 开始评估...")
-
-        eval_config = self.config.get("eval_config", {})
-        results = await self.collect_results(learners, "evaluate", eval_config)
-
-        # 聚合评估结果
-        total_samples = 0
-        weighted_metrics: Dict[str, float] = {}
-
-        for result in results:
-            if isinstance(result, Exception):
-                continue
-
-            samples = result.num_samples
-            total_samples += samples
-
-            for key, value in result.metrics.items():
-                if key not in weighted_metrics:
-                    weighted_metrics[key] = 0
-                weighted_metrics[key] += value * samples
-
-        # 计算加权平均
-        eval_metrics = {}
-        if total_samples > 0:
-            for key, value in weighted_metrics.items():
-                eval_metrics[f"eval_{key}"] = value / total_samples
-            eval_metrics["eval_samples"] = total_samples
-
-        # 注意：不在这里记录到 tracker，由上层统一记录
-        # 这样可以避免重复记录
-
-        return eval_metrics
-
-    async def _evaluate_global_model(self, round_num: int) -> Dict[str, float]:
+    async def _evaluate_on_global_test(self, round_num: int) -> Dict[str, float]:
         """
-        评估全局模型（在服务端测试集上）
-
-        如果 Trainer 有 dataset，则在服务端数据上评估
-        否则返回空字典
+        在 Trainer 端用全局测试集评估聚合后的模型
+        
+        这是真正的全局评估，使用完整的测试集（不划分）
+        
+        Args:
+            round_num: 当前轮次号
+            
+        Returns:
+            评估指标字典，包含 eval_accuracy, eval_loss, eval_samples
         """
-        if not self.dataset:
+        # 检查是否有全局测试集
+        if not self.has_global_test:
+            self.logger.warning("全局测试集不存在，跳过 Trainer 端评估")
             return {}
-
-        self.logger.info(f"轮次 {round_num}: 评估全局模型")
-
+        
+        # 检查是否有模型
+        if not self.model:
+            self.logger.warning("模型不存在，跳过 Trainer 端评估")
+            return {}
+        
+        self.logger.info(f"轮次 {round_num}: 在全局测试集上评估...")
+        
         try:
-            # 这里需要 Trainer 也有 evaluate 方法，或者使用模型直接评估
-            # 简化实现：如果有 model 和 dataset，直接调用 model 的评估
-            if hasattr(self.model, 'evaluate') and self.dataset:
-                # 假设 model.evaluate 返回指标字典
-                metrics = self.model.evaluate(self.dataset)
-                global_metrics = {f"global_{k}": v for k, v in metrics.items()}
-                if self.tracker:
-                    self.tracker.log_metrics(global_metrics, step=round_num)
-                return global_metrics
+            import torch
+            import torch.nn as nn
+            from torch.utils.data import DataLoader
+            
+            # 获取全局测试集
+            test_dataset = self.test_dataset
+            
+            # 获取设备配置
+            device_str = self.config.get("device", "cuda" if torch.cuda.is_available() else "cpu")
+            device = torch.device(device_str)
+            
+            # 获取模型（支持 Model 包装器和原生 nn.Module）
+            if hasattr(self.model, '_model'):
+                # Model 包装器
+                torch_model = self.model._model
+            else:
+                # 原生 nn.Module
+                torch_model = self.model
+            
+            # 移动模型到设备并设置为评估模式
+            torch_model = torch_model.to(device)
+            torch_model.eval()
+            
+            # 创建 DataLoader
+            batch_size = self.config.get("eval_batch_size", 64)
+            test_loader = DataLoader(
+                test_dataset,
+                batch_size=batch_size,
+                shuffle=False,
+                num_workers=0,  # 避免多进程问题
+            )
+            
+            # 评估
+            criterion = nn.CrossEntropyLoss()
+            correct = 0
+            total = 0
+            total_loss = 0.0
+            num_batches = 0
+            
+            with torch.no_grad():
+                for batch_x, batch_y in test_loader:
+                    batch_x = batch_x.to(device)
+                    batch_y = batch_y.to(device)
+                    
+                    # 前向传播
+                    outputs = torch_model(batch_x)
+                    
+                    # 支持字典输出（如 {"logits": ...}）
+                    if isinstance(outputs, dict):
+                        outputs = outputs.get("logits", outputs.get("output", outputs))
+                    
+                    loss = criterion(outputs, batch_y)
+                    
+                    _, predicted = torch.max(outputs.data, 1)
+                    total += batch_y.size(0)
+                    correct += (predicted == batch_y).sum().item()
+                    total_loss += loss.item()
+                    num_batches += 1
+            
+            # 计算指标
+            accuracy = correct / total if total > 0 else 0.0
+            avg_loss = total_loss / num_batches if num_batches > 0 else 0.0
+            
+            eval_metrics = {
+                "eval_accuracy": accuracy,
+                "eval_loss": avg_loss,
+                "eval_samples": total,
+            }
+            
+            # 记录到 tracker
+            if self.tracker:
+                self.tracker.log_metrics(eval_metrics, step=round_num)
+            
+            self.logger.info(
+                f"轮次 {round_num} 全局评估: "
+                f"accuracy={accuracy:.4f}, loss={avg_loss:.4f}, samples={total}"
+            )
+            
+            return eval_metrics
+            
+        except ImportError as e:
+            self.logger.error(f"PyTorch 未安装，无法进行全局评估: {e}")
+            return {}
         except Exception as e:
-            self.logger.exception(f"全局模型评估失败: {e}")
-
-        return {}
+            self.logger.exception(f"全局评估失败: {e}")
+            return {}
 
 
 @trainer(
@@ -322,7 +358,7 @@ class AsyncTrainer(Trainer):
 
         # 广播初始权重
         if self.model:
-            await self.broadcast_to_learners("set_weights", self.model.get_weights())
+            await self.broadcast_to_learners("set_weights", self.get_weights())
 
         update_count = 0
         client_versions: Dict[str, int] = {}  # 客户端的模型版本
@@ -345,7 +381,7 @@ class AsyncTrainer(Trainer):
                 staleness = current_version - client_versions[learner_id]
                 if staleness > staleness_threshold and self.model:
                     # 发送最新权重
-                    await self.broadcast_to_learners("set_weights", self.model.get_weights())
+                    await self.broadcast_to_learners("set_weights", self.get_weights())
                     client_versions[learner_id] = current_version
 
             # 收集一个更新
@@ -363,11 +399,11 @@ class AsyncTrainer(Trainer):
                 weight = 1.0 / (1.0 + staleness * 0.1)  # 过时惩罚
 
                 if self.model:
-                    current_weights = self.model.get_weights()
+                    current_weights = self.get_weights()
                     new_weights = self._weighted_average(
                         current_weights, update.weights, 1 - weight, weight
                     )
-                    self.model.set_weights(new_weights)
+                    self.set_weights(new_weights)
 
                 current_version += 1
                 client_versions[learner_id] = current_version
