@@ -69,7 +69,6 @@ class FedDBELearner(Learner):
         self.device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
 
         # 组件占位符
-        self.torch_model = None
         self._optimizer = None
         self._criterion = None
         self._train_loader = None
@@ -86,19 +85,18 @@ class FedDBELearner(Learner):
     async def setup(self, config: Dict) -> None:
         """初始化训练环境"""
         # 获取PyTorch模型
-        self.torch_model = self._model.get_model()
-        self.torch_model.to(self.device)
+        self.model.to(self.device)
 
         # 创建优化器
         if self.optimizer_type == 'SGD':
             self._optimizer = optim.SGD(
-                self.torch_model.parameters(),
+                self.model.parameters(),
                 lr=self.learning_rate,
                 momentum=self.momentum
             )
         elif self.optimizer_type == 'ADAM':
             self._optimizer = optim.Adam(
-                self.torch_model.parameters(),
+                self.model.parameters(),
                 lr=self.learning_rate
             )
         else:
@@ -143,7 +141,7 @@ class FedDBELearner(Learner):
             集成后的预测
         """
         # 当前模型预测
-        output = self.torch_model(data)
+        output = self.model(data)
 
         # 如果有历史模型，进行集成
         if self.ensemble_distill and len(self.historical_models) > 0:
@@ -160,9 +158,9 @@ class FedDBELearner(Learner):
 
         return output
 
-    async def train_epoch(self, epoch: int) -> EpochMetrics:
+    async def train_epoch(self, epoch_idx: int) -> EpochMetrics:
         """单轮训练 - FedDBE训练循环"""
-        self.torch_model.train()
+        self.model.train()
 
         total_loss = 0.0
         total_ce_loss = 0.0
@@ -176,7 +174,7 @@ class FedDBELearner(Learner):
             self._optimizer.zero_grad()
 
             # 前向传播
-            output = self.torch_model(data)
+            output = self.model(data)
             ce_loss = self._criterion(output, target)
 
             # 如果启用集成蒸馏，添加蒸馏损失
@@ -214,13 +212,13 @@ class FedDBELearner(Learner):
         avg_accuracy = total_correct / total_samples
 
         self.logger.info(
-            f"[{self._node_id}] Epoch {epoch}: "
+            f"[{self._node_id}] Epoch {epoch_idx}: "
             f"Loss={avg_loss:.4f} (CE={total_ce_loss/total_samples:.4f}, "
             f"Distill={total_distill_loss/total_samples:.4f}), Acc={avg_accuracy:.4f}"
         )
 
         epoch_metrics = EpochMetrics(
-            epoch=epoch,
+            epoch=epoch_idx,
             avg_loss=avg_loss,
             total_samples=total_samples,
             metrics={
@@ -235,7 +233,7 @@ class FedDBELearner(Learner):
 
         # 触发 epoch 结束回调
         if self._callbacks:
-            await self._callbacks.on_epoch_end(self, epoch, epoch_metrics)
+            await self._callbacks.on_epoch_end(self, epoch_idx, epoch_metrics)
 
         return epoch_metrics
 
@@ -246,14 +244,14 @@ class FedDBELearner(Learner):
 
         # 保存当前模型到历史（用于下一轮集成）
         if self.ensemble_distill:
-            self.historical_models.append(copy.deepcopy(self.torch_model))
+            self.historical_models.append(copy.deepcopy(self.model))
             # 限制历史模型数量
             if len(self.historical_models) > 3:
                 self.historical_models.pop(0)
 
-    async def evaluate_model(self, config: Optional[Dict] = None) -> EvalResult:
+    async def evaluate(self, config: Optional[Dict] = None) -> EvalResult:
         """评估模型 - 使用集成预测"""
-        self.torch_model.eval()
+        self.model.eval()
 
         loader = self._test_loader if self._test_loader else self._train_loader
 
@@ -286,7 +284,7 @@ class FedDBELearner(Learner):
 
     async def get_weights(self) -> Dict[str, Any]:
         """获取模型权重"""
-        return {name: param.data.clone() for name, param in self.torch_model.state_dict().items()}
+        return {name: param.data.clone() for name, param in self.model.state_dict().items()}
 
     async def set_weights(self, weights: Dict[str, Any]):
         """设置模型权重"""
@@ -298,6 +296,6 @@ class FedDBELearner(Learner):
             else:
                 torch_weights[k] = torch.from_numpy(v)
 
-        self.torch_model.load_state_dict(torch_weights)
+        self.model.load_state_dict(torch_weights)
 
         self.logger.debug(f"[{self._node_id}] FedDBE: Updated model")

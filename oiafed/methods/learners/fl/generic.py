@@ -51,7 +51,6 @@ class GenericLearner(Learner):
         self.device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
 
         # 训练组件（延迟初始化）
-        self.torch_model = None
         self._optimizer = None
         self._criterion = None
         self._train_loader = None
@@ -61,24 +60,23 @@ class GenericLearner(Learner):
     async def setup(self, config: Dict) -> None:
         """初始化训练环境"""
         # 获取 PyTorch 模型（从 src/ 的 Model 对象）
-        self.torch_model = self._model.get_model()
-        self.torch_model.to(self.device)
+        self.model.to(self.device)
 
         # 创建优化器
         if self.optimizer_type == 'SGD':
             self._optimizer = optim.SGD(
-                self.torch_model.parameters(),
+                self.model.parameters(),
                 lr=self.learning_rate,
                 momentum=self.momentum
             )
         elif self.optimizer_type == 'ADAM':
             self._optimizer = optim.Adam(
-                self.torch_model.parameters(),
+                self.model.parameters(),
                 lr=self.learning_rate
             )
         elif self.optimizer_type == 'ADAMW':
             self._optimizer = optim.AdamW(
-                self.torch_model.parameters(),
+                self.model.parameters(),
                 lr=self.learning_rate
             )
         else:
@@ -119,7 +117,7 @@ class GenericLearner(Learner):
 
         # 前向传播
         self._optimizer.zero_grad()
-        output = self.torch_model(data)
+        output = self.model(data)
         loss = self._criterion(output, target)
 
         # 反向传播
@@ -137,13 +135,13 @@ class GenericLearner(Learner):
             metrics={'accuracy': accuracy}
         )
 
-    async def train_epoch(self, epoch: int) -> EpochMetrics:
+    async def train_epoch(self, epoch_idx: int) -> EpochMetrics:
         """
         单轮训练（可选重写）
 
         重写以添加详细日志
         """
-        self.torch_model.train()
+        self.model.train()
 
         total_loss = 0.0
         total_correct = 0
@@ -160,12 +158,12 @@ class GenericLearner(Learner):
         avg_accuracy = total_correct / total_samples
 
         self.logger.info(
-            f"[{self._node_id}] Epoch {epoch}: "
+            f"[{self._node_id}] Epoch {epoch_idx}: "
             f"loss={avg_loss:.4f}, acc={avg_accuracy:.4f}"
         )
 
         epoch_metrics = EpochMetrics(
-            epoch=epoch,
+            epoch=epoch_idx,
             avg_loss=avg_loss,
             total_samples=total_samples,
             metrics={'accuracy': avg_accuracy}
@@ -176,17 +174,17 @@ class GenericLearner(Learner):
 
         # 触发 epoch 结束回调
         if self._callbacks:
-            await self._callbacks.on_epoch_end(self, epoch, epoch_metrics)
+            await self._callbacks.on_epoch_end(self, epoch_idx, epoch_metrics)
 
         return epoch_metrics
 
-    async def evaluate_model(self, config: Optional[Dict] = None) -> EvalResult:
+    async def evaluate(self, config: Optional[Dict] = None) -> EvalResult:
         """
         评估模型（必须实现）
 
         这是 src/ 架构要求的接口
         """
-        self.torch_model.eval()
+        self.model.eval()
 
         # 获取测试数据
         test_dataset = self._data.get_test_data()
@@ -207,7 +205,7 @@ class GenericLearner(Learner):
         with torch.no_grad():
             for data, target in test_loader:
                 data, target = data.to(self.device), target.to(self.device)
-                output = self.torch_model(data)
+                output = self.model(data)
                 loss = self._criterion(output, target)
 
                 total_loss += loss.item() * data.size(0)
@@ -243,11 +241,11 @@ class GenericLearner(Learner):
                 else:
                     torch_weights[k] = v
 
-        self.torch_model.load_state_dict(torch_weights)
+        self.model.load_state_dict(torch_weights)
         self.logger.debug(f"[{self._node_id}] 已更新模型权重")
 
     async def get_weights(self) -> Dict[str, Any]:
         """
         获取模型权重（发送给服务端）
         """
-        return {name: param.data.clone() for name, param in self.torch_model.state_dict().items()}
+        return {name: param.data.clone() for name, param in self.model.state_dict().items()}

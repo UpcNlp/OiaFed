@@ -554,7 +554,7 @@ class GLFCLearner(Learner):
 
         return pred_logits
 
-    async def evaluate_model(self, config: Optional[Dict] = None) -> EvalResult:
+    async def evaluate(self, config: Optional[Dict] = None) -> EvalResult:
         """评估模型性能"""
         task_id = (config or {}).get("task_id", self.current_task_id)
 

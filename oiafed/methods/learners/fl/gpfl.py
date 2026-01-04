@@ -66,7 +66,6 @@ class GPFLLearner(Learner):
         self.device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
 
         # 组件占位符
-        self.torch_model = None  # 本地模型
         self.global_model = None  # 全局模型副本
         self._optimizer = None
         self._criterion = None
@@ -84,15 +83,15 @@ class GPFLLearner(Learner):
     async def setup(self, config: Dict) -> None:
         """初始化训练环境"""
         # 获取PyTorch模型（本地模型）
-        self.torch_model = self._model.get_model()
-        self.torch_model.to(self.device)
+        self.model = self._model
+        self.model.to(self.device)
 
         # 创建全局模型副本
-        self.global_model = copy.deepcopy(self.torch_model)
+        self.global_model = copy.deepcopy(self.model)
         self.global_model.eval()
 
         # 创建优化器（包含本地模型参数和混合系数）
-        params = list(self.torch_model.parameters()) + [self.alpha_param]
+        params = list(self.model.parameters()) + [self.alpha_param]
 
         if self.optimizer_type == 'SGD':
             self._optimizer = optim.SGD(
@@ -144,7 +143,7 @@ class GPFLLearner(Learner):
             混合后的预测和alpha值
         """
         # 本地模型预测
-        local_output = self.torch_model(data)
+        local_output = self.model(data)
 
         # 全局模型预测
         if self.global_model is not None:
@@ -161,9 +160,9 @@ class GPFLLearner(Learner):
 
         return mixed_output, alpha.item()
 
-    async def train_epoch(self, epoch: int) -> EpochMetrics:
+    async def train_epoch(self, epoch_idx: int) -> EpochMetrics:
         """单轮训练 - GPFL训练循环"""
-        self.torch_model.train()
+        self.model.train()
         if self.global_model is not None:
             self.global_model.eval()
 
@@ -197,12 +196,12 @@ class GPFLLearner(Learner):
         avg_alpha = sum(alpha_values) / len(alpha_values) if alpha_values else 0.5
 
         self.logger.info(
-            f"[{self._node_id}] Epoch {epoch}: "
+            f"[{self._node_id}] Epoch {epoch_idx}: "
             f"Loss={avg_loss:.4f}, Acc={avg_accuracy:.4f}, Alpha={avg_alpha:.4f}"
         )
 
         epoch_metrics = EpochMetrics(
-            epoch=epoch,
+            epoch=epoch_idx,
             avg_loss=avg_loss,
             total_samples=total_samples,
             metrics={
@@ -216,13 +215,13 @@ class GPFLLearner(Learner):
 
         # 触发 epoch 结束回调
         if self._callbacks:
-            await self._callbacks.on_epoch_end(self, epoch, epoch_metrics)
+            await self._callbacks.on_epoch_end(self, epoch_idx, epoch_metrics)
 
         return epoch_metrics
 
-    async def evaluate_model(self, config: Optional[Dict] = None) -> EvalResult:
+    async def evaluate(self, config: Optional[Dict] = None) -> EvalResult:
         """评估模型 - 使用混合预测"""
-        self.torch_model.eval()
+        self.model.eval()
         if self.global_model is not None:
             self.global_model.eval()
 
@@ -254,7 +253,7 @@ class GPFLLearner(Learner):
 
     async def get_weights(self) -> Dict[str, Any]:
         """获取模型权重 - 返回本地模型"""
-        return {name: param.data.clone() for name, param in self.torch_model.state_dict().items()}
+        return {name: param.data.clone() for name, param in self.model.state_dict().items()}
 
     async def set_weights(self, weights: Dict[str, Any]):
         """设置模型权重 - 更新全局模型和本地模型"""
@@ -272,7 +271,7 @@ class GPFLLearner(Learner):
 
         # 如果是第一轮，同时初始化本地模型
         if self._optimizer is None or not hasattr(self, '_initialized'):
-            self.torch_model.load_state_dict(torch_weights)
+            self.model.load_state_dict(torch_weights)
             self._initialized = True
 
         self.logger.debug(f"[{self._node_id}] GPFL: Updated global model")

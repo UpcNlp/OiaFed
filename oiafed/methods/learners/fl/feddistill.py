@@ -71,7 +71,6 @@ class FedDistillLearner(Learner):
         self.device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
 
         # 组件占位符
-        self.torch_model = None
         self._optimizer = None
         self._criterion = None
         self._train_loader = None
@@ -89,19 +88,18 @@ class FedDistillLearner(Learner):
     async def setup(self, config: Dict) -> None:
         """初始化训练环境"""
         # 获取PyTorch模型
-        self.torch_model = self._model.get_model()
-        self.torch_model.to(self.device)
+        self.model.to(self.device)
 
         # 创建优化器
         if self.optimizer_type == 'SGD':
             self._optimizer = optim.SGD(
-                self.torch_model.parameters(),
+                self.model.parameters(),
                 lr=self.learning_rate,
                 momentum=self.momentum
             )
         elif self.optimizer_type == 'ADAM':
             self._optimizer = optim.Adam(
-                self.torch_model.parameters(),
+                self.model.parameters(),
                 lr=self.learning_rate
             )
         else:
@@ -161,10 +159,10 @@ class FedDistillLearner(Learner):
         # 乘以温度的平方来调整梯度尺度
         return kl_loss * (temperature ** 2)
 
-    async def train_epoch(self, epoch: int) -> EpochMetrics:
+    async def train_epoch(self, epoch_idx: int) -> EpochMetrics:
         """单轮训练 - FedDistill训练循环"""
         # 设置模型为训练模式
-        self.torch_model.train()
+        self.model.train()
         if self.teacher_model is not None:
             self.teacher_model.eval()
 
@@ -180,7 +178,7 @@ class FedDistillLearner(Learner):
             self._optimizer.zero_grad()
 
             # 学生模型前向传播
-            student_logits = self.torch_model(data)
+            student_logits = self.model(data)
 
             # 硬标签损失（交叉熵）
             hard_loss = self._criterion(student_logits, target)
@@ -214,13 +212,13 @@ class FedDistillLearner(Learner):
         avg_accuracy = total_correct / total_samples
 
         self.logger.info(
-            f"[{self._node_id}] Epoch {epoch}: "
+            f"[{self._node_id}] Epoch {epoch_idx}: "
             f"Loss={avg_loss:.4f} (Hard={total_hard_loss/total_samples:.4f}, "
             f"Soft={total_soft_loss/total_samples:.4f}), Acc={avg_accuracy:.4f}"
         )
 
         epoch_metrics = EpochMetrics(
-            epoch=epoch,
+            epoch=epoch_idx,
             avg_loss=avg_loss,
             total_samples=total_samples,
             metrics={
@@ -235,7 +233,7 @@ class FedDistillLearner(Learner):
 
         # 触发 epoch 结束回调
         if self._callbacks:
-            await self._callbacks.on_epoch_end(self, epoch, epoch_metrics)
+            await self._callbacks.on_epoch_end(self, epoch_idx, epoch_metrics)
 
         return epoch_metrics
 
@@ -247,9 +245,9 @@ class FedDistillLearner(Learner):
         # 调用父类的fit方法
         await super().fit(config)
 
-    async def evaluate_model(self, config: Optional[Dict] = None) -> EvalResult:
+    async def evaluate(self, config: Optional[Dict] = None) -> EvalResult:
         """评估模型"""
-        self.torch_model.eval()
+        self.model.eval()
 
         loader = self._test_loader if self._test_loader else self._train_loader
 
@@ -260,7 +258,7 @@ class FedDistillLearner(Learner):
         with torch.no_grad():
             for data, target in loader:
                 data, target = data.to(self.device), target.to(self.device)
-                output = self.torch_model(data)
+                output = self.model(data)
                 loss = self._criterion(output, target)
 
                 total_loss += loss.item() * data.size(0)
@@ -287,14 +285,14 @@ class FedDistillLearner(Learner):
                 torch_weights[k] = torch.from_numpy(v)
 
         # 更新学生模型（当前模型）
-        self.torch_model.load_state_dict(torch_weights)
+        self.model.load_state_dict(torch_weights)
 
         # 保存教师模型的副本
-        self.teacher_model = copy.deepcopy(self.torch_model)
+        self.teacher_model = copy.deepcopy(self.model)
         self.teacher_model.eval()
 
         self.logger.debug(f"[{self._node_id}] FedDistill: Updated model and saved teacher model")
 
     async def get_weights(self) -> Dict[str, Any]:
         """获取模型权重"""
-        return {name: param.data.clone() for name, param in self.torch_model.state_dict().items()}
+        return {name: param.data.clone() for name, param in self.model.state_dict().items()}

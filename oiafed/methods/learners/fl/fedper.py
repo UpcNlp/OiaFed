@@ -71,7 +71,6 @@ class FedPerLearner(Learner):
         self.device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
 
         # 组件占位符
-        self.torch_model = None
         self._optimizer = None
         self._criterion = None
         self._train_loader = None
@@ -85,19 +84,18 @@ class FedPerLearner(Learner):
     async def setup(self, config: Dict) -> None:
         """初始化训练环境"""
         # 获取PyTorch模型
-        self.torch_model = self._model.get_model()
-        self.torch_model.to(self.device)
+        self.model.to(self.device)
 
         # 创建优化器
         if self.optimizer_type == 'SGD':
             self._optimizer = optim.SGD(
-                self.torch_model.parameters(),
+                self.model.parameters(),
                 lr=self.learning_rate,
                 momentum=self.momentum
             )
         elif self.optimizer_type == 'ADAM':
             self._optimizer = optim.Adam(
-                self.torch_model.parameters(),
+                self.model.parameters(),
                 lr=self.learning_rate
             )
         else:
@@ -144,7 +142,7 @@ class FedPerLearner(Learner):
     def get_base_parameters(self) -> Dict[str, torch.Tensor]:
         """获取base layers的参数（用于联邦聚合）"""
         base_params = {}
-        for name, param in self.torch_model.named_parameters():
+        for name, param in self.model.named_parameters():
             if not self.is_personalization_layer(name):
                 base_params[name] = param.data.cpu().clone()
         return base_params
@@ -152,7 +150,7 @@ class FedPerLearner(Learner):
     def get_personalization_parameters(self) -> Dict[str, torch.Tensor]:
         """获取personalization layers的参数（不参与聚合）"""
         personal_params = {}
-        for name, param in self.torch_model.named_parameters():
+        for name, param in self.model.named_parameters():
             if self.is_personalization_layer(name):
                 personal_params[name] = param.data.cpu().clone()
         return personal_params
@@ -163,7 +161,7 @@ class FedPerLearner(Learner):
         data, target = data.to(self.device), target.to(self.device)
 
         self._optimizer.zero_grad()
-        output = self.torch_model(data)
+        output = self.model(data)
         loss = self._criterion(output, target)
         loss.backward()
         self._optimizer.step()
@@ -179,9 +177,9 @@ class FedPerLearner(Learner):
             metrics={'accuracy': accuracy}
         )
 
-    async def train_epoch(self, epoch: int) -> EpochMetrics:
+    async def train_epoch(self, epoch_idx: int) -> EpochMetrics:
         """单轮训练"""
-        self.torch_model.train()
+        self.model.train()
 
         total_loss = 0.0
         total_correct = 0
@@ -198,12 +196,12 @@ class FedPerLearner(Learner):
         avg_accuracy = total_correct / total_samples
 
         self.logger.info(
-            f"[{self._node_id}] Epoch {epoch}: "
+            f"[{self._node_id}] Epoch {epoch_idx}: "
             f"loss={avg_loss:.4f}, acc={avg_accuracy:.4f}"
         )
 
         epoch_metrics = EpochMetrics(
-            epoch=epoch,
+            epoch=epoch_idx,
             avg_loss=avg_loss,
             total_samples=total_samples,
             metrics={'accuracy': avg_accuracy}
@@ -214,13 +212,13 @@ class FedPerLearner(Learner):
 
         # 触发 epoch 结束回调
         if self._callbacks:
-            await self._callbacks.on_epoch_end(self, epoch, epoch_metrics)
+            await self._callbacks.on_epoch_end(self, epoch_idx, epoch_metrics)
 
         return epoch_metrics
 
-    async def evaluate_model(self, config: Optional[Dict] = None) -> EvalResult:
+    async def evaluate(self, config: Optional[Dict] = None) -> EvalResult:
         """评估模型"""
-        self.torch_model.eval()
+        self.model.eval()
 
         # 使用测试数据或训练数据评估
         loader = self._test_loader if self._test_loader else self._train_loader
@@ -232,7 +230,7 @@ class FedPerLearner(Learner):
         with torch.no_grad():
             for data, target in loader:
                 data, target = data.to(self.device), target.to(self.device)
-                output = self.torch_model(data)
+                output = self.model(data)
                 loss = self._criterion(output, target)
 
                 total_loss += loss.item() * data.size(0)
@@ -264,7 +262,7 @@ class FedPerLearner(Learner):
     async def set_weights(self, weights: Dict[str, Any]):
         """设置模型权重 - 只更新base parameters"""
         # 只更新base parameters，保留personalization parameters
-        state_dict = self.torch_model.state_dict()
+        state_dict = self.model.state_dict()
         updated_count = 0
 
         for name, value in weights.items():
@@ -274,7 +272,7 @@ class FedPerLearner(Learner):
                 state_dict[name] = value.to(self.device)
                 updated_count += 1
 
-        self.torch_model.load_state_dict(state_dict, strict=True)
+        self.model.load_state_dict(state_dict, strict=True)
 
         self.logger.debug(
             f"[{self._node_id}] FedPer: Updated {updated_count} base parameters, "

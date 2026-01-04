@@ -72,7 +72,6 @@ class FedProtoLearner(Learner):
         self.device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
 
         # 组件占位符
-        self.torch_model = None
         self._optimizer = None
         self._criterion = None
         self._train_loader = None
@@ -91,19 +90,18 @@ class FedProtoLearner(Learner):
     async def setup(self, config: Dict) -> None:
         """初始化训练环境"""
         # 获取PyTorch模型
-        self.torch_model = self._model.get_model()
-        self.torch_model.to(self.device)
+        self.model.to(self.device)
 
         # 创建优化器
         if self.optimizer_type == 'SGD':
             self._optimizer = optim.SGD(
-                self.torch_model.parameters(),
+                self.model.parameters(),
                 lr=self.learning_rate,
                 momentum=self.momentum
             )
         elif self.optimizer_type == 'ADAM':
             self._optimizer = optim.Adam(
-                self.torch_model.parameters(),
+                self.model.parameters(),
                 lr=self.learning_rate
             )
         else:
@@ -183,7 +181,7 @@ class FedProtoLearner(Learner):
 
     def compute_prototypes(self):
         """计算本地原型"""
-        self.torch_model.eval()
+        self.model.eval()
 
         # 初始化原型存储
         proto_features = {i: [] for i in range(self.num_classes)}
@@ -191,7 +189,7 @@ class FedProtoLearner(Learner):
         with torch.no_grad():
             for data, target in self._train_loader:
                 data = data.to(self.device)
-                features = self.get_features(self.torch_model, data)
+                features = self.get_features(self.model, data)
 
                 # 按类别收集特征
                 for i in range(len(target)):
@@ -258,9 +256,9 @@ class FedProtoLearner(Learner):
         else:
             return torch.tensor(0.0, device=self.device)
 
-    async def train_epoch(self, epoch: int) -> EpochMetrics:
+    async def train_epoch(self, epoch_idx: int) -> EpochMetrics:
         """单轮训练 - FedProto训练循环"""
-        self.torch_model.train()
+        self.model.train()
 
         total_loss = 0.0
         total_ce_loss = 0.0
@@ -274,13 +272,13 @@ class FedProtoLearner(Learner):
             self._optimizer.zero_grad()
 
             # 前向传播
-            output = self.torch_model(data)
+            output = self.model(data)
             ce_loss = self._criterion(output, target)
 
             # 计算原型损失
             proto_loss = torch.tensor(0.0, device=self.device)
             if self.global_prototypes is not None and self.round_number > 1:
-                features = self.get_features(self.torch_model, data)
+                features = self.get_features(self.model, data)
                 proto_loss = self.prototype_loss(features, target)
 
             # 总损失
@@ -301,13 +299,13 @@ class FedProtoLearner(Learner):
         avg_accuracy = total_correct / total_samples
 
         self.logger.info(
-            f"[{self._node_id}] Epoch {epoch}: "
+            f"[{self._node_id}] Epoch {epoch_idx}: "
             f"Loss={avg_loss:.4f} (CE={total_ce_loss/total_samples:.4f}, "
             f"Proto={total_proto_loss/total_samples:.4f}), Acc={avg_accuracy:.4f}"
         )
 
         epoch_metrics = EpochMetrics(
-            epoch=epoch,
+            epoch=epoch_idx,
             avg_loss=avg_loss,
             total_samples=total_samples,
             metrics={
@@ -322,7 +320,7 @@ class FedProtoLearner(Learner):
 
         # 触发 epoch 结束回调
         if self._callbacks:
-            await self._callbacks.on_epoch_end(self, epoch, epoch_metrics)
+            await self._callbacks.on_epoch_end(self, epoch_idx, epoch_metrics)
 
         return epoch_metrics
 
@@ -337,9 +335,9 @@ class FedProtoLearner(Learner):
         # 训练后计算本地原型
         self.compute_prototypes()
 
-    async def evaluate_model(self, config: Optional[Dict] = None) -> EvalResult:
+    async def evaluate(self, config: Optional[Dict] = None) -> EvalResult:
         """评估模型"""
-        self.torch_model.eval()
+        self.model.eval()
 
         loader = self._test_loader if self._test_loader else self._train_loader
 
@@ -350,7 +348,7 @@ class FedProtoLearner(Learner):
         with torch.no_grad():
             for data, target in loader:
                 data, target = data.to(self.device), target.to(self.device)
-                output = self.torch_model(data)
+                output = self.model(data)
                 loss = self._criterion(output, target)
 
                 total_loss += loss.item() * data.size(0)
@@ -368,7 +366,7 @@ class FedProtoLearner(Learner):
 
     async def get_weights(self) -> Dict[str, Any]:
         """获取模型权重和本地原型"""
-        weights = {name: param.data.clone() for name, param in self.torch_model.state_dict().items()}
+        weights = {name: param.data.clone() for name, param in self.model.state_dict().items()}
 
         # 添加原型信息
         if self.local_prototypes is not None:
@@ -394,4 +392,4 @@ class FedProtoLearner(Learner):
             else:
                 torch_weights[k] = torch.from_numpy(v)
 
-        self.torch_model.load_state_dict(torch_weights, strict=False)
+        self.model.load_state_dict(torch_weights, strict=False)

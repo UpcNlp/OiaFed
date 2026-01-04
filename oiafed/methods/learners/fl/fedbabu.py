@@ -72,7 +72,6 @@ class FedBABULearner(Learner):
         self.device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
 
         # 组件占位符
-        self.torch_model = None
         self._optimizer = None
         self._head_optimizer = None
         self._criterion = None
@@ -87,19 +86,18 @@ class FedBABULearner(Learner):
     async def setup(self, config: Dict) -> None:
         """初始化训练环境"""
         # 获取PyTorch模型
-        self.torch_model = self._model.get_model()
-        self.torch_model.to(self.device)
+        self.model.to(self.device)
 
         # 创建优化器
         if self.optimizer_type == 'SGD':
             self._optimizer = optim.SGD(
-                self.torch_model.parameters(),
+                self.model.parameters(),
                 lr=self.learning_rate,
                 momentum=self.momentum
             )
         elif self.optimizer_type == 'ADAM':
             self._optimizer = optim.Adam(
-                self.torch_model.parameters(),
+                self.model.parameters(),
                 lr=self.learning_rate
             )
         else:
@@ -143,37 +141,37 @@ class FedBABULearner(Learner):
     def get_body_parameters(self) -> Dict[str, torch.Tensor]:
         """获取body (feature extractor)的参数（用于联邦聚合）"""
         body_params = {}
-        for name, param in self.torch_model.named_parameters():
+        for name, param in self.model.named_parameters():
             if not self.is_head_layer(name):
                 body_params[name] = param.data.cpu().clone()
         return body_params
 
     def freeze_body(self):
         """冻结body layers"""
-        for name, param in self.torch_model.named_parameters():
+        for name, param in self.model.named_parameters():
             if not self.is_head_layer(name):
                 param.requires_grad = False
 
     def unfreeze_body(self):
         """解冻body layers"""
-        for name, param in self.torch_model.named_parameters():
+        for name, param in self.model.named_parameters():
             if not self.is_head_layer(name):
                 param.requires_grad = True
 
-    async def train_epoch(self, epoch: int) -> EpochMetrics:
+    async def train_epoch(self, epoch_idx: int) -> EpochMetrics:
         """单轮训练 - FedBABU训练循环"""
-        self.torch_model.train()
+        self.model.train()
 
         # 判断是否是finetune阶段
-        is_finetune = epoch >= (self.local_epochs - self.finetune_epochs)
+        is_finetune = epoch_idx >= (self.local_epochs - self.finetune_epochs)
 
-        if is_finetune and epoch == (self.local_epochs - self.finetune_epochs):
+        if is_finetune and epoch_idx == (self.local_epochs - self.finetune_epochs):
             # 第一次进入finetune阶段，冻结body
             self.logger.info(f"[{self._node_id}] Entering finetune phase - freezing body")
             self.freeze_body()
 
             # 创建只包含head参数的优化器
-            head_params = [p for n, p in self.torch_model.named_parameters() if self.is_head_layer(n)]
+            head_params = [p for n, p in self.model.named_parameters() if self.is_head_layer(n)]
             if self.optimizer_type == 'SGD':
                 self._head_optimizer = optim.SGD(head_params, lr=self.learning_rate, momentum=self.momentum)
             elif self.optimizer_type == 'ADAM':
@@ -190,7 +188,7 @@ class FedBABULearner(Learner):
             data, target = data.to(self.device), target.to(self.device)
 
             optimizer.zero_grad()
-            output = self.torch_model(data)
+            output = self.model(data)
             loss = self._criterion(output, target)
             loss.backward()
             optimizer.step()
@@ -205,12 +203,12 @@ class FedBABULearner(Learner):
 
         phase = "Finetune" if is_finetune else "Full"
         self.logger.info(
-            f"[{self._node_id}] Epoch {epoch} ({phase}): "
+            f"[{self._node_id}] Epoch {epoch_idx} ({phase}): "
             f"loss={avg_loss:.4f}, acc={avg_accuracy:.4f}"
         )
 
         epoch_metrics = EpochMetrics(
-            epoch=epoch,
+            epoch=epoch_idx,
             avg_loss=avg_loss,
             total_samples=total_samples,
             metrics={'accuracy': avg_accuracy}
@@ -221,7 +219,7 @@ class FedBABULearner(Learner):
 
         # 触发 epoch 结束回调
         if self._callbacks:
-            await self._callbacks.on_epoch_end(self, epoch, epoch_metrics)
+            await self._callbacks.on_epoch_end(self, epoch_idx, epoch_metrics)
 
         return epoch_metrics
 
@@ -236,9 +234,9 @@ class FedBABULearner(Learner):
         # 训练后解冻body供下一轮使用
         self.unfreeze_body()
 
-    async def evaluate_model(self, config: Optional[Dict] = None) -> EvalResult:
+    async def evaluate(self, config: Optional[Dict] = None) -> EvalResult:
         """评估模型"""
-        self.torch_model.eval()
+        self.model.eval()
 
         loader = self._test_loader if self._test_loader else self._train_loader
 
@@ -249,7 +247,7 @@ class FedBABULearner(Learner):
         with torch.no_grad():
             for data, target in loader:
                 data, target = data.to(self.device), target.to(self.device)
-                output = self.torch_model(data)
+                output = self.model(data)
                 loss = self._criterion(output, target)
 
                 total_loss += loss.item() * data.size(0)
@@ -271,7 +269,7 @@ class FedBABULearner(Learner):
 
     async def set_weights(self, weights: Dict[str, Any]):
         """设置模型权重 - 只更新body parameters"""
-        state_dict = self.torch_model.state_dict()
+        state_dict = self.model.state_dict()
         updated_count = 0
 
         for name, value in weights.items():
@@ -281,7 +279,7 @@ class FedBABULearner(Learner):
                 state_dict[name] = value.to(self.device)
                 updated_count += 1
 
-        self.torch_model.load_state_dict(state_dict, strict=True)
+        self.model.load_state_dict(state_dict, strict=True)
 
         self.logger.debug(
             f"[{self._node_id}] FedBABU: Updated {updated_count} body parameters, "

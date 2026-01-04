@@ -133,13 +133,14 @@ class Learner(ABC):
         self._state = NodeState.TRAINING
 
         try:
-            # [业务层] 记录接收到 fit 请求
-            self.logger.info(f"{self._node_id} 开始训练")
-            self.logger.debug(f"配置: {config}")
+            # DEBUG: 记录接收到 fit 请求
+            self.logger.debug(f"[{self._node_id}] 接收到 fit 请求, config={config}")
 
             # 合并配置
             run_config = {**self._config, **(config or {})}
             epochs = run_config.get("epochs", 1)
+
+            self.logger.debug(f"[{self._node_id}] 合并后配置: epochs={epochs}, run_config={run_config}")
 
             # 触发 fit 开始回调
             if self._callbacks:
@@ -181,12 +182,6 @@ class Learner(ABC):
                     num_samples=self.get_num_samples(),
                     metrics=train_metrics,
                     metadata=self.get_metadata()
-                )
-
-                # [业务层] 记录训练完成
-                self.logger.success(
-                    f"[{self._node_id}], Round: {self._global_epoch_counter} 训练完成: "
-                    f"samples={result.num_samples}, loss={train_metrics.final_loss:.4f}"
                 )
 
                 # 触发 fit 结束回调
@@ -507,30 +502,66 @@ class Learner(ABC):
         """
         pass
 
-    @abstractmethod
     def get_dataloader(self) -> Any:
         """
         获取数据加载器
 
-        用户必须实现此方法以返回训练数据的迭代器
+        默认实现：返回 self._train_loader 或 self._train_dataloader
+        子类可重写以返回自定义的数据加载器
 
         Returns:
             可迭代的数据加载器
         """
-        pass
+        # 尝试常见的属性名
+        if hasattr(self, '_train_loader') and self._train_loader is not None:
+            return self._train_loader
+        if hasattr(self, '_train_dataloader') and self._train_dataloader is not None:
+            return self._train_dataloader
+        
+        # 如果有 _data 属性（DataProvider）
+        if self._data is not None and hasattr(self._data, 'get_train_data'):
+            from torch.utils.data import DataLoader
+            batch_size = self._config.get('batch_size', 32) if self._config else 32
+            return DataLoader(self._data.get_train_data(), batch_size=batch_size, shuffle=True)
+        
+        self.logger.warning(f"[{self._node_id}] get_dataloader: 未找到训练数据加载器")
+        return []
 
-    @abstractmethod
     def get_num_samples(self) -> int:
         """
         获取训练样本数
 
-        典型实现：
-        ```python
-        def get_num_samples(self):
-            return len(self.data)
-        ```
+        默认实现：从 _datasets["train"] 或 _data 获取样本数
+        子类可重写以返回自定义的样本数
         """
-        pass
+        # 方式1: 从 _datasets 字典获取（FL learner 常用）
+        if hasattr(self, '_datasets') and self._datasets:
+            train_datasets = self._datasets.get("train", [])
+            if train_datasets:
+                try:
+                    return len(train_datasets[0])
+                except (TypeError, IndexError):
+                    pass
+        
+        # 方式2: 从 _data (DataProvider) 获取
+        if self._data is not None:
+            if hasattr(self._data, 'get_num_samples'):
+                return self._data.get_num_samples()
+            if hasattr(self._data, 'get_train_data'):
+                try:
+                    return len(self._data.get_train_data())
+                except TypeError:
+                    pass
+        
+        # 方式3: 从 _train_loader 获取
+        if hasattr(self, '_train_loader') and self._train_loader is not None:
+            try:
+                return len(self._train_loader.dataset)
+            except (AttributeError, TypeError):
+                pass
+        
+        self.logger.warning(f"[{self._node_id}] get_num_samples: 无法确定样本数，返回 0")
+        return 0
 
     def get_metadata(self) -> Dict[str, Any]:
         """
@@ -599,10 +630,12 @@ class Learner(ABC):
 
     # ==================== 评估方法（保持不变）====================
 
-    @abstractmethod
     async def evaluate(self, config: Optional[Dict[str, Any]] = None) -> EvalResult:
         """
         执行本地评估
+
+        默认实现：调用 evaluate_model() 如果存在，否则返回空结果
+        子类可重写以实现自定义评估逻辑
 
         Args:
             config: 评估配置
@@ -613,7 +646,13 @@ class Learner(ABC):
             - metrics: 评估指标（如 accuracy, f1）
             - metadata: 其他信息
         """
-        pass
+        # 如果子类实现了 evaluate_model，则调用它
+        if hasattr(self, 'evaluate_model') and callable(self.evaluate_model):
+            return await self.evaluate_model(config)
+        
+        # 默认返回空结果
+        self.logger.warning(f"[{self._node_id}] evaluate: 未实现 evaluate_model，返回空结果")
+        return EvalResult(num_samples=0, metrics={})
     
     # ==================== 框架提供的方法（无需覆盖） ====================
     
@@ -648,9 +687,7 @@ class Learner(ABC):
         Returns:
             True 表示设置成功
         """
-        # [业务层] 记录接收到请求
-        self.logger.debug(f"[LEARNER-SET-WEIGHTS] {self.node_id} 收到 set_weights 请求")
-
+        self.logger.info(f"[{self.node_id}] 收到 set_weights 请求")
         try:
             # 检查是否是 PyTorch 模型
             try:
@@ -658,7 +695,7 @@ class Learner(ABC):
                 if isinstance(self._model, nn.Module):
                     # 使用 strict=False 以支持部分参数加载（例如 FedBN 不包含 BN 层参数）
                     self._model.load_state_dict(weights, strict=False)
-                    self.logger.debug(f"[LEARNER-SET-WEIGHTS] {self.node_id} set_weights 成功 (PyTorch)")
+                    self.logger.info(f"[{self.node_id}] set_weights 成功 (PyTorch)")
                     return True
             except ImportError:
                 pass
@@ -666,12 +703,12 @@ class Learner(ABC):
             # 尝试调用模型的 set_weights 方法
             if hasattr(self._model, 'set_weights'):
                 self._model.set_weights(weights)
-                self.logger.debug(f"[LEARNER-SET-WEIGHTS] {self.node_id} set_weights 成功")
+                self.logger.info(f"[{self.node_id}] set_weights 成功")
                 return True
 
             # 直接设置模型（可能是numpy数组等）
             self._model = weights
-            self.logger.debug(f"[LEARNER-SET-WEIGHTS] {self.node_id} set_weights 成功 (direct)")
+            self.logger.info(f"[{self.node_id}] set_weights 成功 (direct)")
             return True
 
         except Exception as e:

@@ -74,7 +74,6 @@ class FedRepLearner(Learner):
         self.device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
 
         # 组件占位符
-        self.torch_model = None
         self._optimizer_rep = None
         self._optimizer_head = None
         self._criterion = None
@@ -89,8 +88,7 @@ class FedRepLearner(Learner):
     async def setup(self, config: Dict) -> None:
         """初始化训练环境"""
         # 获取PyTorch模型
-        self.torch_model = self._model.get_model()
-        self.torch_model.to(self.device)
+        self.model.to(self.device)
 
         # 创建两个优化器：一个for representation，一个for head
         self.create_optimizers()
@@ -133,7 +131,7 @@ class FedRepLearner(Learner):
     def get_representation_parameters(self) -> Dict[str, torch.Tensor]:
         """获取representation layers的参数"""
         rep_params = {}
-        for name, param in self.torch_model.named_parameters():
+        for name, param in self.model.named_parameters():
             if not self.is_head_layer(name):
                 rep_params[name] = param.data.cpu().clone()
         return rep_params
@@ -141,9 +139,9 @@ class FedRepLearner(Learner):
     def create_optimizers(self):
         """创建两个优化器：一个for representation，一个for head"""
         # Representation optimizer
-        rep_params = [p for n, p in self.torch_model.named_parameters() if not self.is_head_layer(n)]
+        rep_params = [p for n, p in self.model.named_parameters() if not self.is_head_layer(n)]
         # Head optimizer
-        head_params = [p for n, p in self.torch_model.named_parameters() if self.is_head_layer(n)]
+        head_params = [p for n, p in self.model.named_parameters() if self.is_head_layer(n)]
 
         if self.optimizer_type == 'SGD':
             self._optimizer_rep = optim.SGD(rep_params, lr=self.learning_rate, momentum=self.momentum)
@@ -154,22 +152,22 @@ class FedRepLearner(Learner):
         else:
             raise ValueError(f"不支持的优化器类型: {self.optimizer_type}")
 
-    async def train_epoch(self, epoch: int) -> EpochMetrics:
+    async def train_epoch(self, epoch_idx: int) -> EpochMetrics:
         """单轮训练 - FedRep两阶段训练"""
-        self.torch_model.train()
+        self.model.train()
 
         total_loss = 0.0
         total_correct = 0
         total_samples = 0
 
         # 阶段1: 训练representation layers
-        if epoch < self.local_epochs:
-            self.logger.info(f"[{self._node_id}] Epoch {epoch}: Training representation layers")
+        if epoch_idx < self.local_epochs:
+            self.logger.info(f"[{self._node_id}] Epoch {epoch_idx}: Training representation layers")
             for data, target in self._train_loader:
                 data, target = data.to(self.device), target.to(self.device)
 
                 self._optimizer_rep.zero_grad()
-                output = self.torch_model(data)
+                output = self.model(data)
                 loss = self._criterion(output, target)
                 loss.backward()
                 self._optimizer_rep.step()
@@ -180,12 +178,12 @@ class FedRepLearner(Learner):
                 total_samples += data.size(0)
         else:
             # 阶段2: 训练head layers
-            self.logger.info(f"[{self._node_id}] Epoch {epoch}: Training head layers")
+            self.logger.info(f"[{self._node_id}] Epoch {epoch_idx}: Training head layers")
             for data, target in self._train_loader:
                 data, target = data.to(self.device), target.to(self.device)
 
                 self._optimizer_head.zero_grad()
-                output = self.torch_model(data)
+                output = self.model(data)
                 loss = self._criterion(output, target)
                 loss.backward()
                 self._optimizer_head.step()
@@ -199,12 +197,12 @@ class FedRepLearner(Learner):
         avg_accuracy = total_correct / total_samples
 
         self.logger.info(
-            f"[{self._node_id}] Epoch {epoch}: "
+            f"[{self._node_id}] Epoch {epoch_idx}: "
             f"loss={avg_loss:.4f}, acc={avg_accuracy:.4f}"
         )
 
         epoch_metrics = EpochMetrics(
-            epoch=epoch,
+            epoch=epoch_idx,
             avg_loss=avg_loss,
             total_samples=total_samples,
             metrics={'accuracy': avg_accuracy}
@@ -215,7 +213,7 @@ class FedRepLearner(Learner):
 
         # 触发 epoch 结束回调
         if self._callbacks:
-            await self._callbacks.on_epoch_end(self, epoch, epoch_metrics)
+            await self._callbacks.on_epoch_end(self, epoch_idx, epoch_metrics)
 
         return epoch_metrics
 
@@ -226,9 +224,9 @@ class FedRepLearner(Learner):
         for epoch in range(total_epochs):
             epoch_metrics = await self.train_epoch(epoch)
 
-    async def evaluate_model(self, config: Optional[Dict] = None) -> EvalResult:
+    async def evaluate(self, config: Optional[Dict] = None) -> EvalResult:
         """评估模型"""
-        self.torch_model.eval()
+        self.model.eval()
 
         loader = self._test_loader if self._test_loader else self._train_loader
 
@@ -239,7 +237,7 @@ class FedRepLearner(Learner):
         with torch.no_grad():
             for data, target in loader:
                 data, target = data.to(self.device), target.to(self.device)
-                output = self.torch_model(data)
+                output = self.model(data)
                 loss = self._criterion(output, target)
 
                 total_loss += loss.item() * data.size(0)
@@ -261,7 +259,7 @@ class FedRepLearner(Learner):
 
     async def set_weights(self, weights: Dict[str, Any]):
         """设置模型权重 - 只更新representation parameters"""
-        state_dict = self.torch_model.state_dict()
+        state_dict = self.model.state_dict()
 
         for name, value in weights.items():
             if name in state_dict and not self.is_head_layer(name):
@@ -269,5 +267,6 @@ class FedRepLearner(Learner):
                     value = torch.from_numpy(value)
                 state_dict[name] = value.to(self.device)
 
-        self.torch_model.load_state_dict(state_dict, strict=True)
+        self.model.load_state_dict(state_dict, strict=True)
         self.logger.debug(f"[{self._node_id}] FedRep: Updated representation parameters")
+
