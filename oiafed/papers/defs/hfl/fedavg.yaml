@@ -15,7 +15,7 @@ components:
   learner: default
   aggregator: fedavg
   trainer: default
-  model: cnn
+  model: cifar10_cnn
   dataset: cifar10
 
 defaults:

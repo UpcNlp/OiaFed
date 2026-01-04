@@ -15,7 +15,7 @@ components:
   learner: cl.target
   aggregator: fedavg
   trainer: continual
-  model: cnn
+  model: cifar10_cnn
   dataset: cifar10
 
 defaults:

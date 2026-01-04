@@ -194,6 +194,9 @@ class ConfigManager:
         # 解析为 NodeConfig
         config = self.from_dict(data, validate=False)
         
+        # 设置配置文件路径（用于 Artifact 上传）
+        config.config_path = str(path_obj.absolute())
+        
         # 验证
         if validate:
             self.validate(config)

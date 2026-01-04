@@ -410,9 +410,11 @@ class FederatedSystem:
         self.sys_logger.debug("Initializing infrastructure...")
 
         # Tracker - 直接传递 TrackerConfig
-        self.sys_logger.debug(f" self._config.tracker = {self._config.tracker}")
+        self.sys_logger.info(f"[DEBUG] self._config.tracker = {self._config.tracker}")
         if self._config.tracker:
-            self.sys_logger.debug(f" tracker.enabled = {self._config.tracker.enabled}")
+            self.sys_logger.info(f"[DEBUG] tracker.enabled = {self._config.tracker.enabled}")
+            self.sys_logger.info(f"[DEBUG] tracker.backends = {self._config.tracker.backends}")
+            self.sys_logger.info(f"[DEBUG] exp_name = {self.exp_name}")
             
             try:
                 self.tracker = CompositeTracker.from_config(
@@ -421,32 +423,50 @@ class FederatedSystem:
                     is_trainer=self._config.is_trainer(),
                     exp_name=self.exp_name,  # 传入实验名称
                 )
-                self.sys_logger.debug(f" Created tracker = {self.tracker}")
+                self.sys_logger.info(f"[DEBUG] Created tracker = {self.tracker}")
             except Exception as e:
-                self.sys_logger.debug(f" Failed to create tracker: {e}")
+                self.sys_logger.error(f"[DEBUG] Failed to create tracker: {e}")
                 import traceback
-                self.sys_logger.exception(traceback.format_exc())
+                self.sys_logger.error(traceback.format_exc())
                 self.tracker = None
 
             if self.tracker:
-                # ===== 记录节点配置到 MLflow =====
-                params = self._extract_config_params()
-                self.tracker.log_params(params)
-                
-                self.tracker.set_tags({
-                    "node_id": self.node_id,
-                    "exp_name": self.exp_name,
-                    "role": "trainer" if self._config.is_trainer() else "learner",
-                    "framework": "oiafed",
-                })
+                # ===== 只有 Trainer 记录配置到 MLflow =====
+                # Learner 的配置会通过同步机制记录到 Trainer 的 run 中
+                if self._config.is_trainer():
+                    params = self._extract_config_params()
+                    self.tracker.log_params(params)
+                    
+                    self.tracker.set_tags({
+                        "node_id": self.node_id,
+                        "exp_name": self.exp_name,
+                        "role": "trainer",
+                        "framework": "oiafed",
+                    })
+                    
+                    # 上传配置文件为 Artifact
+                    if self._config.config_path:
+                        import os
+                        if os.path.exists(self._config.config_path):
+                            try:
+                                self.tracker.log_artifact(
+                                    self._config.config_path, 
+                                    artifact_path="configs"
+                                )
+                                self.sys_logger.debug(f"Uploaded config artifact: {self._config.config_path}")
+                            except Exception as e:
+                                self.sys_logger.warning(f"Failed to upload config artifact: {e}")
 
         # Callbacks
         self.callbacks = CallbackManager()
         for cb_config in self._config.get_callbacks():
             cb_args = cb_config.get_args()
 
-            if cb_config.type == 'tracker_sync' and self.tracker:
-                cb_args['tracker'] = self.tracker
+            if cb_config.type == 'tracker_sync':
+                if self.tracker:
+                    cb_args['tracker'] = self.tracker
+                # 传入 node_config，让 Learner 可以记录自己的配置
+                cb_args['node_config'] = self._config
 
             cb = registry.create(
                 namespace=f"federated.callback.{cb_config.type}",
@@ -485,9 +505,9 @@ class FederatedSystem:
         # 4. 创建 Trainer
         trainer_config = self._config.get_trainer_config()
         self.sys_logger.info(f"正在创建 Trainer: {trainer_config.type}")
-        self.sys_logger.debug(f" 创建 Trainer 时 self.tracker = {self.tracker}")
-        self.sys_logger.debug(f" trainer_config.get_args() = {trainer_config.get_args()}")
-        self.sys_logger.debug(f" model = {model}")  # ⭐ 打印模型信息
+        self.sys_logger.info(f"[DEBUG] 创建 Trainer 时 self.tracker = {self.tracker}")
+        self.sys_logger.info(f"[DEBUG] trainer_config.get_args() = {trainer_config.get_args()}")
+        self.sys_logger.info(f"[DEBUG] model = {model}")  # ⭐ 打印模型信息
 
         # 构建 namespace
         trainer_type = trainer_config.type
@@ -508,7 +528,7 @@ class FederatedSystem:
             callbacks=self.callbacks,
         )
         
-        self.sys_logger.debug(f" 创建后 self.trainer._tracker = {getattr(self.trainer, '_tracker', 'NO ATTR')}")
+        self.sys_logger.info(f"[DEBUG] 创建后 self.trainer._tracker = {getattr(self.trainer, '_tracker', 'NO ATTR')}")
 
         self.sys_logger.info(f"Trainer initialized: {trainer_config.type}")
 
@@ -724,7 +744,7 @@ class FederatedSystem:
                 self.sys_logger.warning("运行时信息同步返回空结果")
                 
         except Exception as e:
-            self.sys_logger.exception(f"运行时信息同步失败: {e}")
+            self.sys_logger.warning(f"运行时信息同步失败: {e}")
             # 不抛出异常，允许继续运行（使用本地配置）
 
     def on_sync_info(self, info: Dict[str, Any]) -> None:
@@ -761,10 +781,44 @@ class FederatedSystem:
                     backend.join_run(mlflow_run_id)
                     self.sys_logger.info(f"MLflow Tracker 已加入 run: {mlflow_run_id}")
                     break
+            
+            # ===== 记录 Learner 配置参数 =====
+            self._log_learner_config_to_tracker()
+            
         elif not mlflow_run_id:
             self.sys_logger.warning("on_sync_info: mlflow_run_id is None")
         elif not self.tracker:
             self.sys_logger.warning("on_sync_info: self.tracker is None")
+    
+    def _log_learner_config_to_tracker(self) -> None:
+        """
+        记录 Learner 配置参数到 Tracker
+        
+        在 join_run 之后调用，确保参数记录到正确的 run 中
+        """
+        if not self.tracker or not self._config:
+            return
+        
+        try:
+            # 获取配置参数
+            params = self._config.get_tracking_params()
+            print(f"[system] _log_learner_config_to_tracker: Got {len(params)} params")
+            
+            # 记录参数
+            if hasattr(self.tracker, "log_params"):
+                self.tracker.log_params(params)
+                print(f"[system] Logged {len(params)} params for {self.node_id}")
+            
+            # 设置标签
+            if hasattr(self.tracker, "set_tags"):
+                self.tracker.set_tags({
+                    f"peer_{self.node_id}": "connected",
+                })
+                
+        except Exception as e:
+            print(f"[system] ERROR: Failed to log learner config: {e}")
+            import traceback
+            traceback.print_exc()
 
     def __repr__(self) -> str:
         """字符串表示"""

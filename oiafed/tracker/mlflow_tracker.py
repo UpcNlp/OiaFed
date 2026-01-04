@@ -246,38 +246,87 @@ class MLflowTracker(Tracker):
         return flat
 
     def log_params(self, params: Dict[str, Any]):
-        """记录参数"""
-        if self.mlflow:
-            # 检查是否有活动的 run
-            if self.mlflow.active_run() is None:
-                logger.debug("No active MLflow run. Skipping param logging.")
-                return
+        """
+        记录参数
+        
+        如果设置了 node_id，参数名称会自动添加前缀：{node_id}/param_name
+        例如：node_id="learner_0" 时，"learning_rate" -> "learner_0/learning_rate"
+        """
+        print(f"[MLflowTracker] log_params: mlflow={self.mlflow is not None}, run_id={self.run_id}, node_id={self.node_id}")
+        
+        if not self.mlflow:
+            print("[MLflowTracker] WARNING: mlflow not available")
+            return
+        
+        # 必须有 run_id
+        if not self.run_id:
+            print("[MLflowTracker] WARNING: No run_id available. Skipping param logging.")
+            return
 
-            try:
-                self.mlflow.log_params(params)
-            except Exception as e:
-                logger.error(f"Failed to log params: {e}")
+        try:
+            from mlflow.tracking import MlflowClient
+            client = MlflowClient(tracking_uri=self.tracking_uri)
+            
+            print(f"[MLflowTracker] Logging {len(params)} params to run {self.run_id}")
+            
+            # MlflowClient.log_param 只能一个一个记录
+            success_count = 0
+            for key, value in params.items():
+                try:
+                    # 如果有 node_id，添加前缀（避免多 Learner 参数冲突）
+                    param_name = f"{self.node_id}/{key}" if self.node_id else key
+                    client.log_param(self.run_id, param_name, value)
+                    success_count += 1
+                except Exception as e:
+                    # 参数可能已存在（MLflow 不允许覆盖）
+                    print(f"[MLflowTracker] Failed to log param {key}: {e}")
+            
+            print(f"[MLflowTracker] Successfully logged {success_count}/{len(params)} params")
+                    
+        except Exception as e:
+            print(f"[MLflowTracker] ERROR: Failed to log params: {e}")
+            import traceback
+            traceback.print_exc()
 
     def log_artifact(self, local_path: str, artifact_path: str = None):
         """记录文件"""
-        if self.mlflow:
-            try:
-                self.mlflow.log_artifact(local_path, artifact_path=artifact_path)
-            except Exception as e:
-                logger.error(f"Failed to log artifact {local_path}: {e}")
+        if not self.mlflow:
+            return
+        
+        # 必须有 run_id
+        if not self.run_id:
+            logger.debug("No run_id available. Skipping artifact logging.")
+            return
+        
+        try:
+            from mlflow.tracking import MlflowClient
+            client = MlflowClient(tracking_uri=self.tracking_uri)
+            client.log_artifact(self.run_id, local_path, artifact_path)
+        except Exception as e:
+            logger.error(f"Failed to log artifact {local_path}: {e}")
 
     def set_tags(self, tags: Dict[str, str]):
         """设置标签"""
-        if self.mlflow:
-            # 检查是否有活动的 run
-            if self.mlflow.active_run() is None:
-                logger.debug("No active MLflow run. Skipping tag setting.")
-                return
+        if not self.mlflow:
+            return
+        
+        # 必须有 run_id
+        if not self.run_id:
+            logger.debug("No run_id available. Skipping tag setting.")
+            return
 
-            try:
-                self.mlflow.set_tags(tags)
-            except Exception as e:
-                logger.error(f"Failed to set tags: {e}")
+        try:
+            from mlflow.tracking import MlflowClient
+            client = MlflowClient(tracking_uri=self.tracking_uri)
+            
+            for key, value in tags.items():
+                try:
+                    client.set_tag(self.run_id, key, value)
+                except Exception as e:
+                    logger.debug(f"Failed to set tag {key}: {e}")
+                    
+        except Exception as e:
+            logger.error(f"Failed to set tags: {e}")
 
     def close(self):
         """结束运行"""

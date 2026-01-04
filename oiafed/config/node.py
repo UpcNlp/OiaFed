@@ -227,6 +227,7 @@ class NodeConfig:
     node_id: str = ""
     role: str = "learner"
     extend: Optional[str] = None  # 继承的基础配置文件路径
+    config_path: Optional[str] = None  # 原始配置文件路径（用于 Artifact 上传）
     
     # ========== 全局配置（共享字段源）==========
     global_config: Optional[GlobalConfig] = None
@@ -458,7 +459,7 @@ class NodeConfig:
         """
         提取配置参数用于记录到 MLflow/Tracker
         
-        提取 Trainer/Learner/数据集/模型等配置信息。
+        提取 Trainer/Learner/Aggregator/Model/数据集等完整配置信息。
         
         Returns:
             用于记录到 Tracker 的参数字典
@@ -471,63 +472,74 @@ class NodeConfig:
         if self.run_name:
             params["run_name"] = self.run_name
         
-        # Trainer 配置
+        # ===== Trainer 配置 =====
         trainer_config = self.get_trainer_config()
         if trainer_config:
             params["trainer_type"] = trainer_config.type
             trainer_args = trainer_config.get_args()
-            for key in ["num_rounds", "local_epochs", "eval_interval", "client_fraction"]:
-                if key in trainer_args:
-                    params[f"trainer/{key}"] = trainer_args[key]
+            # 记录所有 trainer 参数
+            for key, value in trainer_args.items():
+                if value is not None:
+                    params[f"trainer/{key}"] = value
         
-        # Learner 配置
+        # ===== Learner 配置 =====
         learner_config = self.get_learner_config()
         if learner_config:
             params["learner_type"] = learner_config.type
             learner_args = learner_config.get_args()
-            for key in ["learning_rate", "batch_size", "optimizer", "weight_decay", "momentum"]:
-                if key in learner_args:
-                    params[f"learner/{key}"] = learner_args[key]
+            # 记录所有 learner 参数
+            for key, value in learner_args.items():
+                if value is not None:
+                    params[f"learner/{key}"] = value
         
-        # Aggregator 配置
+        # ===== Aggregator 配置 =====
         aggregator_config = self.get_aggregator_config()
         if aggregator_config:
             params["aggregator_type"] = aggregator_config.type
+            agg_args = aggregator_config.get_args()
+            # 记录所有 aggregator 参数
+            for key, value in agg_args.items():
+                if value is not None:
+                    params[f"aggregator/{key}"] = value
         
-        # Model 配置
+        # ===== Model 配置 =====
         model_config = self.get_model_config()
         if model_config:
             params["model_type"] = model_config.type
+            model_args = model_config.get_args()
+            # 记录所有 model 参数
+            for key, value in model_args.items():
+                if value is not None:
+                    params[f"model/{key}"] = value
         
-        # 数据集配置
+        # ===== 数据集配置 =====
         datasets = self.get_datasets()
         if datasets:
             for ds in datasets:
                 split = ds.split or "train"
                 params[f"dataset/{split}/type"] = ds.type
                 
-                # 记录划分配置
+                # 数据集参数
+                ds_args = ds.get_args() if hasattr(ds, 'get_args') else (ds.args or {})
+                for key, value in ds_args.items():
+                    if value is not None and key != "split":
+                        params[f"dataset/{split}/{key}"] = value
+                
+                # 划分配置
                 if ds.partition:
                     partition = ds.partition
                     if isinstance(partition, dict):
-                        if "strategy" in partition:
-                            params[f"dataset/{split}/partition_strategy"] = partition["strategy"]
-                        if "alpha" in partition and partition["alpha"] is not None:
-                            params[f"dataset/{split}/partition_alpha"] = partition["alpha"]
-                        if "num_partitions" in partition and partition["num_partitions"] is not None:
-                            params[f"dataset/{split}/num_partitions"] = partition["num_partitions"]
-                        if "partition_id" in partition and partition["partition_id"] is not None:
-                            params[f"dataset/{split}/partition_id"] = partition["partition_id"]
+                        for key, value in partition.items():
+                            if value is not None:
+                                params[f"dataset/{split}/partition_{key}"] = value
                     else:
                         # partition 是对象
-                        if hasattr(partition, 'strategy'):
-                            params[f"dataset/{split}/partition_strategy"] = partition.strategy
-                        if hasattr(partition, 'alpha') and partition.alpha is not None:
-                            params[f"dataset/{split}/partition_alpha"] = partition.alpha
-                        if hasattr(partition, 'num_partitions') and partition.num_partitions is not None:
-                            params[f"dataset/{split}/num_partitions"] = partition.num_partitions
-                        if hasattr(partition, 'partition_id') and partition.partition_id is not None:
-                            params[f"dataset/{split}/partition_id"] = partition.partition_id
+                        for key in ["strategy", "alpha", "num_partitions", "partition_id",
+                                    "num_shards", "min_samples", "seed"]:
+                            if hasattr(partition, key):
+                                val = getattr(partition, key)
+                                if val is not None:
+                                    params[f"dataset/{split}/partition_{key}"] = val
         
         return params
     
