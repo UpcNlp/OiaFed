@@ -77,6 +77,9 @@ class FedBABULearner(Learner):
         self._criterion = None
         self._train_loader = None
         self._test_loader = None
+        
+        # 当前是否处于 finetune 阶段
+        self._is_finetune = False
 
         self.logger.info(
             f"FedBABULearner {node_id} 初始化完成 "
@@ -158,6 +161,38 @@ class FedBABULearner(Learner):
             if not self.is_head_layer(name):
                 param.requires_grad = True
 
+    async def train_step(self, batch: Any, batch_idx: int) -> StepMetrics:
+        """
+        单批次训练
+        
+        根据当前阶段（正常训练或 finetune）选择对应的优化器。
+        """
+        data, target = batch
+        data, target = data.to(self.device), target.to(self.device)
+        
+        # 根据当前阶段选择优化器
+        if self._is_finetune and self._head_optimizer is not None:
+            optimizer = self._head_optimizer
+        else:
+            optimizer = self._optimizer
+        
+        optimizer.zero_grad()
+        output = self.model(data)
+        loss = self._criterion(output, target)
+        loss.backward()
+        optimizer.step()
+        
+        # 计算准确率
+        pred = output.argmax(dim=1, keepdim=True)
+        correct = pred.eq(target.view_as(pred)).sum().item()
+        accuracy = correct / data.size(0)
+        
+        return StepMetrics(
+            loss=loss.item(),
+            batch_size=data.size(0),
+            metrics={'accuracy': accuracy}
+        )
+
     async def train_epoch(self, epoch_idx: int) -> EpochMetrics:
         """单轮训练 - FedBABU训练循环"""
         self.model.train()
@@ -169,6 +204,7 @@ class FedBABULearner(Learner):
             # 第一次进入finetune阶段，冻结body
             self.logger.info(f"[{self._node_id}] Entering finetune phase - freezing body")
             self.freeze_body()
+            self._is_finetune = True
 
             # 创建只包含head参数的优化器
             head_params = [p for n, p in self.model.named_parameters() if self.is_head_layer(n)]
@@ -225,14 +261,16 @@ class FedBABULearner(Learner):
 
     async def fit(self, config: Optional[Dict] = None):
         """训练模型 - 重写以确保解冻body"""
-        # 确保body未冻结
+        # 确保body未冻结，重置 finetune 状态
         self.unfreeze_body()
+        self._is_finetune = False
 
         # 调用父类的fit方法
         await super().fit(config)
 
         # 训练后解冻body供下一轮使用
         self.unfreeze_body()
+        self._is_finetune = False
 
     async def evaluate(self, config: Optional[Dict] = None) -> EvalResult:
         """评估模型"""

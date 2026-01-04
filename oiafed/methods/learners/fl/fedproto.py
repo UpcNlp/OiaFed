@@ -256,6 +256,48 @@ class FedProtoLearner(Learner):
         else:
             return torch.tensor(0.0, device=self.device)
 
+    async def train_step(self, batch: Any, batch_idx: int) -> StepMetrics:
+        """
+        单批次训练 - FedProto 训练步骤
+        
+        包含交叉熵损失和原型损失。
+        """
+        data, target = batch
+        data, target = data.to(self.device), target.to(self.device)
+
+        self._optimizer.zero_grad()
+
+        # 前向传播
+        output = self.model(data)
+        ce_loss = self._criterion(output, target)
+
+        # 计算原型损失
+        proto_loss = torch.tensor(0.0, device=self.device)
+        if self.global_prototypes is not None and self.round_number > 1:
+            features = self.get_features(self.model, data)
+            proto_loss = self.prototype_loss(features, target)
+
+        # 总损失
+        loss = ce_loss + self.lambda_proto * proto_loss
+
+        loss.backward()
+        self._optimizer.step()
+
+        # 计算准确率
+        pred = output.argmax(dim=1, keepdim=True)
+        correct = pred.eq(target.view_as(pred)).sum().item()
+        accuracy = correct / data.size(0)
+
+        return StepMetrics(
+            loss=loss.item(),
+            batch_size=data.size(0),
+            metrics={
+                'accuracy': accuracy,
+                'ce_loss': ce_loss.item(),
+                'proto_loss': proto_loss.item()
+            }
+        )
+
     async def train_epoch(self, epoch_idx: int) -> EpochMetrics:
         """单轮训练 - FedProto训练循环"""
         self.model.train()

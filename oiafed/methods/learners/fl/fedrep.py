@@ -79,6 +79,9 @@ class FedRepLearner(Learner):
         self._criterion = None
         self._train_loader = None
         self._test_loader = None
+        
+        # 当前训练阶段：'representation' 或 'head'
+        self._current_phase = 'representation'
 
         self.logger.info(
             f"FedRepLearner {node_id} 初始化完成 "
@@ -152,6 +155,38 @@ class FedRepLearner(Learner):
         else:
             raise ValueError(f"不支持的优化器类型: {self.optimizer_type}")
 
+    async def train_step(self, batch: Any, batch_idx: int) -> StepMetrics:
+        """
+        单批次训练
+        
+        根据当前阶段（representation 或 head）选择对应的优化器进行训练。
+        """
+        data, target = batch
+        data, target = data.to(self.device), target.to(self.device)
+        
+        # 根据当前阶段选择优化器
+        if self._current_phase == 'representation':
+            optimizer = self._optimizer_rep
+        else:
+            optimizer = self._optimizer_head
+        
+        optimizer.zero_grad()
+        output = self.model(data)
+        loss = self._criterion(output, target)
+        loss.backward()
+        optimizer.step()
+        
+        # 计算准确率
+        pred = output.argmax(dim=1, keepdim=True)
+        correct = pred.eq(target.view_as(pred)).sum().item()
+        accuracy = correct / data.size(0)
+        
+        return StepMetrics(
+            loss=loss.item(),
+            batch_size=data.size(0),
+            metrics={'accuracy': accuracy}
+        )
+
     async def train_epoch(self, epoch_idx: int) -> EpochMetrics:
         """单轮训练 - FedRep两阶段训练"""
         self.model.train()
@@ -162,6 +197,7 @@ class FedRepLearner(Learner):
 
         # 阶段1: 训练representation layers
         if epoch_idx < self.local_epochs:
+            self._current_phase = 'representation'
             self.logger.info(f"[{self._node_id}] Epoch {epoch_idx}: Training representation layers")
             for data, target in self._train_loader:
                 data, target = data.to(self.device), target.to(self.device)
@@ -178,6 +214,7 @@ class FedRepLearner(Learner):
                 total_samples += data.size(0)
         else:
             # 阶段2: 训练head layers
+            self._current_phase = 'head'
             self.logger.info(f"[{self._node_id}] Epoch {epoch_idx}: Training head layers")
             for data, target in self._train_loader:
                 data, target = data.to(self.device), target.to(self.device)
@@ -269,4 +306,3 @@ class FedRepLearner(Learner):
 
         self.model.load_state_dict(state_dict, strict=True)
         self.logger.debug(f"[{self._node_id}] FedRep: Updated representation parameters")
-
