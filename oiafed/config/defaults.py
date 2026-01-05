@@ -13,7 +13,7 @@ DEFAULT_LOCALHOST = "localhost"
 DEFAULT_MAX_MESSAGE_SIZE = 1000 * 1024 * 1024  # 100MB
 
 # ==================== 超时配置 ====================
-DEFAULT_TIMEOUT = 300.0  # 5 分钟（RPC 调用超时）
+DEFAULT_TIMEOUT = 15000.0  # RPC 调用超时
 DEFAULT_CONNECTION_TIMEOUT = 60.0  # 连接超时
 DEFAULT_RETRY_INTERVAL = 2.0  # 重试间隔
 DEFAULT_MAX_RETRIES = 10  # 最大重试次数

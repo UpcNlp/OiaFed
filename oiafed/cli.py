@@ -740,7 +740,8 @@ def _generate_paper_configs(
     # 如果需要，查找可用端口
     if mode == "parallel" and auto_find_port:
         trainer_port = _find_available_port(trainer_port)
-        learner_base_port = _find_available_port(learner_base_port)
+        # 确保 learner_base_port 从 trainer_port 之后开始，避免端口冲突
+        learner_base_port = _find_available_port(max(learner_base_port, trainer_port + 1))
     
     # ===== 生成 Trainer 配置 =====
     trainer_config = {
@@ -963,9 +964,10 @@ def cmd_validate(args: argparse.Namespace) -> int:
 
 def cmd_list(args: argparse.Namespace) -> int:
     """执行 list 命令"""
-    from .registry import Registry
-    
-    registry = Registry()
+    # 导入 methods 模块以触发所有组件注册
+    from . import methods
+    # 使用全局 registry（已注册了组件），而不是创建新实例
+    from .registry import registry
     
     component_map = {
         "aggregators": "aggregator",
@@ -988,11 +990,19 @@ def cmd_list(args: argparse.Namespace) -> int:
         print("-" * 40)
         
         if components:
-            for name, info in sorted(components.items()):
-                desc = info.get("description", "")
-                if desc:
-                    print(f"  {name}: {desc}")
-                else:
+            for namespace in sorted(components):
+                # 从 namespace 中提取名称，如 "model.cifar10_cnn" -> "cifar10_cnn"
+                name = namespace.split(".")[-1] if "." in namespace else namespace
+                # 尝试获取组件的描述信息
+                try:
+                    cls = registry.get(namespace)
+                    desc = getattr(cls, '__doc__', '') or ''
+                    desc = desc.split('\n')[0].strip() if desc else ''
+                    if desc:
+                        print(f"  {name}: {desc[:60]}")
+                    else:
+                        print(f"  {name}")
+                except:
                     print(f"  {name}")
         else:
             print("  (无)")

@@ -113,8 +113,15 @@ class SCAFFOLDAggregator(Aggregator):
         model_weights = sample_update.weights
         self.global_control_variate = {}
 
+        # 整数类型列表（这些参数不参与控制变量更新，如 BatchNorm 的 num_batches_tracked）
+        int_dtypes = (torch.long, torch.int, torch.int32, torch.int64, torch.int16, torch.int8)
+
         for param_name, param_value in model_weights.items():
             if isinstance(param_value, torch.Tensor):
+                # 跳过整数类型参数（如 num_batches_tracked）
+                if param_value.dtype in int_dtypes:
+                    logger.debug(f"跳过整数类型参数: {param_name} ({param_value.dtype})")
+                    continue
                 self.global_control_variate[param_name] = torch.zeros_like(
                     param_value, device=self.device
                 )
@@ -231,19 +238,23 @@ class SCAFFOLDAggregator(Aggregator):
         global_cv_norm = 0.0
         for param_name, delta in control_variate_deltas.items():
             if isinstance(delta, torch.Tensor):
+                cv = self.global_control_variate[param_name]
+                
+                # 跳过整数类型参数（已经在初始化时跳过，但这里做双重检查）
+                if cv.dtype in [torch.long, torch.int, torch.int32, torch.int64, torch.int16, torch.int8]:
+                    continue
+                
                 # 使用动量更新
                 if self.momentum > 0:
                     self.global_control_variate[param_name] = (
-                        self.momentum * self.global_control_variate[param_name] +
+                        self.momentum * cv +
                         (1 - self.momentum) * effective_lr * delta
                     )
                 else:
-                    self.global_control_variate[param_name] += effective_lr * delta
+                    self.global_control_variate[param_name] = cv + effective_lr * delta
 
-                # 计算范数 - 转换为float以便计算norm
+                # 计算范数
                 cv_tensor = self.global_control_variate[param_name]
-                if cv_tensor.dtype in [torch.long, torch.int, torch.int32, torch.int64]:
-                    cv_tensor = cv_tensor.float()
                 global_cv_norm += torch.norm(cv_tensor).item() ** 2
 
         global_cv_norm = global_cv_norm ** 0.5

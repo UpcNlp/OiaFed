@@ -19,6 +19,8 @@
 from dataclasses import dataclass, field
 from typing import Any, Dict, List, Optional
 
+from .defaults import DEFAULT_HEARTBEAT_INTERVAL
+
 
 # ==================== 序列化配置 ====================
 
@@ -160,7 +162,7 @@ class HeartbeatConfig:
         critical_peers: 关键节点列表（断开时触发 shutdown）
     """
     enabled: bool = False
-    interval: float = 30.0
+    interval: float = DEFAULT_HEARTBEAT_INTERVAL
     timeout: float = 90.0
     critical_peers: List[str] = field(default_factory=list)
 
@@ -171,7 +173,7 @@ def parse_heartbeat_config(data: Optional[Dict[str, Any]]) -> HeartbeatConfig:
         return HeartbeatConfig()
     return HeartbeatConfig(
         enabled=data.get("enabled", False),
-        interval=data.get("interval", 30.0),
+        interval=data.get("interval", DEFAULT_HEARTBEAT_INTERVAL),
         timeout=data.get("timeout", 90.0),
         critical_peers=data.get("critical_peers", []),
     )

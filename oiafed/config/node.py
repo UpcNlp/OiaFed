@@ -40,6 +40,7 @@ from .component import (
     ComponentConfig, DatasetConfig, CallbackConfig,
     parse_component_config, parse_datasets_config, parse_callbacks_config
 )
+from .defaults import DEFAULT_TIMEOUT
 
 
 # ==================== 枚举类型 ====================
@@ -136,7 +137,7 @@ class NodeCommConfig:
         interceptors: 拦截器配置
     """
     node_id: str
-    default_timeout: float = 30.0
+    default_timeout: float = DEFAULT_TIMEOUT
     debug: bool = False
     advertised_address: Optional[str] = None
     listen: Optional[Dict[str, Any]] = None
@@ -261,7 +262,7 @@ class NodeConfig:
     
     # ========== 其他配置 ==========
     min_peers: int = 0
-    default_timeout: float = 30.0
+    default_timeout: float = DEFAULT_TIMEOUT
     debug: bool = False
     advertised_address: Optional[str] = None
     
@@ -609,7 +610,7 @@ def parse_node_config(data: Dict[str, Any]) -> NodeConfig:
         datasets=datasets if datasets else None,
         callbacks=callbacks if callbacks else None,
         min_peers=data.get("min_peers", 0),
-        default_timeout=data.get("default_timeout", 30.0),
+        default_timeout=data.get("default_timeout", DEFAULT_TIMEOUT),
         debug=data.get("debug", False),
         advertised_address=data.get("advertised_address"),
     )

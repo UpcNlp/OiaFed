@@ -59,6 +59,7 @@ from .node import (
     GlobalConfig, NodeCommConfig, NodeConfig,
     parse_global_config, parse_node_config,
 )
+from .defaults import DEFAULT_TIMEOUT
 
 
 T = TypeVar("T")
@@ -301,7 +302,7 @@ class ConfigManager:
             # 其他配置
             serialization=data.get("serialization"),
             min_peers=data.get("min_peers", 0),
-            default_timeout=data.get("default_timeout", 30.0),
+            default_timeout=data.get("default_timeout", DEFAULT_TIMEOUT),
             heartbeat=data.get("heartbeat"),
         )
         

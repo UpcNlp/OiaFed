@@ -13,6 +13,17 @@
 from dataclasses import dataclass, field
 from typing import Any, Dict, List, Optional
 
+from .defaults import (
+    DEFAULT_TRAINER_PORT,
+    DEFAULT_TIMEOUT,
+    DEFAULT_CONNECTION_TIMEOUT,
+    DEFAULT_MAX_RETRIES,
+    DEFAULT_RETRY_INTERVAL,
+    DEFAULT_BACKOFF_FACTOR,
+    DEFAULT_HEARTBEAT_INTERVAL,
+    DEFAULT_HEARTBEAT_TIMEOUT,
+)
+
 
 # ==================== TLS 配置 ====================
 
@@ -69,7 +80,7 @@ class GrpcConfig:
     """
     # 基础配置
     host: str = "0.0.0.0"
-    port: int = 50051
+    port: int = DEFAULT_TRAINER_PORT
     max_message_size: int = 100 * 1024 * 1024  # 100MB
     max_workers: int = 10
     tls: TlsConfig = field(default_factory=TlsConfig)
@@ -77,11 +88,11 @@ class GrpcConfig:
     # 心跳配置
     heartbeat_enabled: bool = True
     heartbeat_interval: float = 5.0
-    heartbeat_timeout: float = 30.0
-    heartbeat_check_interval: float = 10.0
+    heartbeat_timeout: float = DEFAULT_HEARTBEAT_INTERVAL
+    heartbeat_check_interval: float = DEFAULT_HEARTBEAT_TIMEOUT
     
     # 连接管理
-    max_connection_wait_time: float = 300.0
+    max_connection_wait_time: float = DEFAULT_TIMEOUT
     auto_shutdown_on_failure: bool = True
     critical_peers: List[str] = field(default_factory=list)
     
@@ -120,17 +131,17 @@ def parse_grpc_config(data: Optional[Dict[str, Any]]) -> GrpcConfig:
     
     return GrpcConfig(
         host=data.get("host", "0.0.0.0"),
-        port=data.get("port", 50051),
+        port=data.get("port", DEFAULT_TRAINER_PORT),
         max_message_size=data.get("max_message_size", 100 * 1024 * 1024),
         max_workers=data.get("max_workers", 10),
         tls=tls_config,
         # 心跳配置
         heartbeat_enabled=heartbeat.get("enabled", True),
         heartbeat_interval=heartbeat.get("interval", 5.0),
-        heartbeat_timeout=heartbeat.get("timeout", 30.0),
-        heartbeat_check_interval=heartbeat.get("check_interval", 10.0),
+        heartbeat_timeout=heartbeat.get("timeout", DEFAULT_HEARTBEAT_INTERVAL),
+        heartbeat_check_interval=heartbeat.get("check_interval", DEFAULT_HEARTBEAT_TIMEOUT),
         # 连接管理
-        max_connection_wait_time=heartbeat.get("max_connection_wait_time", 300.0),
+        max_connection_wait_time=heartbeat.get("max_connection_wait_time", DEFAULT_TIMEOUT),
         auto_shutdown_on_failure=heartbeat.get("auto_shutdown_on_failure", True),
         critical_peers=heartbeat.get("critical_peers", []),
         # 双线程优化
@@ -211,11 +222,11 @@ class ConnectionRetryConfig:
         backoff_factor: 退避因子
     """
     enabled: bool = True
-    max_retries: int = 10
-    retry_interval: float = 2.0
-    timeout: float = 60.0
+    max_retries: int = DEFAULT_MAX_RETRIES
+    retry_interval: float = DEFAULT_RETRY_INTERVAL
+    timeout: float = DEFAULT_CONNECTION_TIMEOUT
     backoff: str = "exponential"
-    backoff_factor: float = 1.5
+    backoff_factor: float = DEFAULT_BACKOFF_FACTOR
     
     def to_dict(self) -> Dict[str, Any]:
         """转换为字典（用于传递给 Node.connect）"""
@@ -235,11 +246,11 @@ def parse_connection_retry_config(data: Optional[Dict[str, Any]]) -> ConnectionR
         return ConnectionRetryConfig()
     return ConnectionRetryConfig(
         enabled=data.get("enabled", True),
-        max_retries=data.get("max_retries", 10),
-        retry_interval=data.get("retry_interval", 2.0),
-        timeout=data.get("timeout", 60.0),
+        max_retries=data.get("max_retries", DEFAULT_MAX_RETRIES),
+        retry_interval=data.get("retry_interval", DEFAULT_RETRY_INTERVAL),
+        timeout=data.get("timeout", DEFAULT_CONNECTION_TIMEOUT),
         backoff=data.get("backoff", "exponential"),
-        backoff_factor=data.get("backoff_factor", 1.5),
+        backoff_factor=data.get("backoff_factor", DEFAULT_BACKOFF_FACTOR),
     )
 
 
