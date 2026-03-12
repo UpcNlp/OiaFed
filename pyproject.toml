@@ -1,6 +1,6 @@
 [build-system]
-requires = ["hatchling"]
-build-backend = "hatchling.build"
+requires = ["setuptools>=61.0", "wheel"]
+build-backend = "setuptools.build_meta"
 
 [project]
 name = "oiafed"
@@ -38,6 +38,33 @@ classifiers = [
     "Topic :: Scientific/Engineering :: Artificial Intelligence",
     "Topic :: System :: Distributed Computing",
 ]
+dependencies = [
+    # 深度学习框架
+    "torch>=1.12.0",
+    "torchvision>=0.13.0",
+    "torchaudio>=0.12.0",
+    # gRPC 通信
+    "grpcio>=1.50.0",
+    "grpcio-tools>=1.50.0",
+    "protobuf>=3.20.0",
+    # 配置和日志
+    "pyyaml>=6.0",
+    "omegaconf>=2.2.0",
+    "loguru>=0.6.0",
+    "toml>=0.10.0",
+    # 数据处理
+    "numpy>=1.21.0",
+    "pandas>=1.4.0",
+    "scikit-learn>=1.0.0",
+    # 可视化
+    "matplotlib>=3.5.0",
+    "tqdm>=4.60.0",
+    # 网络和异步
+    "aiohttp>=3.8.0",
+    # 工具
+    "psutil>=5.9.0",
+    "openpyxl>=3.0.0",
+]
 
 [project.urls]
 Homepage = "https://oiafed.cn"
@@ -68,68 +95,6 @@ docs = [
 ]
 all = ["oiafed[mlflow,dev,docs]"]
 
-dependencies = [
-    # === 深度学习框架 ===
-    "torch>=1.12.0",
-    "torchvision>=0.13.0",
-    "torchaudio>=0.12.0",
-    
-    # === gRPC 通信（必需） ===
-    "grpcio>=1.50.0",
-    "grpcio-tools>=1.50.0",
-    "protobuf>=3.20.0",
-    
-    # === 配置和日志 ===
-    "pyyaml>=6.0",
-    "omegaconf>=2.2.0",
-    "loguru>=0.6.0",
-    "toml>=0.10.0",
-    
-    # === 数据处理 ===
-    "numpy>=1.21.0",
-    "pandas>=1.4.0",
-    "scikit-learn>=1.0.0",
-    
-    # === 可视化 ===
-    "matplotlib>=3.5.0",
-    "tqdm>=4.60.0",
-    
-    # === 网络和异步 ===
-    "aiohttp>=3.8.0",
-    
-    # === 工具 ===
-    "psutil>=5.9.0",
-    "openpyxl>=3.0.0",
-]
-
-# ==================== 构建配置 ====================
-[tool.hatch.version]
-path = "oiafed/__init__.py"
-
-[tool.hatch.build.targets.sdist]
-include = [
-    "/oiafed",
-    "/configs",
-    "/README.md",
-    "/README_EN.md", 
-    "/LICENSE",
-    "/CHANGELOG.md",
-]
-exclude = [
-    "/.github",
-    "/tests",
-    "/examples",
-    "/docs",
-    "/.git",
-    "__pycache__",
-    "*.pyc",
-    "*.pyo",
-    ".pytest_cache",
-    ".mypy_cache",
-]
-
-[tool.hatch.build.targets.wheel]
-packages = ["oiafed"]
 
 # ==================== 工具配置 ====================
 [tool.black]
