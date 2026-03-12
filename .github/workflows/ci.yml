@@ -15,6 +15,7 @@ on:
 jobs:
   # 代码质量检查（允许失败）
   lint:
+    if: contains(github.event.head_commit.message, '[ci]')
     name: Lint
     runs-on: ubuntu-latest
     continue-on-error: true  # 允许失败，不阻塞后续步骤
@@ -44,6 +45,7 @@ jobs:
 
   # 构建测试（不依赖 lint）
   build:
+    if: contains(github.event.head_commit.message, '[ci]')
     name: Build
     runs-on: ubuntu-latest
     
