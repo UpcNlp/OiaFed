@@ -42,7 +42,7 @@ Federation Framework - 联邦学习框架
 import os
 os.environ["PROTOCOL_BUFFERS_PYTHON_IMPLEMENTATION"] = "python" # 避免 grpcio 与 protobuf 版本冲突问题
 
-__version__ = "0.2.2"
+__version__ = "0.2.3"
 
 # 核心组件
 from .core import (
