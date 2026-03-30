@@ -27,6 +27,8 @@ defaults:
     local_epochs: 5
     client_fraction: 1
     eval_interval: 10
+    fit_config:
+      evaluate_after_fit: true
 
   learner:
     learning_rate: 0.01

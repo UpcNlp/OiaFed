@@ -200,6 +200,11 @@ class FOTLearner(Learner):
     
     async def setup(self, config: Dict) -> None:
         """初始化训练环境"""
+        # 保存 task_id（由 ContinualTrainer 通过 fit_config 传入）
+        if 'task_id' in config:
+            self.current_task_id = config['task_id']
+            self._config['task_id'] = config['task_id']
+
         # 获取模型
         if hasattr(self._model, 'get_model'):
             self.torch_model = self._model.get_model()
@@ -238,13 +243,15 @@ class FOTLearner(Learner):
         
         self.logger.info("FOT setup 完成")
     
-    def _get_task_data_loader(self, task_id: int) -> DataLoader:
+    def _get_task_data_loader(self, task_id: int, split: str = "train") -> DataLoader:
         """获取特定任务的数据加载器"""
-        train_datasets = self._datasets.get("train", [])
-        if not train_datasets:
+        datasets = self._datasets.get(split, [])
+        if not datasets:
+            datasets = self._datasets.get("train", [])
+        if not datasets:
             return self._train_loader
         
-        dataset = train_datasets[0]
+        dataset = datasets[0]
         
         # 计算当前任务的类别
         start_class = task_id * self.classes_per_task
@@ -330,7 +337,7 @@ class FOTLearner(Learner):
         
         return ortho_loss
     
-    async def train_epoch(self, epoch: int) -> EpochMetrics:
+    async def train_epoch(self, epoch_idx: int) -> EpochMetrics:
         """
         单轮训练 - FOT 训练循环
         """
@@ -410,13 +417,13 @@ class FOTLearner(Learner):
         avg_accuracy = total_correct / total_samples if total_samples > 0 else 0
         
         self.logger.info(
-            f"[{self._node_id}] Task {task_id} Epoch {epoch}: "
+            f"[{self._node_id}] Task {task_id} Epoch {epoch_idx}: "
             f"Loss={avg_loss:.4f}, CE={avg_ce_loss:.4f}, Ortho={avg_ortho_loss:.4f}, "
             f"Acc={avg_accuracy:.4f}"
         )
         
         return EpochMetrics(
-            epoch=epoch,
+            epoch=epoch_idx,
             avg_loss=avg_loss,
             total_samples=total_samples,
             metrics={
@@ -445,8 +452,15 @@ class FOTLearner(Learner):
         self.task_gradients[task_id] = gradients
     
     async def evaluate(self, config: Optional[Dict] = None) -> EvalResult:
-        """评估模型"""
-        test_loader = self._test_loader or self._train_loader
+        """评估模型 - 支持按 task_id 评估"""
+        task_id = (config or {}).get("task_id", None)
+
+        # 如果指定了 task_id，使用该 task 的测试数据
+        if task_id is not None:
+            test_loader = self._get_task_data_loader(task_id, split="test")
+        else:
+            test_loader = self._test_loader or self._train_loader
+
         if test_loader is None:
             return EvalResult(num_samples=0, metrics={})
         
@@ -521,15 +535,19 @@ class FOTLearner(Learner):
             metrics={'accuracy': accuracy}
         )
     
-    async def get_weights(self) -> Dict[str, Any]:
+    def get_weights(self) -> Dict[str, Any]:
         """获取模型权重"""
         return {
             name: param.data.clone()
             for name, param in self.torch_model.state_dict().items()
         }
     
-    async def set_weights(self, weights: Dict[str, Any]) -> None:
+    def set_weights(self, weights: Dict[str, Any]) -> None:
         """设置模型权重"""
+        model = self.torch_model if self.torch_model is not None else self._model
+        if model is None:
+            return
+
         torch_weights = {}
         for k, v in weights.items():
             if torch.is_tensor(v):
@@ -537,7 +555,7 @@ class FOTLearner(Learner):
             else:
                 torch_weights[k] = torch.from_numpy(v)
         
-        self.torch_model.load_state_dict(torch_weights)
+        model.load_state_dict(torch_weights)
     
     def get_dataloader(self) -> DataLoader:
         return self._train_loader

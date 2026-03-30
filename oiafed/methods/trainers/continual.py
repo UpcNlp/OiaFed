@@ -233,7 +233,7 @@ class ContinualTrainer(DefaultTrainer):
         self.logger.debug(f"[Round {round_num}] 开始聚合，updates数量: {len(updates)}")
         new_weights = self.aggregator.aggregate(updates, self.model)
         if self.model:
-            self.model.set_weights(new_weights)
+            self.set_weights(new_weights)
         self.logger.info(f"轮次 {round_num}: 聚合完成")
 
         # 6. 广播新权重
@@ -245,7 +245,7 @@ class ContinualTrainer(DefaultTrainer):
         round_metrics.metrics['task_id'] = self.current_task_id
 
         # 检查是否是任务结束轮（每个任务的最后一轮）
-        max_rounds = config.get("max_rounds", 100)
+        max_rounds = config.get("num_rounds", config.get("max_rounds", 100))
         is_task_end = (round_num % self.rounds_per_task == 0) or (round_num == max_rounds)
 
         # 8. 在任务结束时进行多任务评估和计算CL指标

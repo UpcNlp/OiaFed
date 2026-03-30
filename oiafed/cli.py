@@ -770,6 +770,16 @@ def _generate_paper_configs(
             "args": merged_config.get("model", {}),
         },
         
+        "datasets": [
+            {
+                "type": dataset_type,
+                "split": "test",
+                "args": {
+                    "data_dir": data_dir,
+                },
+            },
+        ],
+        
         "logging": logging_config,
         "transport": {"mode": "grpc" if mode == "parallel" else "memory"},
     }
@@ -834,6 +844,13 @@ def _generate_paper_configs(
                     "split": "test",
                     "args": {
                         "data_dir": data_dir,
+                    },
+                    "partition": {
+                        "strategy": partition_strategy,
+                        "num_partitions": num_clients,
+                        "partition_id": i,
+                        "seed": seed,
+                        **{k: v for k, v in partition_config.items() if k not in ["strategy", "num_partitions", "partition_id", "seed"]},
                     },
                 },
             ],

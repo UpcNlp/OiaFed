@@ -300,7 +300,7 @@ class TARGETTrainer(Trainer):
         )
 
         # Check if this is the end of a task (last round of each task)
-        is_task_end = (round_num % self.rounds_per_task == 0) or (round_num == self.config.get('max_rounds', 100))
+        is_task_end = (round_num % self.rounds_per_task == 0) or (round_num == self.config.get('num_rounds', self.config.get('max_rounds', 100)))
 
         # Perform multi-task evaluation and compute CL metrics at task end
         cl_metrics_result = {}
