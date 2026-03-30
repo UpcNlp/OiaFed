@@ -1,4 +1,6 @@
-# ==================== SplitNN: Split Learning ====================
+# ==================== SplitNN: Split Learning for VFL ====================
+# MIT Media Lab, 2018
+# Paper: https://arxiv.org/abs/1812.00564
 
 id: splitnn
 name: "SplitNN: Split Learning for Vertical Federated Learning"
@@ -8,28 +10,31 @@ year: 2018
 url: "https://arxiv.org/abs/1812.00564"
 description: |
   模型垂直分割的联邦学习方法。
-  客户端持有模型的前几层，服务端持有后几层。
+  客户端持有模型前几层 (client_layers)，服务端持有后几层 (server_layers)。
+  每个 batch: client forward → 发送激活 → server forward+backward → 返回梯度 → client backward。
   只传输中间激活值 (smashed data)，保护原始数据隐私。
-  适用于纵向联邦学习场景。
 
 # ==================== 组件映射 ====================
 components:
   learner: vfl.splitnn
-  aggregator: fedavg
-  trainer: default
-  model: mnist_cnn
-  dataset: mnist
+  aggregator: fedavg                # SplitNN 不做权重聚合, 但框架要求有 aggregator
+  trainer: splitnntrainer           # VFL 专用 trainer (注意: registry 全小写)
+  model: cifar10_cnn
+  dataset: cifar10
 
 # ==================== 默认参数 ====================
 defaults:
   experiment:
     num_clients: 2
-    
+
   trainer:
     num_rounds: 10
     local_epochs: 1
     client_fraction: 1.0
     eval_interval: 2
+    split_layer: 2                  # 在第 2 层后切分 (卷积 → 全连接之间)
+    learning_rate: 0.01             # server 端学习率
+    batch_size: 64
 
   learner:
     split_layer: 2
@@ -52,39 +57,26 @@ defaults:
 
 # ==================== 可调参数说明 ====================
 params:
-  # Learner 参数
   learner.split_layer:
     type: int
     range: [1, 10]
-    desc: "模型切分位置 (层索引，-1 表示自动选择中间层)"
-    
+    desc: "模型切分位置 (层索引)"
+
   learner.learning_rate:
     type: float
     range: [0.0001, 0.1]
-    desc: "学习率"
-    
-  learner.batch_size:
-    type: int
-    choices: [16, 32, 64, 128, 256]
-    desc: "批大小"
-    
-  learner.momentum:
-    type: float
-    range: [0.0, 0.99]
-    desc: "SGD 动量"
+    desc: "client 端学习率"
 
-  # Trainer 参数
+  trainer.learning_rate:
+    type: float
+    range: [0.0001, 0.1]
+    desc: "server 端学习率"
+
   trainer.num_rounds:
     type: int
     range: [1, 100]
     desc: "训练轮数"
-    
-  trainer.local_epochs:
-    type: int
-    range: [1, 10]
-    desc: "本地训练轮数 (SplitNN 通常为 1)"
 
-  # Experiment 参数
   experiment.num_clients:
     type: int
     range: [2, 10]
@@ -99,11 +91,8 @@ citation: |
     year={2018}
   }
 
-# ==================== 备注 ====================
 notes: |
-  - 适用于纵向联邦学习 (VFL) 场景
-  - 不同参与方持有相同样本的不同特征
-  - 通信内容是中间激活值，而非模型参数或原始数据
-  - split_layer 决定客户端和服务端的分割点
-  - 对于简单 CNN，建议 split_layer=2
-  - 比横向联邦通信量更少，但需要更紧密的协调
+  - VFL 训练流程与 HFL 完全不同: 每个 batch 需要 client↔server 交互
+  - 不做 FedAvg 聚合, 模型通过 split training 直接更新
+  - split_layer 决定客户端和服务端的分割点, 对于 CNN 建议设为卷积层数量
+  - 通信量 = 每个 batch 的激活值 + 梯度 (比 HFL 通信更频繁但更小)

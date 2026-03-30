@@ -1,4 +1,6 @@
 # ==================== FedEraser: Federated Unlearning ====================
+# IWQOS 2021 / IEEE INFOCOM 2022
+# Official code: https://github.com/Zoybzo/FedEraser-Code
 
 id: faderaser
 name: "FedEraser: Enabling Efficient Client-Level Data Removal"
@@ -16,7 +18,7 @@ description: |
 components:
   learner: default
   aggregator: faderaser
-  trainer: target
+  trainer: federasertrainer        # 遗忘专用 trainer (注意: registry 全小写)
   model: cifar10_cnn
   dataset: cifar10
 
@@ -24,15 +26,15 @@ components:
 defaults:
   experiment:
     num_clients: 5
-    
+
   trainer:
     num_rounds: 20
     local_epochs: 3
     client_fraction: 1.0
     eval_interval: 2
     # 遗忘触发配置
-    unlearn_after_round: 10
-    target_clients:
+    unlearn_after_round: 10        # 第 10 轮后触发遗忘
+    target_clients:                # 要遗忘的客户端
       - learner_4
 
   learner:
@@ -58,67 +60,34 @@ defaults:
 
 # ==================== 可调参数说明 ====================
 params:
-  # Aggregator 参数 (FedEraser 核心)
   aggregator.calibration_rounds:
     type: int
     range: [1, 50]
     desc: "遗忘后校准轮数"
-    
+
   aggregator.unlearn_strategy:
     type: str
     choices: [recalibrate, rollback, finetune]
-    desc: "遗忘策略"
-    
-  aggregator.record_history:
-    type: bool
-    desc: "是否记录训练历史"
-    
-  aggregator.history_dir:
-    type: str
-    desc: "历史记录保存目录"
+    desc: "遗忘策略: recalibrate(推荐) / rollback / finetune"
 
-  # Trainer 参数
-  trainer.num_rounds:
-    type: int
-    range: [1, 200]
-    desc: "联邦训练总轮数"
-    
   trainer.unlearn_after_round:
     type: int
     range: [1, 100]
     desc: "第几轮后触发遗忘"
-    
+
   trainer.target_clients:
     type: list
     desc: "要遗忘的客户端 ID 列表"
-    
-  trainer.local_epochs:
-    type: int
-    range: [1, 20]
-    desc: "本地训练轮数"
 
-  # Learner 参数
-  learner.learning_rate:
-    type: float
-    range: [0.0001, 0.1]
-    desc: "学习率"
-    
-  learner.batch_size:
+  trainer.num_rounds:
     type: int
-    choices: [16, 32, 64, 128]
-    desc: "批大小"
+    range: [1, 200]
+    desc: "联邦训练总轮数 (包含遗忘前后)"
 
-  # Experiment 参数
   experiment.num_clients:
     type: int
     range: [3, 100]
-    desc: "客户端数量 (至少 3 个，以便有可遗忘的)"
-    
-  # Dataset 参数
-  dataset.partition.alpha:
-    type: float
-    range: [0.1, 100.0]
-    desc: "Dirichlet 分布参数"
+    desc: "客户端数量 (至少 3 个)"
 
 # ==================== 引用信息 ====================
 citation: |
@@ -131,11 +100,7 @@ citation: |
 
 # ==================== 备注 ====================
 notes: |
-  - 遗忘策略说明:
-    * recalibrate: 从检查点重新校准历史更新 (推荐)
-    * rollback: 直接回滚到检查点
-    * finetune: 在回滚后用剩余客户端微调
+  - 训练流程: 正常训练 → 触发遗忘 → 回滚检查点 → 校准重训 → 完成
   - record_history 必须为 true 才能执行遗忘
-  - calibration_rounds 越大，遗忘效果越好，但耗时越长
-  - 遗忘后模型准确率可能略有下降，这是正常的
+  - 遗忘后模型准确率可能略有下降，这是预期行为
   - 适用于 GDPR 数据删除请求、客户端退出、恶意客户端移除

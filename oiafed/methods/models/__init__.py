@@ -60,6 +60,8 @@ from .mlp import (
     FCUBEMLP,
 )
 
+from .fot_alexnet import FOTAlexNet
+
 
 __all__ = [
     # CIFAR 模型
@@ -76,4 +78,5 @@ __all__ = [
     "PaperMLP",
     "AdultMLP",
     "FCUBEMLP",
+    "FOTAlexNet"
 ]
