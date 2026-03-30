@@ -483,7 +483,7 @@ class PaperRegistry:
         params["model_args"] = {k: v for k, v in model_override.items() if k != "type"}
         
         # ===== 数据集和划分配置 =====
-        self._extract_dataset_params(merged, params)
+        self._extract_dataset_params(merged, params, category=paper.category)
         
         # ===== 全局配置 =====
         global_config = merged.get("global_config", {})
@@ -519,8 +519,15 @@ class PaperRegistry:
         
         return params
     
-    def _extract_dataset_params(self, merged: Dict, params: Dict) -> None:
-        """从 merged 中提取数据集相关参数"""
+    def _extract_dataset_params(self, merged: Dict, params: Dict, category: str = "") -> None:
+        """从 merged 中提取数据集相关参数
+        
+        Args:
+            merged: 合并后的配置字典
+            params: 输出参数字典
+            category: 论文类别 (HFL, VFL, FCL, FU 等)
+        """
+        is_vfl = category.upper() == "VFL"
         
         # 标准格式: datasets (复数)
         if "datasets" in merged:
@@ -549,17 +556,25 @@ class PaperRegistry:
                 if "alpha" in partition:
                     params["partition_alpha"] = partition["alpha"]
             
-            # ⭐ 新增：提取 Trainer 的测试集配置（用于全局评估）
+            # ⭐ 提取 Trainer 的数据集配置
+            trainer_ds_list = []
+            # VFL: Trainer 需要训练数据来驱动 split training
+            if is_vfl and train_ds:
+                trainer_ds_list.append({
+                    "type": train_ds.get("type", params.get("dataset_type", "mnist")),
+                    "split": "train",
+                    "args": train_ds.get("args", params.get("dataset_args", {})),
+                    # 注意：没有 partition，Trainer 使用完整训练集驱动 split training
+                })
             if test_ds:
-                # 为 Trainer 构建测试集配置（不划分）
-                params["trainer_datasets"] = [
-                    {
-                        "type": test_ds.get("type", params.get("dataset_type", "mnist")),
-                        "split": "test",
-                        "args": test_ds.get("args", params.get("dataset_args", {})),
-                        # 注意：没有 partition，使用完整测试集
-                    }
-                ]
+                trainer_ds_list.append({
+                    "type": test_ds.get("type", params.get("dataset_type", "mnist")),
+                    "split": "test",
+                    "args": test_ds.get("args", params.get("dataset_args", {})),
+                    # 注意：没有 partition，使用完整测试集
+                })
+            if trainer_ds_list:
+                params["trainer_datasets"] = trainer_ds_list
         
         # 简化格式: dataset (单数，向后兼容)
         elif "dataset" in merged:
@@ -578,6 +593,24 @@ class PaperRegistry:
                 params["partition_strategy"] = partition["strategy"]
             if "alpha" in partition:
                 params["partition_alpha"] = partition["alpha"]
+            
+            # ⭐ VFL 简化格式: Trainer 也需要训练数据来驱动 split training
+            if is_vfl:
+                ds_type = params.get("dataset_type", "mnist")
+                ds_args = params.get("dataset_args", {})
+                params["trainer_datasets"] = [
+                    {
+                        "type": ds_type,
+                        "split": "train",
+                        "args": copy.deepcopy(ds_args),
+                        # VFL Trainer 驱动训练, 需要完整训练集 (无 partition)
+                    },
+                    {
+                        "type": ds_type,
+                        "split": "test",
+                        "args": copy.deepcopy(ds_args),
+                    },
+                ]
 
     # ==================== 验证 ====================
     

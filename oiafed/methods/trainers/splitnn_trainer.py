@@ -205,7 +205,7 @@ class SplitNNTrainer(DefaultTrainer):
 
         # 评估
         if round_num % self.eval_interval == 0:
-            await self._evaluate_split_model(round_num)
+            await self._evaluate_split_model(round_num, connected)
 
         round_metrics = RoundMetrics(
             round_num=round_num,
@@ -292,15 +292,62 @@ class SplitNNTrainer(DefaultTrainer):
     # ------------------------------------------------------------------
     #  评估
     # ------------------------------------------------------------------
-    async def _evaluate_split_model(self, round_num: int):
-        """评估完整 split 模型"""
+    async def _evaluate_split_model(self, round_num: int, learners=None):
+        """
+        评估完整 split 模型
+        
+        评估前需要从 Learner 端同步 client_layers 权重，因为训练时
+        client_layers 在 Learner 侧更新，Trainer 侧的副本不会自动同步。
+        """
         test_datasets = self._datasets.get("test", [])
         if not test_datasets:
             return
 
         loader = DataLoader(test_datasets[0], batch_size=self.batch_size, shuffle=False)
-        self.split_model.eval()
 
+        # ⭐ 从 Learner 同步 client_layers 权重
+        # 多客户端时对每个 learner 的 client_weights 分别评估
+        eval_learners = learners or []
+        if not eval_learners:
+            # 没有可用 learner，使用 trainer 自身的（可能未更新的）权重
+            self.split_model.eval()
+            acc = self._run_eval_loop(loader)
+            self.logger.info(
+                f"  [Eval] Round {round_num}: 准确率={acc:.4f} (无 learner 同步)"
+            )
+            return
+
+        for learner in eval_learners:
+            learner_id = getattr(learner, '_target_id', 'unknown')
+            try:
+                # 从 learner 获取已训练的 client_layers 权重
+                client_weights = await learner.get_client_weights()
+                
+                # 加载到 trainer 的 split_model.client_layers
+                state_dict = {}
+                for key, value in client_weights.items():
+                    # 移除 "client." 前缀（如果有）
+                    clean_key = key.replace("client.", "")
+                    if torch.is_tensor(value):
+                        state_dict[clean_key] = value.to(self.device)
+                    else:
+                        state_dict[clean_key] = torch.tensor(value).to(self.device)
+                
+                self.split_model.client_layers.load_state_dict(state_dict)
+                self.split_model.eval()
+                
+                acc = self._run_eval_loop(loader)
+                self.logger.info(
+                    f"  [Eval] Round {round_num} [{learner_id}]: "
+                    f"准确率={acc:.4f}"
+                )
+            except Exception as e:
+                self.logger.error(
+                    f"  [Eval] Round {round_num} [{learner_id}] 同步权重失败: {e}"
+                )
+
+    def _run_eval_loop(self, loader) -> float:
+        """执行评估循环，返回准确率"""
         total_correct = 0
         total_samples = 0
 
@@ -313,8 +360,4 @@ class SplitNNTrainer(DefaultTrainer):
                 total_correct += predicted.eq(labels).sum().item()
                 total_samples += labels.size(0)
 
-        acc = total_correct / max(total_samples, 1)
-        self.logger.info(
-            f"  [Eval] Round {round_num}: 准确率={acc:.4f} "
-            f"({total_correct}/{total_samples})"
-        )
+        return total_correct / max(total_samples, 1)

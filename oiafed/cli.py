@@ -679,6 +679,41 @@ def _run_from_paper(args: argparse.Namespace, config_file: Optional[Path]) -> in
             shutil.rmtree(temp_dir, ignore_errors=True)
 
 
+def _build_trainer_datasets(paper, dataset_type: str, data_dir: str) -> list:
+    """
+    构建 Trainer 的数据集配置。
+    
+    HFL: Trainer 只需要 test 集做全局评估。
+    VFL/SplitNN: Trainer 需要 train 集来驱动 split training，
+                 同时需要 test 集做评估。
+    """
+    is_vfl = getattr(paper, "category", "").upper() == "VFL"
+    
+    datasets = []
+    
+    if is_vfl:
+        # VFL Trainer 驱动逐 batch 训练，需要完整训练集（不做 partition）
+        datasets.append({
+            "type": dataset_type,
+            "split": "train",
+            "args": {
+                "data_dir": data_dir,
+                "download": True,
+            },
+        })
+    
+    # 所有模式都需要测试集用于全局评估
+    datasets.append({
+        "type": dataset_type,
+        "split": "test",
+        "args": {
+            "data_dir": data_dir,
+        },
+    })
+    
+    return datasets
+
+
 def _generate_paper_configs(
     paper,
     registry,
@@ -770,15 +805,11 @@ def _generate_paper_configs(
             "args": merged_config.get("model", {}),
         },
         
-        "datasets": [
-            {
-                "type": dataset_type,
-                "split": "test",
-                "args": {
-                    "data_dir": data_dir,
-                },
-            },
-        ],
+        "datasets": _build_trainer_datasets(
+            paper=paper,
+            dataset_type=dataset_type,
+            data_dir=data_dir,
+        ),
         
         "logging": logging_config,
         "transport": {"mode": "grpc" if mode == "parallel" else "memory"},
