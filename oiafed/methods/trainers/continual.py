@@ -142,7 +142,7 @@ class ContinualTrainer(DefaultTrainer):
         # CL指标追踪
         if self.compute_forgetting:
             # 延迟导入（避免循环依赖）
-            from methods.metrics.continual_metrics import ContinualLearningMetrics
+            from oiafed.methods.metrics.continual_metrics import ContinualLearningMetrics
             self.cl_metrics = ContinualLearningMetrics(self.num_tasks)
         else:
             self.cl_metrics = None
@@ -390,11 +390,11 @@ class ContinualTrainer(DefaultTrainer):
         """
         try:
             # 导入必要的模块（使用旧路径，因为这些模块尚未迁移）
-            from methods.learners.cl.target_generator import (
+            from oiafed.methods.learners.cl.target_generator import (
                 Generator, Normalizer, DataIter, UnlabeledImageDataset,
                 weight_init
             )
-            from methods.learners.cl.target_synthesizer import GlobalSynthesizer
+            from oiafed.methods.learners.cl.target_synthesizer import GlobalSynthesizer
             from torch.utils.data import DataLoader
 
             # 获取配置参数
@@ -472,7 +472,7 @@ class ContinualTrainer(DefaultTrainer):
             )
 
             # KL散度损失
-            from methods.learners.cl.target_generator import KLDiv
+            from oiafed.methods.learners.cl.target_generator import KLDiv
             criterion = KLDiv(T=T)
 
             # Student优化器

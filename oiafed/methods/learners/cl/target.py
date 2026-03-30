@@ -113,7 +113,10 @@ class TARGETLearner(Learner):
     async def setup(self, config: Dict) -> None:
         """初始化训练环境"""
         # 获取PyTorch模型
-        self.torch_model = self._model.get_model()
+        if hasattr(self._model, "get_model"):
+            self.torch_model = self._model.get_model() if hasattr(self._model, "get_model") else self._model
+        else:
+            self.torch_model = self._model
         self.torch_model.to(self.device)
 
         # 创建优化器
@@ -439,7 +442,7 @@ class TARGETLearner(Learner):
 
         # 动态导入以避免循环依赖
         try:
-            from methods.learners.cl.target_generator import UnlabeledImageDataset
+            from oiafed.methods.learners.cl.target_generator import UnlabeledImageDataset
         except ImportError:
             self.logger.error("Failed to import UnlabeledImageDataset from target_generator")
             return None
