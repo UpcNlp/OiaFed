@@ -1,0 +1,55 @@
+global:
+  exp_name: fedsra_cifar10_smoke
+  log_dir: ./logs
+
+node_id: learner_0
+role: learner
+listen:
+  host: localhost
+  port: 50052
+connect_to:
+  - trainer@localhost:50051
+transport:
+  mode: memory
+default_timeout: 120.0
+
+learner:
+  type: fedsra
+  args:
+    batch_size: 32
+    learning_rate: 0.001
+    device: cuda
+    num_classes: 10
+    feature_dim: 32
+    etf_seed: 42
+    loss_type: J
+
+model:
+  type: fedsra_resnet18
+  args:
+    num_classes: 10
+    feature_dim: 32
+
+datasets:
+  - type: cifar10
+    split: train
+    args:
+      data_dir: ./data
+      download: true
+      augmentation: true
+      max_samples: 256
+      subset_seed: 2027
+    partition:
+      strategy: dirichlet
+      partition_id: 0
+      num_partitions: 2
+      config:
+        alpha: 0.5
+        seed: 42
+
+logging:
+  console: true
+  level: INFO
+
+tracker:
+  enabled: false

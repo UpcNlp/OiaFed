@@ -60,6 +60,8 @@ from .mlp import (
     FCUBEMLP,
 )
 
+from .fedsra import FedSRAResNet18Backbone, FedSRAEnsemble
+
 
 __all__ = [
     # CIFAR 模型
@@ -76,4 +78,6 @@ __all__ = [
     "PaperMLP",
     "AdultMLP",
     "FCUBEMLP",
+    "FedSRAResNet18Backbone",
+    "FedSRAEnsemble",
 ]

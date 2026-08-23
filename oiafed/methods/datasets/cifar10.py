@@ -41,6 +41,8 @@ class CIFAR10Dataset(Dataset):
         split: str = "train",
         download: bool = True,
         augmentation: bool = True,  # 是否使用数据增强 (仅训练时)
+        max_samples: int | None = None,
+        subset_seed: int = 42,
     ):
         """
         Args:
@@ -85,9 +87,25 @@ class CIFAR10Dataset(Dataset):
             download=download,
             transform=transform
         )
+        self.indices = None
+        if max_samples is not None and int(max_samples) < len(self.dataset):
+            if int(max_samples) <= 0:
+                raise ValueError("max_samples must be positive")
+            generator = torch.Generator().manual_seed(int(subset_seed))
+            self.indices = torch.randperm(
+                len(self.dataset), generator=generator
+            )[:int(max_samples)].tolist()
+
+        # Expose labels so OiaFed partitioners and FedSRA can obtain class
+        # counts without iterating through augmented images.
+        if self.indices is None:
+            self.targets = self.dataset.targets
+        else:
+            self.targets = [self.dataset.targets[index] for index in self.indices]
 
     def __len__(self):
-        return len(self.dataset)
+        return len(self.indices) if self.indices is not None else len(self.dataset)
 
     def __getitem__(self, idx):
-        return self.dataset[idx]
+        source_index = self.indices[idx] if self.indices is not None else idx
+        return self.dataset[source_index]

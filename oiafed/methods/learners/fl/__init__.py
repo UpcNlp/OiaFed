@@ -13,6 +13,7 @@ from .fedcp import FedCPLearner
 from .gpfl import GPFLLearner
 from .feddbe import FedDBELearner
 from .fedrod import FedRoDLearner
+from .fedsra import FedSRALearner
 
 __all__ = [
     "GenericLearner",
@@ -26,4 +27,5 @@ __all__ = [
     "GPFLLearner",
     "FedDBELearner",
     "FedRoDLearner",
+    "FedSRALearner",
 ]
