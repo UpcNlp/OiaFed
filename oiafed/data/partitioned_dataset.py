@@ -8,7 +8,15 @@ from typing import Any, Dict, List, Optional, Union
 from torch.utils.data import Dataset, Subset
 import importlib
 
-from .partitioner import Partitioner, IIDPartitioner, LabelPartitioner, DirichletPartitioner, QuantityPartitioner, DirichletQuantityPartitioner
+from .partitioner import (
+    Partitioner,
+    IIDPartitioner,
+    LabelPartitioner,
+    DirichletPartitioner,
+    FedSRADirichletPartitioner,
+    QuantityPartitioner,
+    DirichletQuantityPartitioner,
+)
 from ..registry import registry
 from ..infra import get_module_logger
 
@@ -61,7 +69,16 @@ def create_partitioned_dataset(
     strategy = partition_config['strategy']
     partition_id = partition_config['partition_id']
     num_partitions = partition_config['num_partitions']
-    config = partition_config.get('config', {})
+    # NodeConfig accepts both the historical nested ``config`` shape and the
+    # flat shape produced by the v0.2.3 paper generator.  Preserve the nested
+    # values as explicit overrides while retaining flat alpha/seed fields.
+    reserved = {'strategy', 'partition_id', 'num_partitions', 'config'}
+    config = {
+        key: value
+        for key, value in partition_config.items()
+        if key not in reserved
+    }
+    config.update(partition_config.get('config', {}))
 
     # 创建 Partitioner
     partitioner = _create_partitioner(
@@ -159,6 +176,10 @@ def _create_partitioner(
         alpha = config.get('alpha', 0.5)
         return DirichletPartitioner(alpha=alpha, seed=seed)
 
+    elif strategy == 'fedsra_dirichlet':
+        alpha = config.get('alpha', 0.05)
+        return FedSRADirichletPartitioner(alpha=alpha, seed=seed)
+
     elif strategy == 'dirichlet_quantity':
         alpha = config.get('alpha', 0.5)
         return DirichletQuantityPartitioner(alpha=alpha, seed=seed)
@@ -171,7 +192,8 @@ def _create_partitioner(
     else:
         raise ValueError(
             f"Unknown partition strategy: {strategy}. "
-            f"Supported: iid, label, dirichlet, dirichlet_quantity, quantity, custom"
+            f"Supported: iid, label, dirichlet, fedsra_dirichlet, "
+            f"dirichlet_quantity, quantity, custom"
         )
 
 
@@ -190,7 +212,10 @@ def _needs_labels(partitioner: Partitioner) -> bool:
         return partitioner.needs_labels
 
     # 根据类型判断
-    return isinstance(partitioner, (LabelPartitioner, DirichletPartitioner))
+    return isinstance(
+        partitioner,
+        (LabelPartitioner, DirichletPartitioner, FedSRADirichletPartitioner),
+    )
 
 
 def _extract_labels(dataset: Dataset) -> Optional[List[Any]]:

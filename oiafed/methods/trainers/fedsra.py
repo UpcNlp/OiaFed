@@ -12,7 +12,7 @@ from torch.utils.data import DataLoader
 from ...core.trainer import Trainer
 from ...core.types import ClientUpdate, RoundMetrics, RoundResult, TrainResult
 from ...registry import trainer
-from ..fedsra import generate_simplex_etf
+from ..fedsra import generate_simplex_etf, rga_aggregate
 from ..models.fedsra import FedSRAEnsemble
 
 
@@ -181,13 +181,33 @@ class FedSRATrainer(Trainer):
         if str(device).startswith("cuda") and not torch.cuda.is_available():
             device = "cpu"
 
-        logits, labels = ensemble.predict_loader(loader, device=device)
+        raw_features, labels = ensemble.collect_loader_features(loader, device=device)
+        logits = (
+            rga_aggregate(raw_features, ensemble.sample_counts.cpu())
+            @ ensemble.etf.cpu().T
+        )
         loss = F.cross_entropy(logits, labels).item()
         accuracy = (logits.argmax(dim=1) == labels).float().mean().item()
+
+        uniform_logits = (
+            rga_aggregate(raw_features, torch.ones(raw_features.size(0)))
+            @ ensemble.etf.cpu().T
+        )
+        uniform_accuracy = (
+            uniform_logits.argmax(dim=1) == labels
+        ).float().mean().item()
+
+        client_logits = F.normalize(raw_features, dim=2) @ ensemble.etf.cpu().T
+        client_accuracies = (
+            client_logits.argmax(dim=2) == labels.unsqueeze(0)
+        ).float().mean(dim=1)
         return {
             "eval_accuracy": float(accuracy),
             "eval_loss": float(loss),
             "eval_samples": float(labels.numel()),
+            "eval_uniform_accuracy": float(uniform_accuracy),
+            "eval_mean_client_accuracy": float(client_accuracies.mean().item()),
+            "eval_best_client_accuracy": float(client_accuracies.max().item()),
         }
 
 

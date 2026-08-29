@@ -17,6 +17,7 @@ from oiafed.methods.learners.fl.fedsra import FedSRALearner
 from oiafed.methods.models.fedsra import FedSRAEnsemble, FedSRAResNet18Backbone
 from oiafed.methods.trainers.fedsra import FedSRATrainer
 from oiafed.core.types import ClientUpdate
+from oiafed.data.partitioner import FedSRADirichletPartitioner
 from oiafed.infra.logging import setup_logging
 
 
@@ -126,6 +127,32 @@ def test_rga_matches_reference_loop():
     assert torch.allclose(rga_aggregate(raw, counts), expected, atol=1e-6)
 
 
+def test_fedsra_dirichlet_matches_reference_remainder_policy():
+    labels = [class_id for class_id in range(4) for _ in range(11)]
+    actual = FedSRADirichletPartitioner(alpha=0.3, seed=42).partition(
+        len(labels),
+        3,
+        labels,
+    )
+
+    import numpy as np
+
+    np.random.seed(42)
+    expected = {client_id: [] for client_id in range(3)}
+    for class_id in range(4):
+        indices = np.asarray([i for i, label in enumerate(labels) if label == class_id])
+        np.random.shuffle(indices)
+        counts = (np.random.dirichlet([0.3] * 3) * len(indices)).astype(int)
+        counts[-1] = len(indices) - counts[:-1].sum()
+        start = 0
+        for client_id, count in enumerate(counts):
+            end = start + int(count)
+            expected[client_id].extend(indices[start:end].tolist())
+            start = end
+
+    assert actual == expected
+
+
 def test_resnet_exposes_raw_rga_features_and_normalized_erl_features():
     model = FedSRAResNet18Backbone(feature_dim=16, num_classes=10).eval()
     inputs = torch.randn(2, 3, 32, 32)
@@ -210,3 +237,40 @@ def test_one_shot_trainer_builds_rga_ensemble():
     assert result["final_round_metrics"]["eval_samples"] == 6.0
     assert isinstance(trainer.model, FedSRAEnsemble)
     assert len(trainer.model.backbones) == 2
+
+
+def test_learner_checkpoint_resume_skips_completed_training(tmp_path):
+    dataset = _tiny_dataset(12, [0, 1, 0, 1, 0, 1])
+    config = {
+        "batch_size": 3,
+        "learning_rate": 1e-3,
+        "num_classes": 3,
+        "feature_dim": 4,
+        "etf_seed": 42,
+        "device": "cpu",
+        "checkpoint_dir": str(tmp_path),
+        "resume": True,
+    }
+    first = FedSRALearner(
+        model=TinyBackbone(),
+        datasets={"train": [dataset]},
+        config=config,
+        node_id="learner_0",
+    )
+    trained = asyncio.run(first.fit({"epochs": 1}))
+    checkpoint = tmp_path / "learner_0" / "backbone.pt"
+    assert checkpoint.exists()
+
+    second = FedSRALearner(
+        model=TinyBackbone(),
+        datasets={"train": [dataset]},
+        config=config,
+        node_id="learner_0",
+    )
+    resumed = asyncio.run(second.fit({"epochs": 99}))
+
+    assert resumed.metrics.total_epochs == 0
+    assert resumed.metadata["resumed_from_checkpoint"] is True
+    assert resumed.metrics.final_loss == trained.metrics.final_loss
+    for name, value in first.model.state_dict().items():
+        assert torch.equal(value.cpu(), second.model.state_dict()[name].cpu())

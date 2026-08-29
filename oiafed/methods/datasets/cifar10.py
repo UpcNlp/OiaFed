@@ -43,6 +43,7 @@ class CIFAR10Dataset(Dataset):
         augmentation: bool = True,  # 是否使用数据增强 (仅训练时)
         max_samples: int | None = None,
         subset_seed: int = 42,
+        transform_profile: str = "standard",
     ):
         """
         Args:
@@ -54,12 +55,33 @@ class CIFAR10Dataset(Dataset):
         self.data_dir = Path(data_dir)
         self.split = split
         self.augmentation = augmentation
+        self.transform_profile = transform_profile.lower()
+        if self.transform_profile not in {"standard", "fedsra"}:
+            raise ValueError(
+                "transform_profile must be either 'standard' or 'fedsra'"
+            )
 
         # 根据 split 确定是否为训练集
         is_train = self.split in ("train", "valid")
 
         # 数据转换
-        if is_train and self.augmentation:
+        if is_train and self.augmentation and self.transform_profile == "fedsra":
+            transform = transforms.Compose([
+                transforms.RandomHorizontalFlip(),
+                transforms.RandomCrop(32, padding=4),
+                transforms.RandomApply([
+                    transforms.ColorJitter(0.4, 0.4, 0.4, 0.1)
+                ], p=0.8),
+                transforms.RandomGrayscale(p=0.2),
+                transforms.RandomRotation(15),
+                transforms.ToTensor(),
+                transforms.Normalize(
+                    mean=[0.4914, 0.4822, 0.4465],
+                    std=[0.2470, 0.2435, 0.2616],
+                ),
+                transforms.RandomErasing(p=0.25, scale=(0.02, 0.2)),
+            ])
+        elif is_train and self.augmentation:
             # 训练时使用数据增强
             transform = transforms.Compose([
                 transforms.RandomCrop(32, padding=4),
@@ -69,6 +91,14 @@ class CIFAR10Dataset(Dataset):
                     mean=[0.4914, 0.4822, 0.4465],
                     std=[0.2023, 0.1994, 0.2010]
                 )
+            ])
+        elif self.transform_profile == "fedsra":
+            transform = transforms.Compose([
+                transforms.ToTensor(),
+                transforms.Normalize(
+                    mean=[0.4914, 0.4822, 0.4465],
+                    std=[0.2470, 0.2435, 0.2616],
+                ),
             ])
         else:
             # 测试时或不使用数据增强时

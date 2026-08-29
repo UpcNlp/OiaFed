@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+import os
+from pathlib import Path
 from typing import Any, Dict, Optional
 
 import torch
@@ -9,7 +11,7 @@ import torch.nn.functional as F
 from torch.utils.data import DataLoader
 
 from ....core.learner import Learner
-from ....core.types import EvalResult, EpochMetrics, StepMetrics
+from ....core.types import EvalResult, EpochMetrics, StepMetrics, TrainMetrics, TrainResult
 from ....registry import learner
 from ...fedsra import (
     extract_class_counts,
@@ -99,13 +101,23 @@ class FedSRALearner(Learner):
         train_dataset = self._first_dataset("train")
         if train_dataset is None:
             raise ValueError("FedSRALearner requires a training dataset")
+        num_workers = int(config.get("num_workers", self._config.get("num_workers", 0)))
         self._train_dataloader = DataLoader(
             train_dataset,
             batch_size=batch_size,
             shuffle=True,
-            num_workers=int(config.get("num_workers", self._config.get("num_workers", 0))),
+            num_workers=num_workers,
             pin_memory=self._device_obj.type == "cuda",
-            drop_last=False,
+            drop_last=bool(config.get("drop_last", self._config.get("drop_last", False))),
+            persistent_workers=(
+                num_workers > 0
+                and bool(
+                    config.get(
+                        "persistent_workers",
+                        self._config.get("persistent_workers", False),
+                    )
+                )
+            ),
         )
 
         learning_rate = float(config.get("learning_rate", self._config.get("learning_rate", 1e-3)))
@@ -121,6 +133,59 @@ class FedSRALearner(Learner):
             T_max=max(1, epochs),
         )
         self._loss_type = str(config.get("loss_type", self._loss_type)).upper()
+
+    def _checkpoint_path(self, config: Dict[str, Any]) -> Path | None:
+        checkpoint_dir = config.get(
+            "checkpoint_dir",
+            self._config.get("checkpoint_dir"),
+        )
+        if not checkpoint_dir:
+            return None
+        return Path(str(checkpoint_dir)) / self.node_id / "backbone.pt"
+
+    async def fit(self, config: Optional[Dict[str, Any]] = None) -> TrainResult:
+        run_config = {**self._config, **(config or {})}
+        checkpoint_path = self._checkpoint_path(run_config)
+        resume = bool(run_config.get("resume", False))
+
+        if resume and checkpoint_path is not None and checkpoint_path.exists():
+            payload = torch.load(checkpoint_path, map_location="cpu", weights_only=True)
+            self.model.load_state_dict(payload["state_dict"], strict=True)
+            final_loss = float(payload.get("final_loss", 0.0))
+            num_samples = int(payload.get("num_samples", self.get_num_samples()))
+            metadata = self.get_metadata()
+            metadata["resumed_from_checkpoint"] = True
+            return TrainResult(
+                weights=self.get_weights(),
+                num_samples=num_samples,
+                metrics=TrainMetrics(
+                    total_epochs=0,
+                    final_loss=final_loss,
+                    total_samples=num_samples,
+                    metrics={"loss": final_loss, "resumed": 1.0},
+                ),
+                metadata=metadata,
+            )
+
+        result = await super().fit(config)
+        if checkpoint_path is not None:
+            checkpoint_path.parent.mkdir(parents=True, exist_ok=True)
+            temporary_path = checkpoint_path.with_suffix(".pt.tmp")
+            state_dict = {
+                key: value.detach().cpu()
+                for key, value in self.model.state_dict().items()
+            }
+            torch.save(
+                {
+                    "state_dict": state_dict,
+                    "final_loss": float(result.metrics.final_loss),
+                    "num_samples": int(result.num_samples),
+                    "metadata": result.metadata,
+                },
+                temporary_path,
+            )
+            os.replace(temporary_path, checkpoint_path)
+        return result
 
     async def train_step(self, batch: Any, batch_idx: int) -> StepMetrics:
         del batch_idx

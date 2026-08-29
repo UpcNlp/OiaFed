@@ -32,7 +32,12 @@ defaults:
 
   learner:
     learning_rate: 0.001
-    batch_size: 64
+    batch_size: 128
+    num_workers: 4
+    persistent_workers: true
+    drop_last: true
+    use_bf16: true
+    resume: true
     num_classes: 10
     feature_dim: 256
     etf_seed: 42
@@ -50,8 +55,10 @@ defaults:
   dataset:
     data_dir: ./data
     download: true
+    server_test: true
+    transform_profile: fedsra
     partition:
-      strategy: dirichlet
+      strategy: fedsra_dirichlet
       alpha: 0.05
       seed: 42
 

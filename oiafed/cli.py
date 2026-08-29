@@ -773,6 +773,25 @@ def _generate_paper_configs(
         "logging": logging_config,
         "transport": {"mode": "grpc" if mode == "parallel" else "memory"},
     }
+
+    if dataset_config.get("server_test", False):
+        trainer_dataset_args = {
+            key: value
+            for key, value in dataset_config.items()
+            if key not in ["data_dir", "download", "server_test", "partition"]
+        }
+        trainer_dataset_args["augmentation"] = False
+        trainer_config["datasets"] = [
+            {
+                "type": dataset_type,
+                "split": "test",
+                "args": {
+                    "data_dir": data_dir,
+                    "download": True,
+                    **trainer_dataset_args,
+                },
+            }
+        ]
     
     if tracker_config.get("enabled", True) and tracker_config.get("backends"):
         trainer_config["tracker"] = tracker_config
@@ -819,7 +838,11 @@ def _generate_paper_configs(
                     "args": {
                         "data_dir": data_dir,
                         "download": True,
-                        **{k: v for k, v in dataset_config_copy.items() if k not in ["data_dir", "download"]},
+                        **{
+                            k: v
+                            for k, v in dataset_config_copy.items()
+                            if k not in ["data_dir", "download", "server_test"]
+                        },
                     },
                     "partition": {
                         "strategy": partition_strategy,

@@ -160,13 +160,13 @@ class FedSRAEnsemble(nn.Module):
         return features @ self.etf.to(features).T
 
     @torch.no_grad()
-    def predict_loader(
+    def collect_loader_features(
         self,
         loader: Iterable,
         *,
         device: torch.device | str = "cpu",
     ) -> tuple[torch.Tensor, torch.Tensor]:
-        """Return exact full-loader RGA logits and labels on CPU."""
+        """Collect raw features from every client over a shared loader."""
         target_device = torch.device(device)
         all_client_features: List[torch.Tensor] = []
         labels: torch.Tensor | None = None
@@ -195,9 +195,20 @@ class FedSRAEnsemble(nn.Module):
             backbone.to(original_device)
 
         raw = torch.stack(all_client_features, dim=0)
+        assert labels is not None
+        return raw, labels
+
+    @torch.no_grad()
+    def predict_loader(
+        self,
+        loader: Iterable,
+        *,
+        device: torch.device | str = "cpu",
+    ) -> tuple[torch.Tensor, torch.Tensor]:
+        """Return exact full-loader RGA logits and labels on CPU."""
+        raw, labels = self.collect_loader_features(loader, device=device)
         aggregated = rga_aggregate(raw, self.sample_counts.cpu())
         logits = aggregated @ self.etf.cpu().T
-        assert labels is not None
         return logits, labels
 
 
