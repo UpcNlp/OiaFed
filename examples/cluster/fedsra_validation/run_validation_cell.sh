@@ -1,5 +1,8 @@
 #!/usr/bin/env bash
-set -euo pipefail
+set -eo pipefail
+
+source /opt/dtk/env.sh
+set -u
 
 GPU_ID="${1:?usage: run_validation_cell.sh GPU_ID SEED [EPOCHS]}"
 SEED="${2:?usage: run_validation_cell.sh GPU_ID SEED [EPOCHS]}"
@@ -12,7 +15,6 @@ CELL_ROOT="${RUN_ROOT}/seed${SEED}"
 CONFIG_DIR="${CELL_ROOT}/configs"
 RESULT_FILE="${CELL_ROOT}/result.json"
 
-source /opt/dtk/env.sh
 export PYTHONPATH="${PROJECT_ROOT}"
 export CUDA_VISIBLE_DEVICES="${GPU_ID}"
 export HIP_VISIBLE_DEVICES="${GPU_ID}"
