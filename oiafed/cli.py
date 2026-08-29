@@ -577,8 +577,12 @@ def _run_from_paper(args: argparse.Namespace, config_file: Optional[Path]) -> in
         
         if args.dry_run:
             # 计算 exp_name 和划分信息用于显示
-            dataset_type = paper.get_component("dataset") or "cifar10"
             dataset_config = merged.get("dataset", {})
+            dataset_type = (
+                dataset_config.get("type")
+                or paper.get_component("dataset")
+                or "cifar10"
+            )
             partition_config = dataset_config.get("partition", {})
             partition_strategy = partition_config.get("strategy", "dirichlet")
             
@@ -639,8 +643,12 @@ def _run_from_paper(args: argparse.Namespace, config_file: Optional[Path]) -> in
         
         # 运行实验
         # 计算 exp_name 用于显示
-        dataset_type = paper.get_component("dataset") or "cifar10"
         dataset_config = merged.get("dataset", {})
+        dataset_type = (
+            dataset_config.get("type")
+            or paper.get_component("dataset")
+            or "cifar10"
+        )
         partition_config = dataset_config.get("partition", {})
         partition_strategy = partition_config.get("strategy", "dirichlet")
         
@@ -701,8 +709,12 @@ def _generate_paper_configs(
     auto_find_port = network_config.get("auto_find_port", True)
     
     # 获取数据集和划分配置
-    dataset_type = paper.get_component("dataset") or "cifar10"
     dataset_config = merged_config.get("dataset", {})
+    dataset_type = (
+        dataset_config.get("type")
+        or paper.get_component("dataset")
+        or "cifar10"
+    )
     partition_config = dataset_config.get("partition", {})
     partition_strategy = partition_config.get("strategy", "dirichlet")
     
@@ -778,7 +790,7 @@ def _generate_paper_configs(
         trainer_dataset_args = {
             key: value
             for key, value in dataset_config.items()
-            if key not in ["data_dir", "download", "server_test", "partition"]
+            if key not in ["type", "data_dir", "download", "server_test", "partition"]
         }
         trainer_dataset_args["augmentation"] = False
         trainer_config["datasets"] = [
@@ -841,7 +853,7 @@ def _generate_paper_configs(
                         **{
                             k: v
                             for k, v in dataset_config_copy.items()
-                            if k not in ["data_dir", "download", "server_test"]
+                            if k not in ["type", "data_dir", "download", "server_test"]
                         },
                     },
                     "partition": {
