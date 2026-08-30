@@ -2,7 +2,7 @@
 
 id: fedsra
 name: "FedSRA: One-Shot Federated Learning with ETF Alignment and RGA"
-category: HFL
+category: OFL
 venue: "ICDE submission artifact"
 year: 2027
 description: |

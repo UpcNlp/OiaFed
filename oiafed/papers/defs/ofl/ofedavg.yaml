@@ -1,6 +1,6 @@
 id: ofedavg
 name: "O-FedAvg: One-Shot Federated Averaging"
-category: HFL
+category: OFL
 venue: "One-shot FL baseline"
 year: 2023
 description: |
@@ -16,7 +16,7 @@ defaults:
   experiment: {num_clients: 5}
   trainer:
     max_rounds: 1
-    local_epochs: 100
+    local_epochs: 300
     client_fraction: 1.0
     eval_batch_size: 256
   learner:

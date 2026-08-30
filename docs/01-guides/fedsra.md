@@ -33,7 +33,7 @@ RGA applies, in order:
 
 ## Configuration
 
-The paper definition is `oiafed/papers/defs/hfl/fedsra.yaml`. Generate node
+The paper definition is `oiafed/papers/defs/ofl/fedsra.yaml`. Generate node
 configurations with the normal OiaFed paper workflow and keep these invariants:
 
 ```yaml

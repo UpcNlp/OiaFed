@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+import os
+from pathlib import Path
 from typing import Any, Optional
 
 import torch
@@ -56,6 +58,64 @@ class _SupervisedOneShotLearner(Learner):
     def _first_dataset(self, split: str) -> Any | None:
         values = self._datasets.get(split, [])
         return values[0] if values else None
+
+    def _checkpoint_path(self, config: dict[str, Any]) -> Path | None:
+        checkpoint_dir = config.get("checkpoint_dir", self.config.get("checkpoint_dir"))
+        if not checkpoint_dir:
+            return None
+        filename = "model.pt"
+        if self.algorithm == "fusefl":
+            filename = f"stage_{int(getattr(self, '_fusefl_stage', 0))}.pt"
+        return Path(str(checkpoint_dir)) / self.node_id / filename
+
+    async def fit(self, config: Optional[dict[str, Any]] = None) -> TrainResult:
+        run_config = {**self.config, **(config or {})}
+        checkpoint_path = self._checkpoint_path(run_config)
+        resume = bool(run_config.get("resume", False))
+        signature = run_config.get("checkpoint_signature")
+        requested_epochs = int(run_config.get("epochs", 1))
+
+        if resume and checkpoint_path is not None and checkpoint_path.exists():
+            payload = torch.load(checkpoint_path, map_location="cpu", weights_only=True)
+            signature_matches = signature is None or payload.get("signature") == signature
+            epochs_match = int(payload.get("epochs", -1)) == requested_epochs
+            if signature_matches and epochs_match:
+                self.model.load_state_dict(payload["state_dict"], strict=True)
+                final_loss = float(payload.get("final_loss", 0.0))
+                num_samples = int(payload.get("num_samples", self.get_num_samples()))
+                metadata = self.get_metadata()
+                metadata["resumed_from_checkpoint"] = True
+                return TrainResult(
+                    weights=self.get_weights(),
+                    num_samples=num_samples,
+                    metrics=TrainMetrics(
+                        total_epochs=0,
+                        final_loss=final_loss,
+                        total_samples=num_samples,
+                        metrics={"loss": final_loss, "resumed": 1.0},
+                    ),
+                    metadata=metadata,
+                )
+
+        result = await super().fit(config)
+        if checkpoint_path is not None:
+            checkpoint_path.parent.mkdir(parents=True, exist_ok=True)
+            temporary_path = checkpoint_path.with_suffix(".pt.tmp")
+            torch.save(
+                {
+                    "state_dict": {
+                        key: value.detach().cpu()
+                        for key, value in self.model.state_dict().items()
+                    },
+                    "final_loss": float(result.metrics.final_loss),
+                    "num_samples": int(result.num_samples),
+                    "epochs": requested_epochs,
+                    "signature": signature,
+                },
+                temporary_path,
+            )
+            os.replace(temporary_path, checkpoint_path)
+        return result
 
     async def setup(self, config: dict[str, Any]) -> None:
         device = config.get("device", self.config.get("device"))

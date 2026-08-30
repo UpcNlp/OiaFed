@@ -1,6 +1,6 @@
 id: ensemble
 name: "Direct Ensemble for One-Shot Federated Learning"
-category: HFL
+category: OFL
 venue: "One-shot FL baseline"
 year: 2023
 description: "Uniform logit ensemble of independently trained client classifiers."
@@ -12,7 +12,7 @@ components:
   dataset: cifar10
 defaults:
   experiment: {num_clients: 5}
-  trainer: {max_rounds: 1, local_epochs: 100, client_fraction: 1.0, eval_batch_size: 256}
+  trainer: {max_rounds: 1, local_epochs: 300, client_fraction: 1.0, eval_batch_size: 256}
   learner: {learning_rate: 0.01, momentum: 0.9, weight_decay: 0.0, batch_size: 128, num_workers: 4, num_classes: 10}
   aggregator: {strict: true}
   model: {num_classes: 10}

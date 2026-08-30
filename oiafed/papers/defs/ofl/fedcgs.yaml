@@ -1,6 +1,6 @@
 id: fedcgs
 name: "FedCGS: Capture Global Feature Statistics for One-Shot FL"
-category: HFL
+category: OFL
 venue: "AAAI 2025"
 year: 2025
 description: |

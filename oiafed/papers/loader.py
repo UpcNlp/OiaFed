@@ -164,6 +164,7 @@ class PaperRegistry:
     CATEGORY_NAMES = {
         "HFL": "横向联邦学习 (Horizontal FL)",
         "VFL": "纵向联邦学习 (Vertical FL)",
+        "OFL": "单轮联邦学习 (One-Shot FL)",
         "FCL": "联邦持续学习 (Federated Continual Learning)",
         "FU": "联邦遗忘 (Federated Unlearning)",
     }
@@ -712,7 +713,7 @@ class PaperRegistry:
             f"",
         ]
         
-        for category in ["HFL", "VFL", "FCL", "FU"]:
+        for category in ["HFL", "VFL", "OFL", "FCL", "FU"]:
             if category not in grouped:
                 continue
             

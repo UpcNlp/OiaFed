@@ -1,6 +1,6 @@
 id: fusefl
 name: "FuseFL: One-Shot Federated Learning through Model Fusion"
-category: HFL
+category: OFL
 venue: "One-shot FL"
 year: 2024
 description: |

@@ -1,14 +1,17 @@
 from __future__ import annotations
 
+import asyncio
 import copy
 
 import torch
 import torch.nn as nn
+from torch.utils.data import TensorDataset
 
 import oiafed.methods  # noqa: F401 - triggers built-in component registration
 from oiafed.core.types import ClientUpdate
 from oiafed.config.tracker import parse_tracker_config
 from oiafed.methods.aggregators.oneshot import OneShotBundleAggregator
+from oiafed.methods.learners.fl.oneshot import OFedAvgLearner
 from oiafed.methods.models.oneshot import (
     DataFreeGenerator,
     FAFIServerModel,
@@ -45,6 +48,7 @@ def test_all_six_methods_are_registered_and_generate_configs():
         assert registry.get(f"trainer.{method}") is not None
         assert registry.get(f"learner.{method}") is not None
         assert paper_registry.get(method) is not None
+        assert paper_registry.get(method).category == "OFL"
         configs = paper_registry.generate_node_configs(method, num_clients=2)
         assert len(configs) == 3
         for config in configs:
@@ -60,11 +64,50 @@ def test_all_six_methods_are_registered_and_generate_configs():
         assert all(partition["seed"] == 0 for partition in train_partitions)
         assert all(partition["alpha"] == 0.05 for partition in train_partitions)
 
+    assert paper_registry.get("fedsra").category == "OFL"
+    assert set(methods + ["fedsra"]).issubset(paper_registry.list_by_category("OFL"))
+    assert "OFL" in paper_registry.get_categories()
+    for method in ("ofedavg", "ensemble", "coboosting"):
+        assert paper_registry.get_defaults(method)["trainer"]["local_epochs"] == 300
+
 
 def test_disabled_tracker_accepts_generator_null_backends():
     config = parse_tracker_config({"enabled": False, "backends": None})
     assert config.enabled is False
     assert config.get_backends() == []
+
+
+def test_supervised_oneshot_checkpoint_resumes_completed_client(tmp_path):
+    dataset = TensorDataset(torch.randn(6, 2), torch.tensor([0, 1, 0, 1, 0, 1]))
+    config = {
+        "batch_size": 2,
+        "device": "cpu",
+        "num_classes": 2,
+        "checkpoint_dir": str(tmp_path),
+        "checkpoint_signature": "effect-cell-v1",
+        "resume": True,
+    }
+    first = OFedAvgLearner(
+        model=nn.Linear(2, 2),
+        datasets={"train": [dataset]},
+        config=config,
+        node_id="learner_0",
+    )
+    trained = asyncio.run(first.fit({"epochs": 1}))
+    assert (tmp_path / "learner_0" / "model.pt").exists()
+
+    second = OFedAvgLearner(
+        model=nn.Linear(2, 2),
+        datasets={"train": [dataset]},
+        config=config,
+        node_id="learner_0",
+    )
+    resumed = asyncio.run(second.fit({"epochs": 1}))
+    assert trained.metrics.total_epochs == 1
+    assert resumed.metrics.total_epochs == 0
+    assert resumed.metadata["resumed_from_checkpoint"] is True
+    for name, value in first.model.state_dict().items():
+        assert torch.equal(value.cpu(), second.model.state_dict()[name].cpu())
 
 
 def test_bundle_aggregator_retains_every_client_and_clones_tensors():

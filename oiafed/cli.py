@@ -375,7 +375,7 @@ Documentation: https://docs.oiafed.cn
     papers_list_parser.add_argument(
         "--category", "-c",
         type=str,
-        choices=["HFL", "VFL", "FCL", "FU"],
+        choices=["HFL", "VFL", "OFL", "FCL", "FU"],
         help="按类别筛选"
     )
     
