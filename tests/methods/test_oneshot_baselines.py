@@ -10,6 +10,7 @@ from torch.utils.data import TensorDataset
 import oiafed.methods  # noqa: F401 - triggers built-in component registration
 from oiafed.core.types import ClientUpdate
 from oiafed.config.tracker import parse_tracker_config
+from oiafed.infra.logging import setup_logging
 from oiafed.methods.aggregators.oneshot import OneShotBundleAggregator
 from oiafed.methods.learners.fl.oneshot import OFedAvgLearner
 from oiafed.methods.models.oneshot import (
@@ -78,6 +79,11 @@ def test_disabled_tracker_accepts_generator_null_backends():
 
 
 def test_supervised_oneshot_checkpoint_resumes_completed_client(tmp_path):
+    setup_logging(
+        node_id="learner_0",
+        console=False,
+        log_dir=str(tmp_path / "logs"),
+    )
     dataset = TensorDataset(torch.randn(6, 2), torch.tensor([0, 1, 0, 1, 0, 1]))
     config = {
         "batch_size": 2,
