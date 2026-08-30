@@ -7,6 +7,7 @@ import torch.nn as nn
 
 import oiafed.methods  # noqa: F401 - triggers built-in component registration
 from oiafed.core.types import ClientUpdate
+from oiafed.config.tracker import parse_tracker_config
 from oiafed.methods.aggregators.oneshot import OneShotBundleAggregator
 from oiafed.methods.models.oneshot import (
     DataFreeGenerator,
@@ -46,6 +47,12 @@ def test_all_six_methods_are_registered_and_generate_configs():
         assert paper_registry.get(method) is not None
         configs = paper_registry.generate_node_configs(method, num_clients=2)
         assert len(configs) == 3
+
+
+def test_disabled_tracker_accepts_generator_null_backends():
+    config = parse_tracker_config({"enabled": False, "backends": None})
+    assert config.enabled is False
+    assert config.get_backends() == []
 
 
 def test_bundle_aggregator_retains_every_client_and_clones_tensors():

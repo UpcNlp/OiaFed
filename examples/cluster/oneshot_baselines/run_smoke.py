@@ -80,7 +80,9 @@ def _override(method: str, data_dir: str, seed: int) -> dict[str, Any]:
         "learner": learner,
         "model": model,
         "dataset": dataset,
-        "tracker": {"enabled": False},
+        # ConfigGenerator otherwise serializes an omitted backend collection as
+        # YAML null, while legacy OiaFed releases expect an iterable here.
+        "tracker": {"enabled": False, "backends": []},
         "logging": {"console": True, "level": "INFO"},
     }
 
