@@ -548,6 +548,8 @@ class PaperRegistry:
                     params["partition_strategy"] = partition["strategy"]
                 if "alpha" in partition:
                     params["partition_alpha"] = partition["alpha"]
+                if "seed" in partition:
+                    params["partition_seed"] = partition["seed"]
             
             # ⭐ 新增：提取 Trainer 的测试集配置（用于全局评估）
             if test_ds:
@@ -583,6 +585,8 @@ class PaperRegistry:
                 params["partition_strategy"] = partition["strategy"]
             if "alpha" in partition:
                 params["partition_alpha"] = partition["alpha"]
+            if "seed" in partition:
+                params["partition_seed"] = partition["seed"]
 
     # ==================== 验证 ====================
     

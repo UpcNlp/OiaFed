@@ -50,6 +50,15 @@ def test_all_six_methods_are_registered_and_generate_configs():
         for config in configs:
             for dataset in config.get("datasets", []):
                 assert "server_test" not in dataset.get("args", {})
+        train_partitions = [
+            dataset["partition"]
+            for config in configs
+            for dataset in config.get("datasets", [])
+            if dataset.get("split") == "train"
+        ]
+        assert train_partitions
+        assert all(partition["seed"] == 0 for partition in train_partitions)
+        assert all(partition["alpha"] == 0.05 for partition in train_partitions)
 
 
 def test_disabled_tracker_accepts_generator_null_backends():
