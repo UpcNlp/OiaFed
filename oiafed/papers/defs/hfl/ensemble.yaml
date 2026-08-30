@@ -1,0 +1,27 @@
+id: ensemble
+name: "Direct Ensemble for One-Shot Federated Learning"
+category: HFL
+venue: "One-shot FL baseline"
+year: 2023
+description: "Uniform logit ensemble of independently trained client classifiers."
+components:
+  learner: ensemble
+  aggregator: oneshot_bundle
+  trainer: ensemble
+  model: resnet18
+  dataset: cifar10
+defaults:
+  experiment: {num_clients: 5}
+  trainer: {max_rounds: 1, local_epochs: 100, client_fraction: 1.0, eval_batch_size: 256}
+  learner: {learning_rate: 0.01, momentum: 0.9, weight_decay: 0.0, batch_size: 128, num_workers: 4, num_classes: 10}
+  aggregator: {strict: true}
+  model: {num_classes: 10}
+  dataset:
+    data_dir: ./data
+    download: true
+    server_test: true
+    transform_profile: oneshot_half
+    partition: {strategy: fedsra_dirichlet, alpha: 0.05, seed: 0}
+params:
+  trainer.local_epochs: {type: int, range: [1, 1000], desc: "Independent local epochs"}
+  dataset.partition.alpha: {type: float, choices: [0.05, 0.1, 0.3, 0.5], desc: "Dirichlet concentration"}

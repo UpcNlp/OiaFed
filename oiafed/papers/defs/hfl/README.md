@@ -29,3 +29,11 @@
 - **fedproto** - FedProto: Federated Prototype Learning (AAAI 2022)
 - **feddistill** - FedDistill: Knowledge Distillation (NeurIPS 2020)
 - **feddbe** - FedDBE: Data-Free Knowledge Distillation (CVPR 2022)
+
+### One-shot 联邦学习基线
+- **ofedavg** - 独立本地训练后的统一参数平均
+- **ensemble** - 独立客户端模型的直接 logits 集成
+- **fafi** - 学习式原型与特征集成
+- **fusefl** - 四阶段可扩展分层融合
+- **fedcgs** - 全局特征充分统计量与共享协方差分类器
+- **coboosting** - 动态教师权重与数据自由服务器蒸馏

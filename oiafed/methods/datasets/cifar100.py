@@ -50,16 +50,34 @@ class CIFAR100Dataset(Dataset):
         self.split = split
         self.augmentation = augmentation
         self.transform_profile = transform_profile.lower()
-        if self.transform_profile not in {"standard", "fedsra"}:
+        if self.transform_profile not in {"standard", "fedsra", "fafi", "oneshot_half"}:
             raise ValueError(
-                "transform_profile must be either 'standard' or 'fedsra'"
+                "unsupported CIFAR-100 transform_profile"
             )
 
         # 根据 split 确定是否为训练集
         is_train = self.split in ("train", "valid")
 
         # 数据转换
-        if is_train and self.augmentation and self.transform_profile == "fedsra":
+        if self.transform_profile == "oneshot_half":
+            operations = []
+            if is_train and self.augmentation:
+                operations.extend([transforms.RandomCrop(32, padding=4), transforms.RandomHorizontalFlip()])
+            operations.extend([
+                transforms.ToTensor(),
+                transforms.Normalize((0.5, 0.5, 0.5), (0.5, 0.5, 0.5)),
+            ])
+            transform = transforms.Compose(operations)
+        elif self.transform_profile == "fafi":
+            # FAFI loads CIFAR-100 with this normalization before its two-view transform.
+            transform = transforms.Compose([
+                transforms.ToTensor(),
+                transforms.Normalize(
+                    mean=[0.5071, 0.4867, 0.4408],
+                    std=[0.2675, 0.2565, 0.2761],
+                ),
+            ])
+        elif is_train and self.augmentation and self.transform_profile == "fedsra":
             transform = transforms.Compose([
                 transforms.RandomHorizontalFlip(),
                 transforms.RandomCrop(32, padding=4),

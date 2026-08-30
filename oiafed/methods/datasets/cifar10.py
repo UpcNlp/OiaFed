@@ -56,16 +56,29 @@ class CIFAR10Dataset(Dataset):
         self.split = split
         self.augmentation = augmentation
         self.transform_profile = transform_profile.lower()
-        if self.transform_profile not in {"standard", "fedsra"}:
+        if self.transform_profile not in {"standard", "fedsra", "fafi", "oneshot_half"}:
             raise ValueError(
-                "transform_profile must be either 'standard' or 'fedsra'"
+                "unsupported CIFAR-10 transform_profile"
             )
 
         # 根据 split 确定是否为训练集
         is_train = self.split in ("train", "valid")
 
         # 数据转换
-        if is_train and self.augmentation and self.transform_profile == "fedsra":
+        if self.transform_profile == "fafi":
+            # The FAFI reference applies its two stochastic views inside the
+            # learner and keeps CIFAR-10 evaluation tensors unnormalised.
+            transform = transforms.ToTensor()
+        elif self.transform_profile == "oneshot_half":
+            operations = []
+            if is_train and self.augmentation:
+                operations.extend([transforms.RandomCrop(32, padding=4), transforms.RandomHorizontalFlip()])
+            operations.extend([
+                transforms.ToTensor(),
+                transforms.Normalize((0.5, 0.5, 0.5), (0.5, 0.5, 0.5)),
+            ])
+            transform = transforms.Compose(operations)
+        elif is_train and self.augmentation and self.transform_profile == "fedsra":
             transform = transforms.Compose([
                 transforms.RandomHorizontalFlip(),
                 transforms.RandomCrop(32, padding=4),

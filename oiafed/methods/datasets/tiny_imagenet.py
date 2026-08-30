@@ -44,9 +44,9 @@ class TinyImageNetDataset(Dataset):
         )
         self.split = split
         self.transform_profile = transform_profile.lower()
-        if self.transform_profile not in {"standard", "fedsra"}:
+        if self.transform_profile not in {"standard", "fedsra", "fafi", "oneshot_half"}:
             raise ValueError(
-                "transform_profile must be either 'standard' or 'fedsra'"
+                "unsupported Tiny ImageNet transform_profile"
             )
         if not (self.root / "train").is_dir():
             raise FileNotFoundError(
@@ -71,6 +71,17 @@ class TinyImageNetDataset(Dataset):
             self.targets = [label for _, label in self.samples]
 
     def _build_transform(self, augmented: bool):
+        if self.transform_profile == "fafi":
+            return transforms.ToTensor()
+        if self.transform_profile == "oneshot_half":
+            operations = []
+            if augmented:
+                operations.extend([transforms.RandomCrop(64, padding=8), transforms.RandomHorizontalFlip()])
+            operations.extend([
+                transforms.ToTensor(),
+                transforms.Normalize((0.5, 0.5, 0.5), (0.5, 0.5, 0.5)),
+            ])
+            return transforms.Compose(operations)
         if augmented and self.transform_profile == "fedsra":
             return transforms.Compose([
                 transforms.RandomHorizontalFlip(),

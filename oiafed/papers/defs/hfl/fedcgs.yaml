@@ -1,0 +1,32 @@
+id: fedcgs
+name: "FedCGS: Capture Global Feature Statistics for One-Shot FL"
+category: HFL
+venue: "AAAI 2025"
+year: 2025
+description: |
+  Clients use a shared ImageNet-pretrained ResNet-18 to upload class sums,
+  class counts, a feature sum, and a second moment. The server reconstructs
+  global class means and a shared covariance Gaussian classifier.
+components:
+  learner: fedcgs
+  aggregator: oneshot_bundle
+  trainer: fedcgs
+  model: fedcgs_resnet18
+  dataset: cifar10
+defaults:
+  experiment: {num_clients: 5}
+  trainer: {max_rounds: 1, local_epochs: 0, client_fraction: 1.0, eval_batch_size: 256, covariance_ridge: 0.0}
+  learner: {batch_size: 1024, num_workers: 4, num_classes: 10}
+  aggregator: {strict: true}
+  model: {num_classes: 10, pretrained: true}
+  dataset:
+    data_dir: ./data
+    download: true
+    server_test: true
+    augmentation: false
+    transform_profile: oneshot_half
+    partition: {strategy: fedsra_dirichlet, alpha: 0.05, seed: 0}
+params:
+  trainer.covariance_ridge: {type: float, range: [0.0, 1.0], desc: "Optional covariance regularizer"}
+  dataset.partition.alpha: {type: float, choices: [0.05, 0.1, 0.3, 0.5], desc: "Dirichlet concentration"}
+notes: "The official FedCGS path performs no local SGD; local_epochs=0 is intentional."

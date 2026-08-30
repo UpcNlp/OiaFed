@@ -1,0 +1,40 @@
+id: fafi
+name: "FAFI: Feature Aggregation and Feature Interaction"
+category: HFL
+venue: "ICML 2025"
+year: 2025
+description: |
+  Each client jointly learns an encoder and class prototypes with supervised
+  contrastive, prototype-feature, prototype-separation, and CE losses. The
+  server averages prototypes uniformly and encoder features by data size.
+components:
+  learner: fafi
+  aggregator: oneshot_bundle
+  trainer: fafi
+  model: fafi_resnet18
+  dataset: cifar10
+defaults:
+  experiment: {num_clients: 5}
+  trainer: {max_rounds: 1, local_epochs: 300, client_fraction: 1.0, eval_batch_size: 256}
+  learner:
+    learning_rate: 0.05
+    momentum: 0.9
+    weight_decay: 0.0001
+    batch_size: 512
+    num_workers: 4
+    drop_last: true
+    num_classes: 10
+    two_view_augmentation: true
+    reset_optimizer_each_epoch: true
+  aggregator: {strict: true}
+  model: {num_classes: 10, feature_dim: 512}
+  dataset:
+    data_dir: ./data
+    download: true
+    server_test: true
+    transform_profile: fafi
+    partition: {strategy: fedsra_dirichlet, alpha: 0.05, seed: 0}
+params:
+  trainer.local_epochs: {type: int, range: [1, 1000], desc: "Cumulative independent local epochs"}
+  dataset.partition.alpha: {type: float, choices: [0.05, 0.1, 0.3, 0.5], desc: "Dirichlet concentration"}
+notes: "The reference's 300 rounds x 1 local epoch are communication-equivalent to 300 independent local epochs because clients never receive aggregation back."
