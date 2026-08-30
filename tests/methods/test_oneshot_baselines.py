@@ -47,6 +47,9 @@ def test_all_six_methods_are_registered_and_generate_configs():
         assert paper_registry.get(method) is not None
         configs = paper_registry.generate_node_configs(method, num_clients=2)
         assert len(configs) == 3
+        for config in configs:
+            for dataset in config.get("datasets", []):
+                assert "server_test" not in dataset.get("args", {})
 
 
 def test_disabled_tracker_accepts_generator_null_backends():
