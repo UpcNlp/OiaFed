@@ -83,6 +83,10 @@ def _override(method: str, data_dir: str, seed: int) -> dict[str, Any]:
         # ConfigGenerator otherwise serializes an omitted backend collection as
         # YAML null, while legacy OiaFed releases expect an iterable here.
         "tracker": {"enabled": False, "backends": []},
+        # Each physical accelerator runs an independent FederationRunner.  Keep
+        # their transports process-local so concurrent smoke chains cannot
+        # connect to the same default gRPC ports.
+        "transport": {"mode": "memory"},
         "logging": {"console": True, "level": "INFO"},
     }
 
