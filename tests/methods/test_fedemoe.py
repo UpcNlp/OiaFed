@@ -11,11 +11,12 @@ from pathlib import Path
 import numpy as np
 import torch
 
-from oiafed.core.types import ClientUpdate
+from oiafed.core.types import ClientUpdate, RoundMetrics, RoundResult
 from oiafed.data.partitioner import FedEMoEDirichletPartitioner
 from oiafed.methods.aggregators.fedemoe import FedEMoEAggregator
 from oiafed.methods.learners.fl.fedemoe import FedEMoELearner
 from oiafed.methods.models.fedemoe import FedEMoEModel
+from oiafed.methods.trainers.fedemoe import FedEMoETrainer
 from oiafed.papers import get_registry
 
 
@@ -33,6 +34,18 @@ CORE_HASHES = {
 
 def test_native_learner_satisfies_oiafed_lifecycle_contract():
     assert not inspect.isabstract(FedEMoELearner)
+
+
+def test_trainer_releases_consumed_round_weights_without_losing_metrics():
+    update = ClientUpdate("learner_0", {"weight": torch.ones(2)}, 2)
+    metrics = RoundMetrics(1, 1, 2, {"eval_accuracy": 0.5})
+    result = RoundResult(1, [update], {"round": 1}, metrics)
+
+    FedEMoETrainer._release_consumed_updates(result)
+
+    assert result.updates == []
+    assert result.metrics.metrics == {"eval_accuracy": 0.5}
+    assert result.aggregated_weights == {"round": 1}
 
 
 def test_validated_core_hashes_are_unchanged():

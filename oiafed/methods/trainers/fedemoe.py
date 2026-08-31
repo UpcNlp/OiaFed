@@ -209,7 +209,19 @@ class FedEMoETrainer(Trainer):
                 round_num,
                 {"round_result": result, "algorithm": "fedemoe"},
             )
+
+        # ``Trainer.run`` retains every RoundResult until training finishes.
+        # The full client state_dicts have already been consumed by EGCA and
+        # keeping them would pin roughly 185 MiB of GPU memory per paper round.
+        # Callbacks above still observe the complete payload; only the
+        # no-longer-needed history copy is released.
+        self._release_consumed_updates(result)
         return result
+
+    @staticmethod
+    def _release_consumed_updates(result: RoundResult) -> None:
+        """Drop state_dict payloads after EGCA and callbacks consume them."""
+        result.updates.clear()
 
     @staticmethod
     def _aggregate_client_metrics(updates: List[ClientUpdate]) -> Dict[str, float]:
