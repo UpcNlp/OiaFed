@@ -69,5 +69,6 @@ to a differently implemented paper baseline.
 
 The immutable-source golden run for the paper-default cell produced 80.96%
 final accuracy for FedEMoE versus 81.03% in the paper. That number is a parity
-target for the native OiaFed run, not evidence that the native run has already
-passed.
+target for the native OiaFed run. The completed native run produced 79.80% at
+round 500; see [the validation report](../05-papers/fedemoe-native-validation.md)
+for the exact protocol, integrity checks, and comparison.
