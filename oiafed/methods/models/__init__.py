@@ -61,6 +61,12 @@ from .mlp import (
 )
 
 from .fot_alexnet import FOTAlexNet
+from .fedsra import FedSRAResNet18Backbone, FedSRAEnsemble
+from .oneshot import (
+    OneShotEnsemble,
+    FedCGSResNet18,
+    FedCGSServerModel,
+)
 
 
 __all__ = [
@@ -78,5 +84,10 @@ __all__ = [
     "PaperMLP",
     "AdultMLP",
     "FCUBEMLP",
-    "FOTAlexNet"
+    "FOTAlexNet",
+    "FedSRAResNet18Backbone",
+    "FedSRAEnsemble",
+    "OneShotEnsemble",
+    "FedCGSResNet18",
+    "FedCGSServerModel",
 ]

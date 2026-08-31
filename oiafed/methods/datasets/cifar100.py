@@ -5,7 +5,6 @@ CIFAR-100 数据集
 支持 split 参数 (train/test/valid)
 """
 
-import torch
 from torch.utils.data import Dataset
 import torchvision
 import torchvision.transforms as transforms
@@ -38,6 +37,7 @@ class CIFAR100Dataset(Dataset):
         split: str = "train",
         download: bool = True,
         augmentation: bool = True,
+        transform_profile: str = "standard",
     ):
         """
         Args:
@@ -49,13 +49,42 @@ class CIFAR100Dataset(Dataset):
         self.data_dir = Path(data_dir)
         self.split = split
         self.augmentation = augmentation
+        self.transform_profile = transform_profile.lower()
+        if self.transform_profile not in {"standard", "fedsra", "oneshot_half"}:
+            raise ValueError(
+                "unsupported CIFAR-100 transform_profile"
+            )
 
         # 根据 split 确定是否为训练集
         is_train = self.split in ("train", "valid")
 
         # 数据转换
-        if is_train and self.augmentation:
-            # 训练时使用数据增强
+        if self.transform_profile == "oneshot_half":
+            operations = []
+            if is_train and self.augmentation:
+                operations.extend([transforms.RandomCrop(32, padding=4), transforms.RandomHorizontalFlip()])
+            operations.extend([
+                transforms.ToTensor(),
+                transforms.Normalize((0.5, 0.5, 0.5), (0.5, 0.5, 0.5)),
+            ])
+            transform = transforms.Compose(operations)
+        elif is_train and self.augmentation and self.transform_profile == "fedsra":
+            transform = transforms.Compose([
+                transforms.RandomHorizontalFlip(),
+                transforms.RandomCrop(32, padding=4),
+                transforms.RandomApply([
+                    transforms.ColorJitter(0.4, 0.4, 0.4, 0.1)
+                ], p=0.8),
+                transforms.RandomGrayscale(p=0.2),
+                transforms.RandomRotation(15),
+                transforms.ToTensor(),
+                transforms.Normalize(
+                    mean=[0.5071, 0.4867, 0.4408],
+                    std=[0.2675, 0.2565, 0.2761],
+                ),
+                transforms.RandomErasing(p=0.25, scale=(0.02, 0.2)),
+            ])
+        elif is_train and self.augmentation:
             transform = transforms.Compose([
                 transforms.RandomCrop(32, padding=4),
                 transforms.RandomHorizontalFlip(),
@@ -82,6 +111,9 @@ class CIFAR100Dataset(Dataset):
             download=download,
             transform=transform
         )
+        # Partitioners use targets directly so stochastic augmentation is not
+        # evaluated merely to discover labels.
+        self.targets = self.dataset.targets
 
     def __len__(self):
         return len(self.dataset)

@@ -25,11 +25,18 @@ results
 CLAUDE.md
 deubg*.py
 tests/
+!tests/
+!tests/**
+tests/**/__pycache__/
+tests/**/*.py[oc]
 pytest.ini
 run_tests.py
 exp
 .claude
 .pytest_cache
+!examples/configs/
+!examples/configs/fedsra_cifar10_smoke/
+!examples/configs/fedsra_cifar10_smoke/**
 .DS_Store
 mlruns/
 tablle3.md
@@ -59,3 +66,6 @@ view_table3_results.py
 analyze_results.py
 env.*
 run_failed_batch.sh
+!examples/cluster/
+!examples/cluster/fedsra_validation/
+!examples/cluster/fedsra_validation/run_validation.py

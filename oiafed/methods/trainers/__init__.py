@@ -8,6 +8,12 @@ from .target import TARGETTrainer
 from .fot_continual import FOTContinualTrainer
 from .faderaser_trainer import FedEraserTrainer
 from .splitnn_trainer import SplitNNTrainer
+from .fedsra import FedSRATrainer
+from .oneshot import (
+    OFedAvgTrainer,
+    EnsembleTrainer,
+    FedCGSTrainer,
+)
 
 __all__ = [
     "DefaultTrainer",
@@ -16,5 +22,9 @@ __all__ = [
     "TARGETTrainer",
     "FedEraserTrainer",
     "FOTContinualTrainer",
-    "SplitNNTrainer"
+    "SplitNNTrainer",
+    "FedSRATrainer",
+    "OFedAvgTrainer",
+    "EnsembleTrainer",
+    "FedCGSTrainer",
 ]

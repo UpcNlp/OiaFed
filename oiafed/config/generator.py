@@ -544,7 +544,7 @@ class ConfigGenerator:
         }
         
         # 根据策略添加特定参数
-        if partition_strategy == "dirichlet":
+        if partition_strategy in {"dirichlet", "fedsra_dirichlet", "dirichlet_quantity"}:
             partition_config["alpha"] = partition_alpha
         
         if partition_seed is not None:

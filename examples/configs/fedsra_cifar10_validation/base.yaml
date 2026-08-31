@@ -1,0 +1,30 @@
+exp_name: ${FEDSRA_EXP_NAME}
+
+trainer:
+  device: cuda
+  fit_timeout: 86400
+  eval_num_workers: 4
+  shutdown_learners: true
+
+learner:
+  device: cuda
+  checkpoint_dir: ${FEDSRA_CHECKPOINT_DIR}
+  resume: true
+  enable_progress_bar: true
+
+dataset:
+  data_dir: /public/home/dongshou/data
+  download: true
+  server_test: true
+  transform_profile: fedsra
+  partition:
+    strategy: fedsra_dirichlet
+    alpha: 0.05
+    seed: 42
+
+logging:
+  console: true
+  level: INFO
+
+tracker:
+  enabled: false
