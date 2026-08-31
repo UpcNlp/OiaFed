@@ -34,6 +34,19 @@ oiafed run --paper fedemoe -n 100 --mode serial
 For a quick wiring check, override the number of rounds and use fewer clients;
 that is not a paper reproduction.
 
+The durable cluster runner provides three fixed presets. `smoke` and `short`
+validate wiring and the 100-client lifecycle; only `paper` is the exact
+500-round reproduction:
+
+```bash
+python examples/cluster/fedemoe/run_validation.py --preset smoke
+python examples/cluster/fedemoe/run_validation.py --preset short
+python examples/cluster/fedemoe/run_validation.py --preset paper
+```
+
+Each run records the exact Git commit, protocol, generated node configs, final
+accuracy, elapsed time, GPU peak memory, and a durable `DONE`/`FAILED` marker.
+
 ## Baselines in the supplied artifact
 
 All archive baselines belong to HFL for this comparison. They are tracked

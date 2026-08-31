@@ -141,6 +141,8 @@ class ConfigGenerator:
         
         # Trainer 的数据集配置（用于全局测试集评估）
         trainer_datasets: Optional[List[Dict[str, Any]]] = None,
+        server_test: bool = True,
+        learner_test: bool = True,
         
         # 数据划分
         partition_strategy: str = DEFAULT_PARTITION_STRATEGY,
@@ -223,7 +225,7 @@ class ConfigGenerator:
             model_args=model_args,
             # Trainer 的数据集配置（用于全局评估）
             datasets=trainer_datasets,  # 优先使用用户指定的
-            dataset_type=dataset_type,
+            dataset_type=dataset_type if server_test else "",
             dataset_args=dataset_args,
             tracker=tracker,
             callbacks=callbacks,
@@ -252,6 +254,7 @@ class ConfigGenerator:
                 learner_args=learner_args,
                 model_args=model_args,
                 dataset_args=dataset_args,
+                include_test=learner_test,
                 partition_strategy=partition_strategy,
                 partition_alpha=partition_alpha,
                 partition_seed=partition_seed,
@@ -391,6 +394,7 @@ class ConfigGenerator:
         learner_args: Optional[Dict[str, Any]] = None,
         model_args: Optional[Dict[str, Any]] = None,
         dataset_args: Optional[Dict[str, Any]] = None,
+        include_test: bool = True,
         partition_strategy: str = DEFAULT_PARTITION_STRATEGY,
         partition_alpha: float = DEFAULT_PARTITION_ALPHA,
         partition_seed: Optional[int] = None,
@@ -453,6 +457,7 @@ class ConfigGenerator:
             partition_seed=partition_seed,
             num_partitions=num_clients,
             partition_id=index,
+            include_test=include_test,
         )
         
         config_dict = {
@@ -529,6 +534,7 @@ class ConfigGenerator:
         partition_seed: Optional[int],
         num_partitions: int,
         partition_id: int,
+        include_test: bool = True,
     ) -> List[Dict[str, Any]]:
         """
         构建数据集配置列表（train + test）
@@ -544,7 +550,12 @@ class ConfigGenerator:
         }
         
         # 根据策略添加特定参数
-        if partition_strategy in {"dirichlet", "fedsra_dirichlet", "dirichlet_quantity"}:
+        if partition_strategy in {
+            "dirichlet",
+            "fedsra_dirichlet",
+            "dirichlet_quantity",
+            "fedemoe_dirichlet",
+        }:
             partition_config["alpha"] = partition_alpha
         
         if partition_seed is not None:
@@ -556,7 +567,7 @@ class ConfigGenerator:
         # 测试集参数（排除 download）
         test_args = {k: v for k, v in dataset_args.items() if k != "download"}
         
-        return [
+        datasets = [
             # 训练集（带划分）
             {
                 "type": dataset_type,
@@ -564,13 +575,16 @@ class ConfigGenerator:
                 "args": train_args,
                 "partition": partition_config,
             },
-            # 测试集（不划分）
-            {
-                "type": dataset_type,
-                "split": "test",
-                "args": test_args,
-            },
         ]
+        if include_test:
+            datasets.append(
+                {
+                    "type": dataset_type,
+                    "split": "test",
+                    "args": test_args,
+                }
+            )
+        return datasets
     
     def _add_optional_config(
         self,
@@ -720,6 +734,9 @@ class ConfigGenerator:
         elif "dataset" in merged:
             dataset_config = copy.deepcopy(merged["dataset"])
             partition = dataset_config.pop("partition", {})
+
+            params["server_test"] = bool(dataset_config.pop("server_test", True))
+            params["learner_test"] = bool(dataset_config.pop("learner_test", True))
             
             # dataset_type 可能在顶层
             if "type" in dataset_config:

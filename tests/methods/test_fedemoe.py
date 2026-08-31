@@ -175,3 +175,23 @@ def test_paper_definition_is_hfl_and_uses_native_components():
     }
     assert paper.defaults["trainer"]["num_rounds"] == 500
     assert paper.defaults["dataset"]["partition"]["strategy"] == "fedemoe_dirichlet"
+
+
+def test_programmatic_configs_preserve_partition_and_dataset_roles(tmp_path):
+    registry = get_registry()
+    configs = registry.generate_node_configs(
+        "fedemoe",
+        num_clients=2,
+        override={"dataset": {"data_dir": str(tmp_path)}},
+    )
+
+    trainer, learner_0, learner_1 = configs
+    assert [dataset["split"] for dataset in trainer["datasets"]] == ["test"]
+    for learner in (learner_0, learner_1):
+        assert [dataset["split"] for dataset in learner["datasets"]] == ["train"]
+        train_dataset = learner["datasets"][0]
+        assert train_dataset["partition"]["strategy"] == "fedemoe_dirichlet"
+        assert train_dataset["partition"]["alpha"] == 0.5
+        assert train_dataset["args"]["shared_cache"] is True
+        assert "server_test" not in train_dataset["args"]
+        assert "learner_test" not in train_dataset["args"]

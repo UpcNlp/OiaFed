@@ -570,11 +570,10 @@ class PaperRegistry:
             
             # 提取 partition
             partition = dataset_config.pop("partition", {})
-            # ``server_test`` controls federation generation; it is not a
-            # constructor argument of an OiaFed Dataset.  The generator already
-            # creates the trainer's unpartitioned test split, so do not leak the
-            # flag into learner/test dataset args.
-            dataset_config.pop("server_test", None)
+            # These flags control federation generation and are not Dataset
+            # constructor arguments.
+            params["server_test"] = bool(dataset_config.pop("server_test", True))
+            params["learner_test"] = bool(dataset_config.pop("learner_test", True))
             
             # 数据集类型和参数
             if "type" in dataset_config:
