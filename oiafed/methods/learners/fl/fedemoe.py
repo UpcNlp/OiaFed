@@ -84,6 +84,10 @@ class FedEMoELearner(Learner):
         self.model.load_state_dict(weights, strict=True)
         return True
 
+    async def setup(self, config: Dict[str, Any]) -> None:
+        """Satisfy OiaFed's lifecycle contract for the upstream-owned loop."""
+        del config
+
     async def fit(self, config: Optional[Dict[str, Any]] = None) -> TrainResult:
         run_config = {**self._config, **(config or {})}
         local_epochs = int(run_config.get("epochs", run_config.get("local_epochs", 5)))

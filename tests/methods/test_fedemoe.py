@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import copy
 import hashlib
+import inspect
 import random
 from pathlib import Path
 
@@ -13,6 +14,7 @@ import torch
 from oiafed.core.types import ClientUpdate
 from oiafed.data.partitioner import FedEMoEDirichletPartitioner
 from oiafed.methods.aggregators.fedemoe import FedEMoEAggregator
+from oiafed.methods.learners.fl.fedemoe import FedEMoELearner
 from oiafed.methods.models.fedemoe import FedEMoEModel
 from oiafed.papers import get_registry
 
@@ -27,6 +29,10 @@ CORE_HASHES = {
     "metrics.py": "491b314b1953e627bb45291228701ec2262ec540b5ee948681c12777ce82044c",
     "evidence_symbiosis.py": "0aaa43ad9d5ab11bb7703075e526553d7740255cd5bbfa1ca19b3d380fdcdbb9",
 }
+
+
+def test_native_learner_satisfies_oiafed_lifecycle_contract():
+    assert not inspect.isabstract(FedEMoELearner)
 
 
 def test_validated_core_hashes_are_unchanged():
