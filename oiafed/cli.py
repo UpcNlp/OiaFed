@@ -790,7 +790,9 @@ def _generate_paper_configs(
         trainer_dataset_args = {
             key: value
             for key, value in dataset_config.items()
-            if key not in ["type", "data_dir", "download", "server_test", "partition"]
+            if key not in [
+                "type", "data_dir", "download", "server_test", "learner_test", "partition"
+            ]
         }
         trainer_dataset_args["augmentation"] = False
         trainer_config["datasets"] = [
@@ -822,6 +824,43 @@ def _generate_paper_configs(
         if mode == "parallel" and auto_find_port and i > 0:
             learner_port = _find_available_port(learner_port)
         
+        learner_datasets = [
+            {
+                "type": dataset_type,
+                "split": "train",
+                "args": {
+                    "data_dir": data_dir,
+                    "download": True,
+                    **{
+                        k: v
+                        for k, v in dataset_config_copy.items()
+                        if k not in [
+                            "type", "data_dir", "download", "server_test", "learner_test"
+                        ]
+                    },
+                },
+                "partition": {
+                    "strategy": partition_strategy,
+                    "num_partitions": num_clients,
+                    "partition_id": i,
+                    "seed": seed,
+                    **{
+                        k: v
+                        for k, v in partition_config.items()
+                        if k not in ["strategy", "num_partitions", "partition_id", "seed"]
+                    },
+                },
+            }
+        ]
+        if dataset_config.get("learner_test", True):
+            learner_datasets.append(
+                {
+                    "type": dataset_type,
+                    "split": "test",
+                    "args": {"data_dir": data_dir},
+                }
+            )
+
         learner_config = {
             "node_id": f"learner_{i}",
             "role": "learner",
@@ -843,35 +882,7 @@ def _generate_paper_configs(
                 "args": merged_config.get("model", {}),
             },
             
-            "datasets": [
-                {
-                    "type": dataset_type,
-                    "split": "train",
-                    "args": {
-                        "data_dir": data_dir,
-                        "download": True,
-                        **{
-                            k: v
-                            for k, v in dataset_config_copy.items()
-                            if k not in ["type", "data_dir", "download", "server_test"]
-                        },
-                    },
-                    "partition": {
-                        "strategy": partition_strategy,
-                        "num_partitions": num_clients,
-                        "partition_id": i,
-                        "seed": seed,
-                        **{k: v for k, v in partition_config.items() if k not in ["strategy", "num_partitions", "partition_id", "seed"]},
-                    },
-                },
-                {
-                    "type": dataset_type,
-                    "split": "test",
-                    "args": {
-                        "data_dir": data_dir,
-                    },
-                },
-            ],
+            "datasets": learner_datasets,
             
             "logging": logging_config,
             "transport": {"mode": "grpc" if mode == "parallel" else "memory"},

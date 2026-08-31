@@ -14,6 +14,7 @@ from .partitioner import (
     LabelPartitioner,
     DirichletPartitioner,
     FedSRADirichletPartitioner,
+    FedEMoEDirichletPartitioner,
     QuantityPartitioner,
     DirichletQuantityPartitioner,
 )
@@ -180,6 +181,10 @@ def _create_partitioner(
         alpha = config.get('alpha', 0.05)
         return FedSRADirichletPartitioner(alpha=alpha, seed=seed)
 
+    elif strategy == 'fedemoe_dirichlet':
+        alpha = config.get('alpha', 0.5)
+        return FedEMoEDirichletPartitioner(alpha=alpha, seed=seed)
+
     elif strategy == 'dirichlet_quantity':
         alpha = config.get('alpha', 0.5)
         return DirichletQuantityPartitioner(alpha=alpha, seed=seed)
@@ -193,6 +198,7 @@ def _create_partitioner(
         raise ValueError(
             f"Unknown partition strategy: {strategy}. "
             f"Supported: iid, label, dirichlet, fedsra_dirichlet, "
+            f"fedemoe_dirichlet, "
             f"dirichlet_quantity, quantity, custom"
         )
 
@@ -214,7 +220,12 @@ def _needs_labels(partitioner: Partitioner) -> bool:
     # 根据类型判断
     return isinstance(
         partitioner,
-        (LabelPartitioner, DirichletPartitioner, FedSRADirichletPartitioner),
+        (
+            LabelPartitioner,
+            DirichletPartitioner,
+            FedSRADirichletPartitioner,
+            FedEMoEDirichletPartitioner,
+        ),
     )
 
 

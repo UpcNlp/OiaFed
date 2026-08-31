@@ -1,0 +1,129 @@
+id: fedemoe
+name: "FedEMoE: Towards Class-Aware Federated Learning via Evidential Mixture-of-Experts"
+category: HFL
+venue: "CIKM"
+year: 2026
+url: "https://github.com/Stephen-Chow1/FedEMoE-CEGA"
+description: |
+  FedEMoE combines an evidential mixture-of-experts client model with
+  Evidence-Guided Class-Aware Aggregation (EGCA). Dirichlet evidence controls
+  dynamic expert activation locally and supplies expert-by-class signatures to
+  a diversity-adaptive server model pool.
+
+components:
+  learner: fedemoe
+  aggregator: fedemoe
+  trainer: fedemoe
+  model: fedemoe
+  dataset: cifar10
+
+defaults:
+  experiment:
+    num_clients: 100
+
+  trainer:
+    num_rounds: 500
+    local_epochs: 5
+    clients_per_round: 10
+    client_fraction: 0.1
+    eval_interval: 10
+    seed: 42
+    device: cuda
+    batch_size: 64
+    num_workers: 4
+    eval_batch_size: 64
+    eval_num_workers: 4
+
+  learner:
+    learning_rate: 0.01
+    batch_size: 64
+    momentum: 0.9
+    weight_decay: 0.0001
+    optimizer: sgd
+    num_classes: 10
+    edl_lambda1: 1.0
+    edl_lambda2: 0.1
+    annealing_epochs: 10
+    num_workers: 4
+    device: cuda
+
+  aggregator:
+    pool_size: 10
+    num_experts: 8
+    num_classes: 10
+    num_parents: 4
+    symbiosis_mode: adaptive
+    adaptive_mode: diversity
+    endo_ratio: 0.5
+    switch_round: 100
+    diversity_threshold: 0.5
+    smoothing_alpha: 0.0
+    ema_momentum: 1.0
+
+  model:
+    num_classes: 10
+    num_experts: 8
+    backbone: cnn
+    input_channels: 3
+    input_size: 32
+    expert_hidden_dim: 256
+    k_min: 1
+    k_max: 7
+    seed: 42
+
+  dataset:
+    data_dir: ./data
+    download: true
+    server_test: true
+    learner_test: false
+    shared_cache: true
+    augmentation: false
+    transform_profile: fedemoe
+    partition:
+      strategy: fedemoe_dirichlet
+      alpha: 0.5
+
+params:
+  learner.learning_rate:
+    type: float
+    range: [0.0001, 1.0]
+    desc: "Local SGD learning rate"
+
+  trainer.num_rounds:
+    type: int
+    range: [1, 1000]
+    desc: "Communication rounds"
+
+  trainer.local_epochs:
+    type: int
+    range: [1, 20]
+    desc: "Local epochs per selected client"
+
+  aggregator.num_parents:
+    type: int
+    range: [1, 9]
+    desc: "Parent models used by each EGCA pool update"
+
+  aggregator.diversity_threshold:
+    type: float
+    range: [0.01, 1.0]
+    desc: "Diversity-adaptive EGCA threshold"
+
+  dataset.partition.alpha:
+    type: float
+    range: [0.01, 100.0]
+    desc: "Dirichlet concentration"
+
+citation: |
+  @inproceedings{zhou2026fedemoe,
+    title={FedEMoE: Towards Class-Aware Federated Learning via Evidential Mixture-of-Experts},
+    author={Zhou, Linbo and Zhang, Weishan and Chen, Tao and Meng, Lingzhao},
+    booktitle={Proceedings of the 35th ACM International Conference on Information and Knowledge Management},
+    year={2026}
+  }
+
+notes: |
+  - Classification: horizontal federated learning (HFL), not one-shot FL, FCL, VFL, or FU.
+  - The defaults reproduce the paper's CIFAR-10/CNN/Dirichlet(alpha=0.5) cell.
+  - Run with exactly 100 clients in serial mode for the paper-default result.
+  - The numerical core is vendored unchanged from the supplied validated artifact; OiaFed code is an adapter around it.

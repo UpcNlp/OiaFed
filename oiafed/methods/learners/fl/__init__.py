@@ -14,6 +14,7 @@ from .gpfl import GPFLLearner
 from .feddbe import FedDBELearner
 from .fedrod import FedRoDLearner
 from .fedsra import FedSRALearner
+from .fedemoe import FedEMoELearner
 from .oneshot import (
     OFedAvgLearner,
     EnsembleLearner,
@@ -36,6 +37,7 @@ __all__ = [
     "FedDBELearner",
     "FedRoDLearner",
     "FedSRALearner",
+    "FedEMoELearner",
     "OFedAvgLearner",
     "EnsembleLearner",
     "CoBoostingLearner",

@@ -9,6 +9,7 @@ from .partitioner import (
     LabelPartitioner,
     DirichletPartitioner,
     FedSRADirichletPartitioner,
+    FedEMoEDirichletPartitioner,
     QuantityPartitioner,
 )
 from .manager import DataManager
@@ -29,6 +30,7 @@ __all__ = [
     "LabelPartitioner",
     "DirichletPartitioner",
     "FedSRADirichletPartitioner",
+    "FedEMoEDirichletPartitioner",
     "QuantityPartitioner",
 
     # 数据管理器

@@ -35,6 +35,8 @@ class CIFAR10Dataset(Dataset):
     测试集: 10,000张图像
     """
 
+    _shared_datasets = {}
+
     def __init__(
         self,
         data_dir: str = "./data",
@@ -44,6 +46,7 @@ class CIFAR10Dataset(Dataset):
         max_samples: int | None = None,
         subset_seed: int = 42,
         transform_profile: str = "standard",
+        shared_cache: bool = False,
     ):
         """
         Args:
@@ -56,7 +59,13 @@ class CIFAR10Dataset(Dataset):
         self.split = split
         self.augmentation = augmentation
         self.transform_profile = transform_profile.lower()
-        if self.transform_profile not in {"standard", "fedsra", "fafi", "oneshot_half"}:
+        if self.transform_profile not in {
+            "standard",
+            "fedsra",
+            "fedemoe",
+            "fafi",
+            "oneshot_half",
+        }:
             raise ValueError(
                 "unsupported CIFAR-10 transform_profile"
             )
@@ -69,6 +78,25 @@ class CIFAR10Dataset(Dataset):
             # The FAFI reference applies its two stochastic views inside the
             # learner and keeps CIFAR-10 evaluation tensors unnormalised.
             transform = transforms.ToTensor()
+        elif self.transform_profile == "fedemoe":
+            operations = []
+            if is_train and self.augmentation:
+                operations.extend(
+                    [
+                        transforms.RandomCrop(32, padding=4),
+                        transforms.RandomHorizontalFlip(),
+                    ]
+                )
+            operations.extend(
+                [
+                    transforms.ToTensor(),
+                    transforms.Normalize(
+                        mean=[0.4914, 0.4822, 0.4465],
+                        std=[0.2470, 0.2435, 0.2616],
+                    ),
+                ]
+            )
+            transform = transforms.Compose(operations)
         elif self.transform_profile == "oneshot_half":
             operations = []
             if is_train and self.augmentation:
@@ -123,13 +151,26 @@ class CIFAR10Dataset(Dataset):
                 )
             ])
 
-        # 加载 CIFAR-10 数据集
-        self.dataset = torchvision.datasets.CIFAR10(
-            root=str(self.data_dir),
-            train=is_train,
-            download=download,
-            transform=transform
+        # A serial OiaFed paper run may create one logical Dataset per client.
+        # Opt-in sharing avoids loading 100 identical CIFAR arrays while each
+        # wrapper still owns its partition indices.
+        cache_key = (
+            str(self.data_dir.resolve()),
+            is_train,
+            self.augmentation,
+            self.transform_profile,
         )
+        if shared_cache and cache_key in self._shared_datasets:
+            self.dataset = self._shared_datasets[cache_key]
+        else:
+            self.dataset = torchvision.datasets.CIFAR10(
+                root=str(self.data_dir),
+                train=is_train,
+                download=download,
+                transform=transform
+            )
+            if shared_cache:
+                self._shared_datasets[cache_key] = self.dataset
         self.indices = None
         if max_samples is not None and int(max_samples) < len(self.dataset):
             if int(max_samples) <= 0:

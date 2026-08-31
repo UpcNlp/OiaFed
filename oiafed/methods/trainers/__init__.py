@@ -6,6 +6,7 @@ from .default import DefaultTrainer, AsyncTrainer
 from .continual import ContinualTrainer
 from .target import TARGETTrainer
 from .fedsra import FedSRATrainer
+from .fedemoe import FedEMoETrainer
 from .oneshot import (
     OFedAvgTrainer,
     EnsembleTrainer,
@@ -21,6 +22,7 @@ __all__ = [
     "ContinualTrainer",
     "TARGETTrainer",
     "FedSRATrainer",
+    "FedEMoETrainer",
     "OFedAvgTrainer",
     "EnsembleTrainer",
     "FAFITrainer",

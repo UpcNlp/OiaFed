@@ -61,6 +61,7 @@ from .mlp import (
 )
 
 from .fedsra import FedSRAResNet18Backbone, FedSRAEnsemble
+from .fedemoe import FedEMoEModel
 from .oneshot import (
     OneShotEnsemble,
     FAFIResNet18,
@@ -89,6 +90,7 @@ __all__ = [
     "FCUBEMLP",
     "FedSRAResNet18Backbone",
     "FedSRAEnsemble",
+    "FedEMoEModel",
     "OneShotEnsemble",
     "FAFIResNet18",
     "FAFIServerModel",
