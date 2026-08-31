@@ -27,7 +27,7 @@ defaults:
     two_view_augmentation: true
     reset_optimizer_each_epoch: true
   aggregator: {strict: true}
-  model: {num_classes: 10, feature_dim: 512}
+  model: {num_classes: 10, feature_dim: 512, initialization_seed: 0}
   dataset:
     data_dir: ./data
     download: true

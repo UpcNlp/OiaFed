@@ -60,7 +60,7 @@ def _protocol(
     commit: str,
 ) -> dict[str, Any]:
     return {
-        "version": 1,
+        "version": 2,
         "method": method,
         "dataset": dataset,
         "alpha": float(alpha),
@@ -104,6 +104,7 @@ def _override(
             "num_classes": num_classes,
             "image_size": int(spec["image_size"]),
             "shutdown_wait_time": 5,
+            "calibration_seed": int(seed),
         },
         "learner": {
             "device": "cuda",
@@ -112,7 +113,14 @@ def _override(
             "checkpoint_signature": checkpoint_signature,
             "resume": True,
         },
-        "model": {"num_classes": num_classes},
+        "model": {
+            "num_classes": num_classes,
+            **(
+                {"initialization_seed": int(seed)}
+                if method in {"fafi", "fusefl"}
+                else {}
+            ),
+        },
         "dataset": {
             "type": spec["type"],
             "data_dir": data_dir,

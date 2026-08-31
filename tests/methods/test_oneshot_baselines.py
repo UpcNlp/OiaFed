@@ -15,11 +15,12 @@ from oiafed.methods.aggregators.oneshot import OneShotBundleAggregator
 from oiafed.methods.learners.fl.oneshot import OFedAvgLearner
 from oiafed.methods.models.oneshot import (
     DataFreeGenerator,
+    FAFIResNet18,
     FAFIServerModel,
     FuseFLResNet18,
     OneShotEnsemble,
 )
-from oiafed.methods.trainers.oneshot import CoBoostingTrainer, FedCGSTrainer
+from oiafed.methods.trainers.oneshot import CoBoostingTrainer, FedCGSTrainer, FuseFLTrainer
 from oiafed.papers.loader import reload_registry
 from oiafed.registry import registry
 
@@ -151,6 +152,20 @@ def test_fafi_server_uses_data_size_features_and_uniform_global_prototypes():
     torch.testing.assert_close(logits, expected_features)
 
 
+def test_fafi_and_fusefl_replicate_the_shared_reference_initialization():
+    first_fafi = FAFIResNet18(num_classes=3, initialization_seed=17)
+    torch.randn(11)
+    second_fafi = FAFIResNet18(num_classes=3, initialization_seed=17)
+    for name, value in first_fafi.state_dict().items():
+        assert torch.equal(value, second_fafi.state_dict()[name])
+
+    first_fusefl = FuseFLResNet18(num_classes=3, base_width=2, initialization_seed=23)
+    torch.randn(13)
+    second_fusefl = FuseFLResNet18(num_classes=3, base_width=2, initialization_seed=23)
+    for name, value in first_fusefl.state_dict().items():
+        assert torch.equal(value, second_fusefl.state_dict()[name])
+
+
 def test_fedcgs_sufficient_statistics_match_direct_pooled_covariance():
     features = torch.tensor(
         [[0.0, 0.0], [0.0, 1.0], [3.0, 2.0], [4.0, 2.0]],
@@ -203,6 +218,24 @@ def test_fusefl_installs_all_client_branches_in_order():
     assert sum(isinstance(stage, nn.Module) for stage in server.stages) == 4
 
 
+def test_fusefl_ccvr_statistics_follow_the_released_artifact_rule():
+    statistics = [
+        {
+            "class_counts": torch.tensor([2.0]),
+            "class_sums": torch.tensor([[2.0]]),
+            "class_second_moments": torch.tensor([[[4.0]]]),
+        },
+        {
+            "class_counts": torch.tensor([2.0]),
+            "class_sums": torch.tensor([[10.0]]),
+            "class_second_moments": torch.tensor([[[52.0]]]),
+        },
+    ]
+    means, covariances = FuseFLTrainer.aggregate_feature_statistics(statistics)
+    torch.testing.assert_close(means, torch.tensor([[3.0]]))
+    torch.testing.assert_close(covariances, torch.tensor([[[18.0]]]))
+
+
 def test_coboosting_generator_and_kl_objective_are_finite():
     generator = DataFreeGenerator(latent_dim=8, width=4, image_size=32, channels=3)
     images = generator(torch.randn(2, 8))
@@ -211,3 +244,4 @@ def test_coboosting_generator_and_kl_objective_are_finite():
     loss = CoBoostingTrainer._kl(torch.randn(2, 3), torch.randn(2, 3), 4.0)
     assert torch.isfinite(loss)
     assert loss >= 0
+    assert CoBoostingTrainer._ods_step_size(8.0) == 8.0 / 255.0

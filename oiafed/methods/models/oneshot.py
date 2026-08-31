@@ -11,6 +11,7 @@ from __future__ import annotations
 
 import copy
 from collections.abc import Sequence
+from contextlib import contextmanager
 from typing import Any
 
 import torch
@@ -19,6 +20,17 @@ import torch.nn.functional as F
 
 from ...registry import model
 from .cifar import _BasicBlock, _ResNet
+
+
+@contextmanager
+def _isolated_seed(seed: int | None):
+    """Build replicated client models without advancing the process RNG."""
+    if seed is None:
+        yield
+        return
+    with torch.random.fork_rng(devices=[]):
+        torch.manual_seed(int(seed))
+        yield
 
 
 def _logits(output: Any) -> torch.Tensor:
@@ -82,14 +94,29 @@ class OneShotEnsemble(nn.Module):
 class FAFIResNet18(_ResNet):
     """ResNet-18 encoder plus the learnable prototype matrix used by FAFI."""
 
-    def __init__(self, num_classes: int = 10, feature_dim: int = 512):
+    def __init__(
+        self,
+        num_classes: int = 10,
+        feature_dim: int = 512,
+        initialization_seed: int | None = 0,
+    ):
         if int(feature_dim) != 512:
             raise ValueError("FAFI ResNet-18 has a fixed 512-dimensional encoder")
-        super().__init__(_BasicBlock, [2, 2, 2, 2], num_classes=num_classes)
-        self.num_classes = int(num_classes)
-        self.feature_dim = 512
-        del self.fc
-        self.learnable_proto = nn.Parameter(torch.randn(self.num_classes, self.feature_dim))
+        # The artifact creates one global model and deep-copies it to every
+        # client.  OiaFed constructs nodes independently, so isolate and reuse
+        # the same seed to preserve that shared feature coordinate system.
+        with _isolated_seed(initialization_seed):
+            super().__init__(_BasicBlock, [2, 2, 2, 2], num_classes=num_classes)
+            self.num_classes = int(num_classes)
+            self.feature_dim = 512
+            del self.fc
+            for module in self.modules():
+                if isinstance(module, nn.Conv2d):
+                    nn.init.kaiming_normal_(module.weight, mode="fan_out", nonlinearity="relu")
+                elif isinstance(module, (nn.BatchNorm2d, nn.GroupNorm)):
+                    nn.init.ones_(module.weight)
+                    nn.init.zeros_(module.bias)
+            self.learnable_proto = nn.Parameter(torch.randn(self.num_classes, self.feature_dim))
 
     def forward_features(self, inputs: torch.Tensor) -> torch.Tensor:
         """Return raw encoder features (the server aggregates before L2 normalization)."""
@@ -272,30 +299,36 @@ class FuseFLFusedStage(nn.Module):
 class FuseFLResNet18(nn.Module):
     """Four-stage ResNet-18 that can install progressively fused client branches."""
 
-    def __init__(self, num_classes: int = 10, base_width: int = 20):
+    def __init__(
+        self,
+        num_classes: int = 10,
+        base_width: int = 20,
+        initialization_seed: int | None = 0,
+    ):
         super().__init__()
-        width = int(base_width)
-        self.num_classes = int(num_classes)
-        self.base_width = width
+        with _isolated_seed(initialization_seed):
+            width = int(base_width)
+            self.num_classes = int(num_classes)
+            self.base_width = width
 
-        stem = nn.Sequential(
-            nn.Conv2d(3, width, 3, padding=1, bias=False),
-            nn.BatchNorm2d(width),
-            nn.ReLU(inplace=True),
-        )
-        stage1 = self._make_layer(width, width, 2, stride=1)
-        stage1.add_module("layer2", self._make_layer(width, width * 2, 2, stride=2))
-        stage2 = self._make_layer(width * 2, width * 4, 2, stride=2)
-        stage3 = nn.Sequential(
-            self._make_layer(width * 4, width * 8, 2, stride=2),
-            nn.AdaptiveAvgPool2d(1),
-        )
-        channels = [width, width * 2, width * 4, width * 8]
-        self.stages = nn.ModuleList(
-            [FuseFLLocalStage(block, out) for block, out in zip([stem, stage1, stage2, stage3], channels)]
-        )
-        self.stage_channels = channels
-        self.classifier = nn.Linear(width * 8, self.num_classes)
+            stem = nn.Sequential(
+                nn.Conv2d(3, width, 3, padding=1, bias=False),
+                nn.BatchNorm2d(width),
+                nn.ReLU(inplace=True),
+            )
+            stage1 = self._make_layer(width, width, 2, stride=1)
+            stage1.add_module("layer2", self._make_layer(width, width * 2, 2, stride=2))
+            stage2 = self._make_layer(width * 2, width * 4, 2, stride=2)
+            stage3 = nn.Sequential(
+                self._make_layer(width * 4, width * 8, 2, stride=2),
+                nn.AdaptiveAvgPool2d(1),
+            )
+            channels = [width, width * 2, width * 4, width * 8]
+            self.stages = nn.ModuleList(
+                [FuseFLLocalStage(block, out) for block, out in zip([stem, stage1, stage2, stage3], channels)]
+            )
+            self.stage_channels = channels
+            self.classifier = nn.Linear(width * 8, self.num_classes)
 
     @staticmethod
     def _make_layer(in_channels: int, out_channels: int, blocks: int, stride: int) -> nn.Sequential:

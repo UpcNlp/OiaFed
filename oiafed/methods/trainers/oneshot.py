@@ -6,10 +6,11 @@ import copy
 import math
 from typing import Any, Optional
 
+import numpy as np
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
-from torch.utils.data import DataLoader
+from torch.utils.data import DataLoader, TensorDataset
 
 from ...core.trainer import Trainer
 from ...core.types import ClientUpdate, RoundMetrics, RoundResult, TrainResult
@@ -318,6 +319,103 @@ class FedCGSTrainer(_OneShotTrainer):
 class FuseFLTrainer(_OneShotTrainer):
     algorithm = "fusefl"
 
+    @staticmethod
+    def aggregate_feature_statistics(
+        statistics: list[dict[str, torch.Tensor]],
+    ) -> tuple[torch.Tensor, torch.Tensor]:
+        """Reproduce FuseFL's released CCVR mean/covariance aggregation."""
+        if not statistics:
+            raise ValueError("FuseFL calibration requires client statistics")
+        counts = torch.stack(
+            [torch.as_tensor(item["class_counts"], dtype=torch.float64) for item in statistics]
+        )
+        sums = torch.stack(
+            [torch.as_tensor(item["class_sums"], dtype=torch.float64) for item in statistics]
+        )
+        second = torch.stack(
+            [torch.as_tensor(item["class_second_moments"], dtype=torch.float64) for item in statistics]
+        )
+        total_counts = counts.sum(dim=0)
+        if (total_counts <= 1).any():
+            missing = (total_counts <= 1).nonzero().flatten().tolist()
+            raise ValueError(f"FuseFL calibration needs at least two global samples for classes {missing}")
+
+        safe_counts = counts.clamp_min(1.0)
+        local_means = sums / safe_counts[:, :, None]
+        local_covariances = second / safe_counts[:, :, None, None] - (
+            local_means[:, :, :, None] * local_means[:, :, None, :]
+        )
+        local_covariances = torch.where(
+            (counts > 0)[:, :, None, None],
+            local_covariances,
+            torch.zeros_like(local_covariances),
+        )
+        class_means = sums.sum(dim=0) / total_counts[:, None]
+
+        # This deliberately follows the public FuseFL artifact's CCVR code,
+        # including its released covariance combination, because these are the
+        # statistics used for the paper table being reproduced.
+        denominator = (total_counts - 1)[:, None, None]
+        class_covariances = (
+            (counts - 1)[:, :, None, None] / denominator[None, :, :, :]
+            * local_covariances
+            + counts[:, :, None, None]
+            / denominator[None, :, :, :]
+            * (local_means[:, :, :, None] * local_means[:, :, None, :])
+        ).sum(dim=0)
+        class_covariances = (class_covariances + class_covariances.transpose(-1, -2)) / 2
+        return class_means.float(), class_covariances.float()
+
+    @staticmethod
+    def calibrate_classifier(
+        model: FuseFLResNet18,
+        class_means: torch.Tensor,
+        class_covariances: torch.Tensor,
+        *,
+        sample_per_class: int,
+        learning_rate: float,
+        batch_size: int,
+        seed: int,
+        device: torch.device,
+    ) -> dict[str, float]:
+        """Train the fused classifier for one CCVR pass on virtual features."""
+        rng = np.random.default_rng(int(seed))
+        virtual_features: list[torch.Tensor] = []
+        virtual_targets: list[torch.Tensor] = []
+        for class_index, (mean, covariance) in enumerate(zip(class_means, class_covariances)):
+            samples = rng.multivariate_normal(
+                mean.double().cpu().numpy(),
+                covariance.double().cpu().numpy(),
+                int(sample_per_class),
+                check_valid="warn",
+            )
+            virtual_features.append(torch.as_tensor(samples, dtype=torch.float32))
+            virtual_targets.append(torch.full((int(sample_per_class),), class_index, dtype=torch.long))
+        dataset = TensorDataset(torch.cat(virtual_features), torch.cat(virtual_targets))
+        generator = torch.Generator().manual_seed(int(seed))
+        dataloader = DataLoader(dataset, batch_size=int(batch_size), shuffle=True, generator=generator)
+
+        model.to(device)
+        model.classifier.train()
+        optimizer = torch.optim.SGD(model.classifier.parameters(), lr=float(learning_rate))
+        total_loss = 0.0
+        total_samples = 0
+        for features, targets in dataloader:
+            features = features.to(device, non_blocking=True)
+            targets = targets.to(device, non_blocking=True)
+            optimizer.zero_grad(set_to_none=True)
+            logits = model.classifier(features)
+            loss = F.cross_entropy(logits, targets)
+            loss.backward()
+            optimizer.step()
+            total_loss += float(loss.detach()) * targets.numel()
+            total_samples += targets.numel()
+        model.cpu()
+        return {
+            "calibration_loss": total_loss / max(1, total_samples),
+            "calibration_samples": float(total_samples),
+        }
+
     async def train_round(self, round_num: int) -> RoundResult:
         await self._begin_round(round_num)
         selected = self.get_connected_learners()
@@ -358,13 +456,45 @@ class FuseFLTrainer(_OneShotTrainer):
             server_model.install_fused_stage(stage, branches)
         classifier_state = _mean_states(classifiers)
         server_model.classifier.load_state_dict(classifier_state, strict=True)
+        statistics_results = await self.broadcast_to_selected(
+            selected,
+            "get_fusefl_feature_statistics",
+            {
+                "final_stage": stages - 1,
+                "final_branch_states": stage_states[-1],
+                "batch_size": int(self.config.get("calibration_feature_batch_size", 128)),
+                "num_workers": int(self.config.get("calibration_num_workers", 0)),
+                "device": self.config.get("device"),
+            },
+        )
+        errors = [item for item in statistics_results if isinstance(item, Exception)]
+        if errors:
+            raise RuntimeError(f"FuseFL feature-statistics collection failed: {errors[0]}")
+        class_means, class_covariances = self.aggregate_feature_statistics(statistics_results)
+        device_name = self.config.get("device") or ("cuda" if torch.cuda.is_available() else "cpu")
+        if str(device_name).startswith("cuda") and not torch.cuda.is_available():
+            device_name = "cpu"
+        calibration_metrics = self.calibrate_classifier(
+            server_model,
+            class_means,
+            class_covariances,
+            sample_per_class=int(self.config.get("sample_per_class", 5000)),
+            learning_rate=float(self.config.get("calibration_learning_rate", 0.01)),
+            batch_size=int(self.config.get("calibration_batch_size", 128)),
+            seed=int(self.config.get("calibration_seed", 0)),
+            device=torch.device(device_name),
+        )
+        classifier_state = _copy_state(server_model.classifier.state_dict())
         self._model = server_model
         metrics = self._evaluate(server_model)
+        metrics.update(calibration_metrics)
         aggregated = {
             "format": "oiafed.fusefl.progressive",
             "split_num": stages,
             "stage_branch_states": stage_states,
             "classifier_state": classifier_state,
+            "class_means": class_means,
+            "class_covariances": class_covariances,
         }
         return await self._finalize_round(
             self._round_result(
@@ -372,7 +502,7 @@ class FuseFLTrainer(_OneShotTrainer):
                 all_updates,
                 aggregated,
                 metrics,
-                communication_phases=stages + 1,
+                communication_phases=stages + 2,
             )
         )
 
@@ -393,6 +523,38 @@ class CoBoostingTrainer(_OneShotTrainer):
         mean = torch.as_tensor(self.config.get("normalization_mean", [0.5, 0.5, 0.5]), device=inputs.device).view(1, -1, 1, 1)
         std = torch.as_tensor(self.config.get("normalization_std", [0.5, 0.5, 0.5]), device=inputs.device).view(1, -1, 1, 1)
         return (inputs - mean) / std
+
+    def _denormalizer(self, inputs: torch.Tensor) -> torch.Tensor:
+        mean = torch.as_tensor(self.config.get("normalization_mean", [0.5, 0.5, 0.5]), device=inputs.device).view(1, -1, 1, 1)
+        std = torch.as_tensor(self.config.get("normalization_std", [0.5, 0.5, 0.5]), device=inputs.device).view(1, -1, 1, 1)
+        return inputs * std + mean
+
+    def _augment_synthetic(self, inputs: torch.Tensor) -> torch.Tensor:
+        """Apply the CIFAR ImagePool reload transform to raw [0, 1] images."""
+        if bool(self.config.get("synthetic_augmentation", True)):
+            padding = int(self.config.get("synthetic_crop_padding", 4))
+            if padding > 0:
+                batch, channels, height, width = inputs.shape
+                padded = F.pad(inputs, (padding, padding, padding, padding))
+                top = torch.randint(2 * padding + 1, (batch,), device=inputs.device)
+                left = torch.randint(2 * padding + 1, (batch,), device=inputs.device)
+                rows = top[:, None] + torch.arange(height, device=inputs.device)[None, :]
+                cols = left[:, None] + torch.arange(width, device=inputs.device)[None, :]
+                inputs = padded.gather(
+                    2,
+                    rows[:, None, :, None].expand(batch, channels, height, padded.size(3)),
+                ).gather(
+                    3,
+                    cols[:, None, None, :].expand(batch, channels, height, width),
+                )
+            flip = torch.rand(inputs.size(0), device=inputs.device) < 0.5
+            inputs = torch.where(flip[:, None, None, None], inputs.flip(-1), inputs)
+        return self._normalizer(inputs)
+
+    @staticmethod
+    def _ods_step_size(pixel_eta: float) -> float:
+        """The released Co-Boosting config expresses ODS eta in pixel units."""
+        return float(pixel_eta) / 255.0
 
     def _synthesize(
         self,
@@ -427,7 +589,11 @@ class CoBoostingTrainer(_OneShotTrainer):
             one_hot = ((1 - selected.detach()).pow(hard_power) * F.cross_entropy(teacher_logits, targets, reduction="none")).mean()
             student_logits = student(inputs)
             adversarial = -self._kl(student_logits, teacher_logits, 3.0)
-            bn_loss = torch.stack([hook.value.to(device) for hook in hooks]).mean() if hooks else inputs.new_zeros(())
+            bn_loss = (
+                torch.stack([hook.value.to(device) for hook in hooks]).sum() / len(teacher.models)
+                if hooks
+                else inputs.new_zeros(())
+            )
             loss = (
                 float(self.config.get("bn_weight", 0.0)) * bn_loss
                 + float(self.config.get("one_hot_weight", 1.0)) * one_hot
@@ -441,7 +607,11 @@ class CoBoostingTrainer(_OneShotTrainer):
                 best_inputs = inputs.detach().clone()
         if best_inputs is None:
             raise RuntimeError("Co-Boosting synthesis produced no batch")
-        return best_inputs, targets.detach()
+        # The reference denormalizes, writes PNGs, and reloads them through the
+        # train transform.  Quantization keeps the in-memory pool equivalent.
+        raw_inputs = self._denormalizer(best_inputs).clamp(0, 1)
+        raw_inputs = (raw_inputs * 255).round() / 255
+        return raw_inputs, targets.detach()
 
     def _adjust_weights(
         self,
@@ -450,12 +620,12 @@ class CoBoostingTrainer(_OneShotTrainer):
         labels: torch.Tensor,
         epoch: int,
     ) -> None:
-        if epoch == 0:
+        if epoch == 0 or not bool(self.config.get("weighted", False)):
             return
         batch_size = int(self.config.get("batch_size", 128))
         device = teacher.mixture_weights.device
         for start in range(0, images.size(0), batch_size):
-            batch = images[start : start + batch_size].to(device)
+            batch = self._augment_synthetic(images[start : start + batch_size].to(device))
             targets = labels[start : start + batch_size].to(device)
             original = teacher.mixture_weights.detach()
             mix = original.clone().requires_grad_(True)
@@ -486,11 +656,12 @@ class CoBoostingTrainer(_OneShotTrainer):
             math.ceil(images.size(0) / batch_size),
         )
         temperature = float(self.config.get("kd_temperature", 4.0))
-        ods_eta = float(self.config.get("ods_eta", 8.0))
+        ods_eta = self._ods_step_size(float(self.config.get("ods_eta", 8.0)))
         student.train()
-        for _ in range(steps):
-            indices = torch.randint(images.size(0), (min(batch_size, images.size(0)),))
-            batch = images[indices].to(device).detach().clone().requires_grad_(True)
+        order = torch.randperm(images.size(0))
+        for step in range(steps):
+            indices = order[step * batch_size : (step + 1) * batch_size]
+            batch = self._augment_synthetic(images[indices].to(device)).detach().clone().requires_grad_(True)
             teacher_logits = teacher(batch)
             random_weights = torch.empty_like(teacher_logits).uniform_(-1, 1)
             ods_objective = (random_weights * F.softmax(teacher_logits / 4.0, dim=1)).sum()

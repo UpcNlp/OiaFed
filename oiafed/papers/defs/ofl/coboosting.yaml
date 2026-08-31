@@ -33,9 +33,12 @@ defaults:
     kd_temperature: 4.0
     adversarial_weight: 1.0
     one_hot_weight: 1.0
-    bn_weight: 0.0
+    bn_weight: 1.0
     hard_sample_power: 1.0
     ods_eta: 8.0
+    weighted: false
+    synthetic_augmentation: true
+    synthetic_crop_padding: 4
     weight_step: 0.01
     weight_decay_factor: 0.99
     image_size: 32

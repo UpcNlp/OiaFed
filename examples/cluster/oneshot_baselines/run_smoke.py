@@ -47,6 +47,11 @@ def _override(method: str, data_dir: str, seed: int) -> dict[str, Any]:
         "generator_width": 4,
         "synthesis_batch_size": 4,
         "batch_size": 4,
+        "sample_per_class": 8,
+        "calibration_batch_size": 8,
+        "calibration_feature_batch_size": 32,
+        "calibration_num_workers": 0,
+        "calibration_seed": seed,
         "shutdown_wait_time": 2,
     }
     learner = {
@@ -62,6 +67,8 @@ def _override(method: str, data_dir: str, seed: int) -> dict[str, Any]:
         model["pretrained"] = False
     elif method == "fusefl":
         model["base_width"] = 4
+    if method in {"fafi", "fusefl"}:
+        model["initialization_seed"] = seed
     dataset = {
         "data_dir": data_dir,
         "download": True,

@@ -389,6 +389,63 @@ class FuseFLLearner(_SupervisedOneShotLearner):
         )
         return metadata
 
+    async def get_fusefl_feature_statistics(self, context: dict[str, Any]) -> dict[str, torch.Tensor]:
+        """Compute CCVR statistics on local data with the fully fused model.
+
+        FuseFL's reference implementation performs this privacy-preserving
+        feature-statistics pass after all four stages have been merged.  Only
+        sufficient statistics leave the client.
+        """
+        final_stage = int(context.get("final_stage", len(self.model.stages) - 1))
+        self.model.install_fused_stage(final_stage, context["final_branch_states"])
+
+        device_name = context.get("device", self.config.get("device"))
+        if device_name is None:
+            device_name = "cuda" if torch.cuda.is_available() else "cpu"
+        if str(device_name).startswith("cuda") and not torch.cuda.is_available():
+            device_name = "cpu"
+        device = torch.device(device_name)
+        self.model.to(device).eval()
+
+        dataset = self._first_dataset("train")
+        if dataset is None:
+            raise ValueError("FuseFL classifier calibration requires a train dataset")
+        dataloader = DataLoader(
+            dataset,
+            batch_size=int(context.get("batch_size", self.config.get("batch_size", 128))),
+            shuffle=False,
+            num_workers=int(context.get("num_workers", self.config.get("num_workers", 0))),
+            drop_last=False,
+            pin_memory=device.type == "cuda",
+        )
+
+        dimension = int(self.model.stage_channels[-1])
+        counts = torch.zeros(self._num_classes, dtype=torch.float64, device=device)
+        sums = torch.zeros(self._num_classes, dimension, dtype=torch.float64, device=device)
+        second_moments = torch.zeros(
+            self._num_classes,
+            dimension,
+            dimension,
+            dtype=torch.float64,
+            device=device,
+        )
+        with torch.no_grad():
+            for inputs, labels in dataloader:
+                features = self.model.forward_features(inputs.to(device, non_blocking=True)).double()
+                labels = labels.to(device, non_blocking=True).long()
+                for class_index in labels.unique().tolist():
+                    class_features = features[labels == int(class_index)]
+                    counts[int(class_index)] += class_features.size(0)
+                    sums[int(class_index)] += class_features.sum(dim=0)
+                    second_moments[int(class_index)] += class_features.T @ class_features
+
+        self.model.cpu()
+        return {
+            "class_counts": counts.cpu(),
+            "class_sums": sums.cpu(),
+            "class_second_moments": second_moments.cpu(),
+        }
+
 
 __all__ = [
     "OFedAvgLearner",
