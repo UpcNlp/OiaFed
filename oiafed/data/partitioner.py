@@ -328,6 +328,58 @@ class FedSRADirichletPartitioner(Partitioner):
         return result
 
 
+class FAFIDirichletPartitioner(Partitioner):
+    """Dirichlet split matching the released FAFI artifact.
+
+    FAFI shuffles each class with Python's ``random`` module, while drawing
+    class proportions from NumPy's RNG.  Reusing one NumPy RNG for both steps
+    changes every subsequent Dirichlet draw, which is especially significant
+    for the paper's highly heterogeneous ``alpha=0.05`` setting.
+    """
+
+    needs_labels = True
+
+    def __init__(self, alpha: float = 0.05, seed: Optional[int] = 42):
+        self._alpha = alpha
+        self._seed = seed
+
+    def partition(
+        self,
+        dataset_size: int,
+        num_clients: int,
+        labels: Optional[List[Any]] = None,
+    ) -> Dict[int, List[int]]:
+        if labels is None:
+            raise ValueError("FAFIDirichletPartitioner requires labels")
+        if len(labels) != dataset_size:
+            raise ValueError("labels length must equal dataset_size")
+
+        import numpy as np
+
+        python_rng = random.Random(self._seed)
+        numpy_rng = np.random.RandomState(self._seed)
+        label_to_indices: Dict[Any, List[int]] = {}
+        for index, label in enumerate(labels):
+            label_to_indices.setdefault(label, []).append(index)
+
+        result = {client_id: [] for client_id in range(num_clients)}
+        for label in label_to_indices:
+            indices = list(label_to_indices[label])
+            python_rng.shuffle(indices)
+            proportions = numpy_rng.dirichlet([self._alpha] * num_clients)
+            counts = (proportions * len(indices)).astype(int)
+            counts[-1] = len(indices) - int(counts[:-1].sum())
+
+            start = 0
+            for client_id, count in enumerate(counts):
+                end = start + int(count)
+                if end > start:
+                    result[client_id].extend(indices[start:end])
+                start = end
+
+        return result
+
+
 class QuantityPartitioner(Partitioner):
     """
     数量划分器

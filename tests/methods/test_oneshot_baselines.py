@@ -8,11 +8,12 @@ import torch.nn as nn
 from torch.utils.data import TensorDataset
 
 import oiafed.methods  # noqa: F401 - triggers built-in component registration
+from oiafed.data.partitioner import FAFIDirichletPartitioner
 from oiafed.core.types import ClientUpdate
 from oiafed.config.tracker import parse_tracker_config
 from oiafed.infra.logging import setup_logging
 from oiafed.methods.aggregators.oneshot import OneShotBundleAggregator
-from oiafed.methods.learners.fl.oneshot import OFedAvgLearner
+from oiafed.methods.learners.fl.oneshot import FAFILearner, OFedAvgLearner
 from oiafed.methods.models.oneshot import (
     DataFreeGenerator,
     FAFIResNet18,
@@ -65,6 +66,8 @@ def test_all_six_methods_are_registered_and_generate_configs():
         assert train_partitions
         assert all(partition["seed"] == 0 for partition in train_partitions)
         assert all(partition["alpha"] == 0.05 for partition in train_partitions)
+        expected_partition = "fafi_dirichlet" if method == "fafi" else "fedsra_dirichlet"
+        assert all(partition["strategy"] == expected_partition for partition in train_partitions)
 
     assert paper_registry.get("fedsra").category == "OFL"
     assert set(methods + ["fedsra"]).issubset(paper_registry.list_by_category("OFL"))
@@ -150,6 +153,50 @@ def test_fafi_server_uses_data_size_features_and_uniform_global_prototypes():
     logits = server(torch.zeros(1, 1))
     expected_features = torch.nn.functional.normalize(torch.tensor([[0.25, 0.75]]), dim=1)
     torch.testing.assert_close(logits, expected_features)
+
+
+def test_fafi_dirichlet_matches_released_python_and_numpy_rng_protocol():
+    import random
+
+    import numpy as np
+
+    labels = [class_id for class_id in range(4) for _ in range(17)]
+    actual = FAFIDirichletPartitioner(alpha=0.05, seed=42).partition(
+        len(labels),
+        5,
+        labels,
+    )
+
+    python_rng = random.Random(42)
+    numpy_rng = np.random.RandomState(42)
+    expected = {client_id: [] for client_id in range(5)}
+    for class_id in range(4):
+        indices = [i for i, label in enumerate(labels) if label == class_id]
+        python_rng.shuffle(indices)
+        counts = (numpy_rng.dirichlet([0.05] * 5) * len(indices)).astype(int)
+        counts[-1] = len(indices) - counts[:-1].sum()
+        start = 0
+        for client_id, count in enumerate(counts):
+            end = start + int(count)
+            expected[client_id].extend(indices[start:end])
+            start = end
+
+    assert actual == expected
+    assert sorted(index for values in actual.values() for index in values) == list(range(len(labels)))
+
+
+def test_fafi_two_view_transform_samples_one_policy_per_batch():
+    learner = FAFILearner.__new__(FAFILearner)
+    learner._num_classes = 10
+    image = torch.linspace(0.0, 1.0, 3 * 32 * 32).reshape(3, 32, 32)
+    inputs = image.unsqueeze(0).repeat(3, 1, 1, 1)
+
+    first, second = learner._two_views(inputs)
+
+    assert first.shape == inputs.shape
+    assert second.shape == inputs.shape
+    torch.testing.assert_close(first[0], first[1])
+    torch.testing.assert_close(second[0], second[1])
 
 
 def test_fafi_and_fusefl_replicate_the_shared_reference_initialization():

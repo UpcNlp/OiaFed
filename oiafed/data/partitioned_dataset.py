@@ -14,6 +14,7 @@ from .partitioner import (
     LabelPartitioner,
     DirichletPartitioner,
     FedSRADirichletPartitioner,
+    FAFIDirichletPartitioner,
     QuantityPartitioner,
     DirichletQuantityPartitioner,
 )
@@ -180,6 +181,10 @@ def _create_partitioner(
         alpha = config.get('alpha', 0.05)
         return FedSRADirichletPartitioner(alpha=alpha, seed=seed)
 
+    elif strategy == 'fafi_dirichlet':
+        alpha = config.get('alpha', 0.05)
+        return FAFIDirichletPartitioner(alpha=alpha, seed=seed)
+
     elif strategy == 'dirichlet_quantity':
         alpha = config.get('alpha', 0.5)
         return DirichletQuantityPartitioner(alpha=alpha, seed=seed)
@@ -192,7 +197,7 @@ def _create_partitioner(
     else:
         raise ValueError(
             f"Unknown partition strategy: {strategy}. "
-            f"Supported: iid, label, dirichlet, fedsra_dirichlet, "
+            f"Supported: iid, label, dirichlet, fedsra_dirichlet, fafi_dirichlet, "
             f"dirichlet_quantity, quantity, custom"
         )
 

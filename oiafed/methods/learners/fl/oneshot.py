@@ -229,28 +229,29 @@ class FAFILearner(_SupervisedOneShotLearner):
         # This mirrors get_supcon_transform in the FAFI artifact.  CIFAR-10 and
         # Tiny ImageNet arrive as raw tensors; CIFAR-100 intentionally arrives
         # pre-normalised because that is also what the reference loader does.
-        try:
-            from torchvision import transforms
+        from torchvision import transforms
 
-            if self._num_classes == 100:
-                mean = (0.5071, 0.4867, 0.4408)
-                std = (0.2675, 0.2565, 0.2761)
-            else:
-                mean = (0.5, 0.5, 0.5)
-                std = (0.5, 0.5, 0.5)
-            transform = transforms.Compose(
-                [
-                    transforms.RandomResizedCrop(inputs.shape[-1], scale=(0.2, 1.0), antialias=False),
-                    transforms.RandomHorizontalFlip(),
-                    transforms.RandomApply([transforms.ColorJitter(0.4, 0.4, 0.4, 0.1)], p=0.8),
-                    transforms.RandomGrayscale(p=0.2),
-                    transforms.Normalize(mean, std),
-                ]
-            )
-            first = torch.stack([transform(image) for image in inputs])
-            second = torch.stack([transform(image) for image in inputs])
-        except Exception:
-            first, second = inputs.clone(), inputs.clone()
+        if self._num_classes == 100:
+            mean = (0.5071, 0.4867, 0.4408)
+            std = (0.2675, 0.2565, 0.2761)
+        else:
+            mean = (0.5, 0.5, 0.5)
+            std = (0.5, 0.5, 0.5)
+        transform = transforms.Compose(
+            [
+                transforms.RandomResizedCrop(inputs.shape[-1], scale=(0.2, 1.0), antialias=False),
+                transforms.RandomHorizontalFlip(),
+                transforms.RandomApply([transforms.ColorJitter(0.4, 0.4, 0.4, 0.1)], p=0.8),
+                transforms.RandomGrayscale(p=0.2),
+                transforms.Normalize(mean, std),
+            ]
+        )
+        # The released artifact invokes the torchvision pipeline once per 4-D
+        # mini-batch, so each view shares one sampled crop/jitter policy across
+        # that batch.  Applying it image-by-image is both a protocol change and
+        # substantially slower on the DCU validation cluster.
+        first = transform(inputs)
+        second = transform(inputs)
         return first, second
 
     async def train_epoch(self, epoch_idx: int):

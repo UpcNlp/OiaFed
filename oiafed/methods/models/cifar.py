@@ -233,7 +233,7 @@ class _BasicBlock(nn.Module):
 class _ResNet(nn.Module):
     """ResNet 基类 (适配 CIFAR 32x32)"""
 
-    def __init__(self, block, num_blocks, num_classes=10):
+    def __init__(self, block, num_blocks, num_classes=10, include_classifier=True):
         super().__init__()
         self.in_planes = 64
 
@@ -249,7 +249,8 @@ class _ResNet(nn.Module):
 
         # 分类器
         self.avgpool = nn.AdaptiveAvgPool2d((1, 1))
-        self.fc = nn.Linear(512 * block.expansion, num_classes)
+        if include_classifier:
+            self.fc = nn.Linear(512 * block.expansion, num_classes)
 
     def _make_layer(self, block, planes, num_blocks, stride):
         strides = [stride] + [1] * (num_blocks - 1)

@@ -59,6 +59,7 @@ def _protocol(
     seed: int,
     commit: str,
 ) -> dict[str, Any]:
+    partition = "fafi_dirichlet" if method == "fafi" else "fedsra_dirichlet"
     return {
         "version": 2,
         "method": method,
@@ -67,7 +68,7 @@ def _protocol(
         "num_clients": int(num_clients),
         "seed": int(seed),
         "complete_dataset": True,
-        "partition": "fedsra_dirichlet",
+        "partition": partition,
         "transport": "memory",
         "git_commit": commit,
     }
@@ -92,6 +93,7 @@ def _override(
     checkpoint_signature: str,
 ) -> dict[str, Any]:
     num_classes = int(spec["num_classes"])
+    partition = "fafi_dirichlet" if method == "fafi" else "fedsra_dirichlet"
     return {
         "global_config": {
             "exp_name": f"{method}_{spec['type']}_k{num_clients}_a{_alpha_tag(alpha)}_s{seed}",
@@ -127,7 +129,7 @@ def _override(
             "download": True,
             "server_test": True,
             "partition": {
-                "strategy": "fedsra_dirichlet",
+                "strategy": partition,
                 "alpha": float(alpha),
                 "seed": int(seed),
             },

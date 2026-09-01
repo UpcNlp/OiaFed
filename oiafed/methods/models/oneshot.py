@@ -106,10 +106,18 @@ class FAFIResNet18(_ResNet):
         # client.  OiaFed constructs nodes independently, so isolate and reuse
         # the same seed to preserve that shared feature coordinate system.
         with _isolated_seed(initialization_seed):
-            super().__init__(_BasicBlock, [2, 2, 2, 2], num_classes=num_classes)
+            # The FAFI encoder has no classifier layer.  Constructing and then
+            # deleting one would still consume RNG state before the artifact's
+            # explicit Kaiming reinitialisation, producing different seed-
+            # controlled encoder and prototype weights.
+            super().__init__(
+                _BasicBlock,
+                [2, 2, 2, 2],
+                num_classes=num_classes,
+                include_classifier=False,
+            )
             self.num_classes = int(num_classes)
             self.feature_dim = 512
-            del self.fc
             for module in self.modules():
                 if isinstance(module, nn.Conv2d):
                     nn.init.kaiming_normal_(module.weight, mode="fan_out", nonlinearity="relu")
