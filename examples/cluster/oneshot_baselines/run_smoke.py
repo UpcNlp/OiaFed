@@ -76,7 +76,7 @@ def _override(method: str, data_dir: str, seed: int) -> dict[str, Any]:
         "max_samples": 256,
         "subset_seed": seed,
         "partition": {
-            "strategy": "fedsra_dirichlet",
+            "strategy": "fafi_dirichlet" if method == "fafi" else "fedsra_dirichlet",
             "alpha": 0.5,
             "seed": seed,
         },
