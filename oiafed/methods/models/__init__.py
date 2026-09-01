@@ -62,6 +62,7 @@ from .mlp import (
 
 from .fedsra import FedSRAResNet18Backbone, FedSRAEnsemble
 from .fedemoe import FedEMoEModel
+from .fedemoe_baselines import FedEMoEBaselineModel, FedEMoEDAModel
 from .oneshot import (
     OneShotEnsemble,
     FAFIResNet18,
@@ -91,6 +92,8 @@ __all__ = [
     "FedSRAResNet18Backbone",
     "FedSRAEnsemble",
     "FedEMoEModel",
+    "FedEMoEBaselineModel",
+    "FedEMoEDAModel",
     "OneShotEnsemble",
     "FAFIResNet18",
     "FAFIServerModel",

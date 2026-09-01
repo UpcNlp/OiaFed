@@ -1,0 +1,17 @@
+id: fedemoe_fedsym
+name: "FedSym (FedEMoE comparison implementation)"
+category: HFL
+venue: "IEEE Internet of Things Journal"
+year: 2025
+url: "https://github.com/Stephen-Chow1/FedEMoE-CEGA"
+description: "Model-pool symbiosis baseline from the FedEMoE comparison artifact."
+components: {learner: fedemoe_fedsym, aggregator: fedemoe_fedsym, trainer: fedemoe_fedsym, model: fedemoe_baseline, dataset: cifar10}
+defaults:
+  experiment: {num_clients: 100}
+  trainer: {num_rounds: 500, local_epochs: 5, clients_per_round: 10, client_fraction: 0.1, eval_interval: 10, seed: 42, device: cuda, batch_size: 64, num_workers: 4, eval_batch_size: 64, eval_num_workers: 4}
+  learner: {learning_rate: 0.01, batch_size: 64, momentum: 0.9, weight_decay: 0.0001, optimizer: sgd, num_classes: 10, num_workers: 4, device: cuda}
+  aggregator: {num_classes: 10, backbone: cnn, input_channels: 3, input_size: 32, hidden_dim: 256, symbiosis_pool_size: 10, symbiosis_mode: endo, device: cuda}
+  model: {num_classes: 10, backbone: cnn, input_channels: 3, input_size: 32, hidden_dim: 256, dropout: 0.1, seed: 42}
+  dataset: {data_dir: ./data, download: true, server_test: true, learner_test: false, shared_cache: true, augmentation: false, transform_profile: fedemoe, partition: {strategy: fedemoe_dirichlet, alpha: 0.5, seed: 42}}
+notes: "Maintains the artifact's ten-model pool and endosymbiosis comparison setting."
+

@@ -18,6 +18,7 @@ from .fedproto import FedProtoAggregator
 from .faderaser import FedEraserAggregator, FedEraserPlusAggregator
 from .fedsra import FedSRAAggregator
 from .fedemoe import FedEMoEAggregator
+from .fedemoe_baselines import FedEMoEBaselineAggregator
 from .oneshot import OneShotBundleAggregator
 
 __all__ = [
@@ -36,5 +37,6 @@ __all__ = [
     "FedEraserPlusAggregator",
     "FedSRAAggregator",
     "FedEMoEAggregator",
+    "FedEMoEBaselineAggregator",
     "OneShotBundleAggregator",
 ]
