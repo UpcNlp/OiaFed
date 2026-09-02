@@ -60,6 +60,18 @@ from .mlp import (
     FCUBEMLP,
 )
 
+from .fedsra import FedSRAResNet18Backbone, FedSRAEnsemble
+from .fedemoe import FedEMoEModel
+from .fedemoe_baselines import FedEMoEBaselineModel, FedEMoEDAModel
+from .oneshot import (
+    OneShotEnsemble,
+    FAFIResNet18,
+    FAFIServerModel,
+    FedCGSResNet18,
+    FedCGSServerModel,
+    DataFreeGenerator,
+    FuseFLResNet18,
+)
 from .fot_alexnet import FOTAlexNet
 
 
@@ -78,5 +90,17 @@ __all__ = [
     "PaperMLP",
     "AdultMLP",
     "FCUBEMLP",
-    "FOTAlexNet"
+    "FedSRAResNet18Backbone",
+    "FedSRAEnsemble",
+    "FedEMoEModel",
+    "FedEMoEBaselineModel",
+    "FedEMoEDAModel",
+    "OneShotEnsemble",
+    "FAFIResNet18",
+    "FAFIServerModel",
+    "FedCGSResNet18",
+    "FedCGSServerModel",
+    "DataFreeGenerator",
+    "FuseFLResNet18",
+    "FOTAlexNet",
 ]

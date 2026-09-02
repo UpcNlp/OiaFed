@@ -1,0 +1,36 @@
+id: fusefl
+name: "FuseFL: One-Shot Federated Learning through Model Fusion"
+category: OFL
+venue: "One-shot FL"
+year: 2024
+description: |
+  A ResNet-18 is split into four segments. Each segment is locally optimized,
+  all client variants are frozen as horizontal branches, and the next segment
+  consumes their concatenation through a learned 1x1 adapter.
+components:
+  learner: fusefl
+  aggregator: oneshot_bundle
+  trainer: fusefl
+  model: fusefl_resnet18
+  dataset: cifar10
+defaults:
+  experiment: {num_clients: 5}
+  trainer:
+    max_rounds: 1
+    split_num: 4
+    local_epochs_per_stage: 50
+    client_fraction: 1.0
+    eval_batch_size: 256
+  learner: {learning_rate: 0.01, momentum: 0.9, weight_decay: 0.0, batch_size: 128, num_workers: 4, num_classes: 10}
+  aggregator: {strict: true}
+  model: {num_classes: 10, base_width: 20}
+  dataset:
+    data_dir: ./data
+    download: true
+    server_test: true
+    transform_profile: standard
+    partition: {strategy: fedsra_dirichlet, alpha: 0.05, seed: 0}
+params:
+  trainer.local_epochs_per_stage: {type: int, range: [1, 500], desc: "Local epochs for each fused segment"}
+  dataset.partition.alpha: {type: float, choices: [0.05, 0.1, 0.3, 0.5], desc: "Dirichlet concentration"}
+notes: "The trainer performs four progressive branch uploads plus the classifier fusion; it does not approximate FuseFL with FedAvg."

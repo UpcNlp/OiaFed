@@ -1,0 +1,39 @@
+exp_name: ${FEDSRA_EXP_NAME}
+
+trainer:
+  device: cuda
+  fit_timeout: 172800
+  eval_num_workers: 4
+  shutdown_learners: true
+  num_classes: 200
+  feature_dim: 256
+
+learner:
+  device: cuda
+  checkpoint_dir: ${FEDSRA_CHECKPOINT_DIR}
+  resume: true
+  enable_progress_bar: true
+  num_classes: 200
+  feature_dim: 256
+
+model:
+  num_classes: 200
+  feature_dim: 256
+
+dataset:
+  type: tiny_imagenet
+  data_dir: /public/home/dongshou/data
+  download: false
+  server_test: true
+  transform_profile: fedsra
+  partition:
+    strategy: fedsra_dirichlet
+    alpha: 0.05
+    seed: 42
+
+logging:
+  console: true
+  level: INFO
+
+tracker:
+  enabled: false

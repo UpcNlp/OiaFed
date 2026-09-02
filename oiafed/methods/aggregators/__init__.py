@@ -16,6 +16,10 @@ from .feddyn import FedDynAggregator
 from .fedbn import FedBNAggregator
 from .fedproto import FedProtoAggregator
 from .faderaser import FedEraserAggregator, FedEraserPlusAggregator
+from .fedsra import FedSRAAggregator
+from .fedemoe import FedEMoEAggregator
+from .fedemoe_baselines import FedEMoEBaselineAggregator
+from .oneshot import OneShotBundleAggregator
 from .fedproject import FedProjectAggregator
 
 __all__ = [
@@ -28,9 +32,13 @@ __all__ = [
     "FedAdamAggregator",
     "FedYogiAggregator",
     "FedDynAggregator",
-    "FedProjectAggregator"
+    "FedProjectAggregator",
     "FedBNAggregator",
     "FedProtoAggregator",
     "FedEraserAggregator",
     "FedEraserPlusAggregator",
+    "FedSRAAggregator",
+    "FedEMoEAggregator",
+    "FedEMoEBaselineAggregator",
+    "OneShotBundleAggregator",
 ]

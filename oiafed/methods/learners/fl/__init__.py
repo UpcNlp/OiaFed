@@ -13,6 +13,17 @@ from .fedcp import FedCPLearner
 from .gpfl import GPFLLearner
 from .feddbe import FedDBELearner
 from .fedrod import FedRoDLearner
+from .fedsra import FedSRALearner
+from .fedemoe import FedEMoELearner
+from .fedemoe_baselines import FedEMoEBaselineLearner
+from .oneshot import (
+    OFedAvgLearner,
+    EnsembleLearner,
+    CoBoostingLearner,
+    FAFILearner,
+    FedCGSLearner,
+    FuseFLLearner,
+)
 
 __all__ = [
     "GenericLearner",
@@ -26,4 +37,13 @@ __all__ = [
     "GPFLLearner",
     "FedDBELearner",
     "FedRoDLearner",
+    "FedSRALearner",
+    "FedEMoELearner",
+    "FedEMoEBaselineLearner",
+    "OFedAvgLearner",
+    "EnsembleLearner",
+    "CoBoostingLearner",
+    "FAFILearner",
+    "FedCGSLearner",
+    "FuseFLLearner",
 ]

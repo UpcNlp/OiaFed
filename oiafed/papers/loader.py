@@ -164,6 +164,7 @@ class PaperRegistry:
     CATEGORY_NAMES = {
         "HFL": "横向联邦学习 (Horizontal FL)",
         "VFL": "纵向联邦学习 (Vertical FL)",
+        "OFL": "单轮联邦学习 (One-Shot FL)",
         "FCL": "联邦持续学习 (Federated Continual Learning)",
         "FU": "联邦遗忘 (Federated Unlearning)",
     }
@@ -555,6 +556,8 @@ class PaperRegistry:
                     params["partition_strategy"] = partition["strategy"]
                 if "alpha" in partition:
                     params["partition_alpha"] = partition["alpha"]
+                if "seed" in partition:
+                    params["partition_seed"] = partition["seed"]
             
             # ⭐ 提取 Trainer 的数据集配置
             trainer_ds_list = []
@@ -582,6 +585,10 @@ class PaperRegistry:
             
             # 提取 partition
             partition = dataset_config.pop("partition", {})
+            # These flags control federation generation and are not Dataset
+            # constructor arguments.
+            params["server_test"] = bool(dataset_config.pop("server_test", True))
+            params["learner_test"] = bool(dataset_config.pop("learner_test", True))
             
             # 数据集类型和参数
             if "type" in dataset_config:
@@ -593,6 +600,8 @@ class PaperRegistry:
                 params["partition_strategy"] = partition["strategy"]
             if "alpha" in partition:
                 params["partition_alpha"] = partition["alpha"]
+            if "seed" in partition:
+                params["partition_seed"] = partition["seed"]
             
             # ⭐ VFL 简化格式: Trainer 也需要训练数据来驱动 split training
             if is_vfl:
@@ -736,7 +745,7 @@ class PaperRegistry:
             f"",
         ]
         
-        for category in ["HFL", "VFL", "FCL", "FU"]:
+        for category in ["HFL", "VFL", "OFL", "FCL", "FU"]:
             if category not in grouped:
                 continue
             

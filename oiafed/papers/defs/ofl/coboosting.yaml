@@ -1,0 +1,58 @@
+id: coboosting
+name: "Co-Boosting for Data-Free One-Shot Federated Learning"
+category: OFL
+venue: "ICML 2023"
+year: 2023
+description: |
+  Independently trained client teachers are combined by a dynamically weighted
+  ensemble. A server generator mines hard/adversarial images and a fresh
+  student is distilled with output-diversified sampling.
+components:
+  learner: coboosting
+  aggregator: oneshot_bundle
+  trainer: coboosting
+  model: resnet18
+  dataset: cifar10
+defaults:
+  experiment: {num_clients: 5}
+  trainer:
+    max_rounds: 1
+    local_epochs: 300
+    client_fraction: 1.0
+    eval_batch_size: 256
+    num_classes: 10
+    server_epochs: 200
+    generator_steps: 30
+    kd_steps: 400
+    latent_dim: 256
+    generator_width: 64
+    synthesis_batch_size: 128
+    batch_size: 128
+    generator_lr: 0.001
+    kd_learning_rate: 0.01
+    kd_temperature: 4.0
+    adversarial_weight: 1.0
+    one_hot_weight: 1.0
+    bn_weight: 0.0
+    hard_sample_power: 1.0
+    ods_eta: 8.0
+    weight_step: 0.01
+    weight_decay_factor: 0.99
+    image_size: 32
+    image_channels: 3
+    normalization_mean: [0.5, 0.5, 0.5]
+    normalization_std: [0.5, 0.5, 0.5]
+  learner: {learning_rate: 0.01, momentum: 0.9, weight_decay: 0.0, batch_size: 128, num_workers: 4, num_classes: 10}
+  aggregator: {strict: true}
+  model: {num_classes: 10}
+  dataset:
+    data_dir: ./data
+    download: true
+    server_test: true
+    transform_profile: oneshot_half
+    partition: {strategy: fedsra_dirichlet, alpha: 0.05, seed: 0}
+params:
+  trainer.server_epochs: {type: int, range: [1, 500], desc: "Server synthesis/distillation epochs"}
+  trainer.generator_steps: {type: int, range: [1, 100], desc: "Generator optimization steps per server epoch"}
+  trainer.kd_steps: {type: int, range: [1, 2000], desc: "Student KD steps per server epoch"}
+  dataset.partition.alpha: {type: float, choices: [0.05, 0.1, 0.3, 0.5], desc: "Dirichlet concentration"}

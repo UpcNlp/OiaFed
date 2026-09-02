@@ -1,0 +1,90 @@
+# ==================== FedSRA: One-Shot Federated Learning ====================
+
+id: fedsra
+name: "FedSRA: One-Shot Federated Learning with ETF Alignment and RGA"
+category: OFL
+venue: "ICDE submission artifact"
+year: 2027
+description: |
+  One-shot federated learning with a frozen shared simplex ETF classifier.
+  Clients train feature backbones using ERL, and the server retains all client
+  backbones and performs Reliability-Guided Aggregation (RGA) at inference.
+
+components:
+  learner: fedsra
+  aggregator: fedsra
+  trainer: fedsra
+  model: fedsra_resnet18
+  dataset: cifar10
+
+defaults:
+  experiment:
+    num_clients: 5
+
+  trainer:
+    max_rounds: 1
+    local_epochs: 600
+    client_fraction: 1.0
+    eval_batch_size: 256
+    num_classes: 10
+    feature_dim: 256
+    etf_seed: 42
+
+  learner:
+    learning_rate: 0.001
+    batch_size: 128
+    num_workers: 4
+    persistent_workers: true
+    drop_last: true
+    use_bf16: true
+    resume: true
+    num_classes: 10
+    feature_dim: 256
+    etf_seed: 42
+    loss_type: J
+    alignment_weight: 0.5
+    temperature: 0.1
+
+  aggregator:
+    strict: true
+
+  model:
+    num_classes: 10
+    feature_dim: 256
+
+  dataset:
+    data_dir: ./data
+    download: true
+    server_test: true
+    transform_profile: fedsra
+    partition:
+      strategy: fedsra_dirichlet
+      alpha: 0.05
+      seed: 42
+
+params:
+  experiment.num_clients:
+    type: int
+    choices: [2, 5, 10, 20]
+    desc: "Number of one-shot clients"
+
+  learner.loss_type:
+    type: str
+    choices: [R, I, J]
+    desc: "ERL loss variant"
+
+  learner.learning_rate:
+    type: float
+    range: [0.0001, 0.01]
+    desc: "Local Adam learning rate"
+
+  dataset.partition.alpha:
+    type: float
+    choices: [0.05, 0.1, 0.3, 0.5]
+    desc: "Dirichlet concentration"
+
+notes: |
+  - This method must run with max_rounds=1 and client_fraction=1.0.
+  - The aggregator packages client states; it never averages state_dict values.
+  - Paper-number evaluation uses one z-score calculation over the complete test set.
+  - Conditional experts and FilterMerge remain optional follow-up components.

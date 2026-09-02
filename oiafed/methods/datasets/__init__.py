@@ -8,6 +8,7 @@ from .mnist import MNISTDataset
 from .fmnist import FashionMNISTDataset
 from .cifar10 import CIFAR10Dataset
 from .cifar100 import CIFAR100Dataset
+from .tiny_imagenet import TinyImageNetDataset
 from .svhn import SVHNDataset
 from .cinic10 import CINIC10Dataset
 from .adult import AdultDataset
@@ -19,6 +20,7 @@ __all__ = [
     "FashionMNISTDataset",
     "CIFAR10Dataset",
     "CIFAR100Dataset",
+    "TinyImageNetDataset",
     "SVHNDataset",
     "CINIC10Dataset",
     "AdultDataset",

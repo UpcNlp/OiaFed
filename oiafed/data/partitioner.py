@@ -278,6 +278,106 @@ class DirichletPartitioner(Partitioner):
         return result
 
 
+class FedSRADirichletPartitioner(Partitioner):
+    """Dirichlet split matching the FedSRA reference artifact exactly.
+
+    The reference assigns integer-rounding residue to the final client for
+    each class and preserves the class-wise concatenation order.  Keeping
+    this separate avoids changing OiaFed's standard Dirichlet behavior.
+    """
+
+    needs_labels = True
+
+    def __init__(self, alpha: float = 0.05, seed: Optional[int] = 42):
+        self._alpha = alpha
+        self._seed = seed
+
+    def partition(
+        self,
+        dataset_size: int,
+        num_clients: int,
+        labels: Optional[List[Any]] = None,
+    ) -> Dict[int, List[int]]:
+        if labels is None:
+            raise ValueError("FedSRADirichletPartitioner requires labels")
+        if len(labels) != dataset_size:
+            raise ValueError("labels length must equal dataset_size")
+
+        import numpy as np
+
+        rng = np.random.RandomState(self._seed)
+        label_to_indices: Dict[Any, List[int]] = {}
+        for index, label in enumerate(labels):
+            label_to_indices.setdefault(label, []).append(index)
+
+        result = {client_id: [] for client_id in range(num_clients)}
+        for label in label_to_indices:
+            indices = np.asarray(label_to_indices[label])
+            rng.shuffle(indices)
+            proportions = rng.dirichlet([self._alpha] * num_clients)
+            counts = (proportions * len(indices)).astype(int)
+            counts[-1] = len(indices) - int(counts[:-1].sum())
+
+            start = 0
+            for client_id, count in enumerate(counts):
+                end = start + int(count)
+                if end > start:
+                    result[client_id].extend(indices[start:end].tolist())
+                start = end
+
+        return result
+
+
+class FedEMoEDirichletPartitioner(Partitioner):
+    """Dirichlet split matching the validated FedEMoE artifact exactly.
+
+    The reference uses cumulative integer endpoints for each class and keeps
+    class-wise concatenation order.  This is intentionally separate from the
+    framework's standard Dirichlet implementation because its rounding and
+    final shuffle produce different client datasets.
+    """
+
+    needs_labels = True
+
+    def __init__(self, alpha: float = 0.5, seed: Optional[int] = 42):
+        self._alpha = alpha
+        self._seed = seed
+
+    def partition(
+        self,
+        dataset_size: int,
+        num_clients: int,
+        labels: Optional[List[Any]] = None,
+    ) -> Dict[int, List[int]]:
+        if labels is None:
+            raise ValueError("FedEMoEDirichletPartitioner requires labels")
+        if len(labels) != dataset_size:
+            raise ValueError("labels length must equal dataset_size")
+
+        import numpy as np
+
+        np.random.seed(self._seed)
+        target_array = np.asarray(labels)
+        num_classes = len(np.unique(target_array))
+        result = {client_id: [] for client_id in range(num_clients)}
+
+        for class_index in range(num_classes):
+            class_indices = np.where(target_array == class_index)[0]
+            np.random.shuffle(class_indices)
+            proportions = np.random.dirichlet([self._alpha] * num_clients)
+            proportions = proportions / proportions.sum()
+            endpoints = (
+                np.cumsum(proportions) * len(class_indices)
+            ).astype(int)
+
+            start = 0
+            for client_id, end in enumerate(endpoints):
+                result[client_id].extend(class_indices[start:end].tolist())
+                start = end
+
+        return result
+
+
 class QuantityPartitioner(Partitioner):
     """
     数量划分器

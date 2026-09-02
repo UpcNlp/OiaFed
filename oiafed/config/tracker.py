@@ -243,7 +243,7 @@ def parse_tracker_config(data: Optional[Dict[str, Any]]) -> TrackerConfig:
         return TrackerConfig()
     
     backends = None
-    if "backends" in data:
+    if data.get("backends") is not None:
         backends = [
             parse_tracker_backend_config(b) if isinstance(b, dict) else b
             for b in data["backends"]
