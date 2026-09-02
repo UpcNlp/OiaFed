@@ -112,8 +112,16 @@ class TARGETLearner(Learner):
 
     async def setup(self, config: Dict) -> None:
         """初始化训练环境"""
+        # 保存 task_id（由 ContinualTrainer 通过 fit_config 传入）
+        if 'task_id' in config:
+            self.current_task_id = config['task_id']
+            self._config['task_id'] = config['task_id']
+
         # 获取PyTorch模型
-        self.torch_model = self._model.get_model()
+        if hasattr(self._model, "get_model"):
+            self.torch_model = self._model.get_model() if hasattr(self._model, "get_model") else self._model
+        else:
+            self.torch_model = self._model
         self.torch_model.to(self.device)
 
         # 创建优化器
@@ -162,17 +170,24 @@ class TARGETLearner(Learner):
             f"Setup完成: train_samples={len(train_datasets[0]) if train_datasets else 0}"
         )
 
-    def _get_task_data_loader(self, task_id: int) -> DataLoader:
+    def _get_task_data_loader(self, task_id: int, split: str = "train") -> DataLoader:
         """
         获取特定任务的数据加载器
 
         根据当前任务ID筛选对应的类别数据
+
+        Args:
+            task_id: 任务ID
+            split: 数据集分割，"train" 或 "test"
         """
-        train_datasets = self._datasets.get("train", [])
-        if not train_datasets:
+        datasets = self._datasets.get(split, [])
+        if not datasets:
+            # fallback
+            datasets = self._datasets.get("train", [])
+        if not datasets:
             return self._train_loader
 
-        dataset = train_datasets[0]
+        dataset = datasets[0]
 
         # 计算当前任务的类别范围
         start_class = task_id * self.classes_per_task
@@ -209,7 +224,7 @@ class TARGETLearner(Learner):
             drop_last=False
         )
 
-    async def train_epoch(self, epoch: int) -> EpochMetrics:
+    async def train_epoch(self, epoch_idx: int) -> EpochMetrics:
         """
         单轮训练 - TARGET训练循环
 
@@ -244,11 +259,11 @@ class TARGETLearner(Learner):
 
         # Task 0: 标准训练
         if task_id == 0:
-            return await self._train_first_task_epoch(epoch, task_loader, task_id)
+            return await self._train_first_task_epoch(epoch_idx, task_loader, task_id)
 
         # Task > 0: 使用合成数据进行知识蒸馏
         else:
-            return await self._train_with_distillation_epoch(epoch, task_loader, task_id)
+            return await self._train_with_distillation_epoch(epoch_idx, task_loader, task_id)
 
     async def _train_first_task_epoch(self, epoch: int, task_loader: DataLoader, task_id: int) -> EpochMetrics:
         """训练第一个任务的单个epoch（无需蒸馏）"""
@@ -439,7 +454,7 @@ class TARGETLearner(Learner):
 
         # 动态导入以避免循环依赖
         try:
-            from methods.learners.cl.target_generator import UnlabeledImageDataset
+            from oiafed.methods.learners.cl.target_generator import UnlabeledImageDataset
         except ImportError:
             self.logger.error("Failed to import UnlabeledImageDataset from target_generator")
             return None
@@ -524,9 +539,9 @@ class TARGETLearner(Learner):
         """评估模型性能"""
         task_id = (config or {}).get("task_id", self.current_task_id)
 
-        # 获取评估数据
+        # 获取评估数据（使用 test split）
         if task_id is not None:
-            eval_loader = self._get_task_data_loader(task_id)
+            eval_loader = self._get_task_data_loader(task_id, split="test")
         else:
             eval_loader = self._test_loader if self._test_loader else self._train_loader
 
@@ -601,6 +616,12 @@ class TARGETLearner(Learner):
     def set_weights(self, weights: Dict[str, Any]) -> bool:
         """设置模型权重"""
         try:
+            # setup之前torch_model可能为None，使用_model作为fallback
+            model = self.torch_model if self.torch_model is not None else self._model
+            if model is None:
+                self.logger.warning(f"[{self._node_id}] Model not initialized yet, skipping set_weights")
+                return True
+
             # 转换为torch tensor
             torch_weights = {}
             for k, v in weights.items():
@@ -609,7 +630,7 @@ class TARGETLearner(Learner):
                 else:
                     torch_weights[k] = torch.from_numpy(v)
 
-            self.torch_model.load_state_dict(torch_weights)
+            model.load_state_dict(torch_weights)
             self.logger.debug(f"[{self._node_id}] Model weights updated")
             return True
         except Exception as e:

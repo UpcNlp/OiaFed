@@ -184,7 +184,7 @@ class TARGETTrainer(Trainer):
         # CL metrics tracking
         if self.compute_forgetting:
             # Import here to avoid circular dependency
-            from methods.metrics.continual_metrics import ContinualLearningMetrics
+            from oiafed.methods.metrics.continual_metrics import ContinualLearningMetrics
             self.cl_metrics = ContinualLearningMetrics(self.num_tasks)
         else:
             self.cl_metrics = None
@@ -300,7 +300,7 @@ class TARGETTrainer(Trainer):
         )
 
         # Check if this is the end of a task (last round of each task)
-        is_task_end = (round_num % self.rounds_per_task == 0) or (round_num == self.config.get('max_rounds', 100))
+        is_task_end = (round_num % self.rounds_per_task == 0) or (round_num == self.config.get('num_rounds', self.config.get('max_rounds', 100)))
 
         # Perform multi-task evaluation and compute CL metrics at task end
         cl_metrics_result = {}
@@ -470,11 +470,11 @@ class TARGETTrainer(Trainer):
         """
         try:
             # Import necessary modules
-            from methods.learners.cl.target_generator import (
+            from oiafed.methods.learners.cl.target_generator import (
                 Generator, Normalizer, DataIter, UnlabeledImageDataset,
                 weight_init
             )
-            from methods.learners.cl.target_synthesizer import GlobalSynthesizer
+            from oiafed.methods.learners.cl.target_synthesizer import GlobalSynthesizer
             from torch.utils.data import DataLoader
 
             # Get configuration parameters
@@ -559,7 +559,7 @@ class TARGETTrainer(Trainer):
             )
 
             # KL divergence loss
-            from methods.learners.cl.target_generator import KLDiv
+            from oiafed.methods.learners.cl.target_generator import KLDiv
             criterion = KLDiv(T=T)
 
             # Student optimizer

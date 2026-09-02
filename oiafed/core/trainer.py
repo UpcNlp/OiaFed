@@ -220,7 +220,7 @@ class Trainer(ABC):
         import time
 
         config = self._config
-        max_rounds = config.get("max_rounds", 100)
+        max_rounds = config.get("num_rounds", config.get("max_rounds", 100))
 
         # 触发训练开始回调
         if self._callbacks:

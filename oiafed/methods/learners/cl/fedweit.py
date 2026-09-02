@@ -178,7 +178,10 @@ class FedWeITLearner(Learner):
         self.logger.debug(f"[{self._node_id}] 初始化FedWeIT训练环境...")
 
         # 获取PyTorch模型
-        self.torch_model = self._model.get_model()
+        if hasattr(self._model, "get_model"):
+            self.torch_model = self._model.get_model() if hasattr(self._model, "get_model") else self._model
+        else:
+            self.torch_model = self._model
         self.torch_model = self.torch_model.to(self.device)
         self.torch_model.train()
 

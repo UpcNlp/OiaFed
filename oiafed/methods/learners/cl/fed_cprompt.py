@@ -170,7 +170,10 @@ class FedCPromptLearner(Learner):
             config: 运行时配置
         """
         # 获取PyTorch模型
-        self.torch_model = self._model.get_model()
+        if hasattr(self._model, "get_model"):
+            self.torch_model = self._model.get_model() if hasattr(self._model, "get_model") else self._model
+        else:
+            self.torch_model = self._model
         self.torch_model.to(self.device)
 
         # 如果需要冻结主干网络

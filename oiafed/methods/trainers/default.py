@@ -152,6 +152,13 @@ class DefaultTrainer(Trainer):
             f"训练样本数={round_metrics.total_samples}"
         )
 
+        # 显示客户端侧评估指标（来自 evaluate_after_fit）
+        client_eval = {k: v for k, v in round_metrics.metrics.items()
+                       if "post_train" in k and isinstance(v, (int, float))}
+        if client_eval:
+            eval_str = ", ".join([f"{k}={v:.4f}" for k, v in client_eval.items()])
+            self.logger.info(f"轮次 {round_num} 客户端评估: {eval_str}")
+
         # 8. 定期评估（使用聚合后的全局模型在全局测试集上评估）
         if eval_interval > 0 and round_num % eval_interval == 0:
             if self.has_global_test:

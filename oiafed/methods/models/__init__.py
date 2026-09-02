@@ -72,6 +72,7 @@ from .oneshot import (
     DataFreeGenerator,
     FuseFLResNet18,
 )
+from .fot_alexnet import FOTAlexNet
 
 
 __all__ = [
@@ -101,4 +102,5 @@ __all__ = [
     "FedCGSServerModel",
     "DataFreeGenerator",
     "FuseFLResNet18",
+    "FOTAlexNet",
 ]

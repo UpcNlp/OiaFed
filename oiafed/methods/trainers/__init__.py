@@ -16,6 +16,9 @@ from .oneshot import (
     FuseFLTrainer,
     CoBoostingTrainer,
 )
+from .fot_continual import FOTContinualTrainer
+from .faderaser_trainer import FedEraserTrainer
+from .splitnn_trainer import SplitNNTrainer
 
 __all__ = [
     "DefaultTrainer",
@@ -31,4 +34,7 @@ __all__ = [
     "FedCGSTrainer",
     "FuseFLTrainer",
     "CoBoostingTrainer",
+    "FedEraserTrainer",
+    "FOTContinualTrainer",
+    "SplitNNTrainer",
 ]

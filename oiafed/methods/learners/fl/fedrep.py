@@ -195,8 +195,8 @@ class FedRepLearner(Learner):
         total_correct = 0
         total_samples = 0
 
-        # 阶段1: 训练representation layers
-        if epoch_idx < self.local_epochs:
+        # 阶段1: 训练representation layers (epochs 1..local_epochs)
+        if epoch_idx <= self.local_epochs:
             self._current_phase = 'representation'
             self.logger.info(f"[{self._node_id}] Epoch {epoch_idx}: Training representation layers")
             for data, target in self._train_loader:
@@ -254,12 +254,10 @@ class FedRepLearner(Learner):
 
         return epoch_metrics
 
-    async def fit(self, config: Optional[Dict] = None):
-        """训练模型 - 重写以实现两阶段训练"""
+    async def train(self, epochs: int = None):
+        """重写训练循环 - FedRep使用 local_epochs + head_epochs 的总轮数"""
         total_epochs = self.local_epochs + self.head_epochs
-
-        for epoch in range(total_epochs):
-            epoch_metrics = await self.train_epoch(epoch)
+        return await super().train(epochs=total_epochs)
 
     async def evaluate(self, config: Optional[Dict] = None) -> EvalResult:
         """评估模型"""
@@ -290,11 +288,11 @@ class FedRepLearner(Learner):
             }
         )
 
-    async def get_weights(self) -> Dict[str, Any]:
+    def get_weights(self) -> Dict[str, Any]:
         """获取模型权重 - 只返回representation parameters"""
         return self.get_representation_parameters()
 
-    async def set_weights(self, weights: Dict[str, Any]):
+    def set_weights(self, weights: Dict[str, Any]):
         """设置模型权重 - 只更新representation parameters"""
         state_dict = self.model.state_dict()
 
