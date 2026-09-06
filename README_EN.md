@@ -12,7 +12,7 @@
 
 English | [简体中文](README.md)
 
-[Website](https://oiafed.cn) · [Documentation](docs/README.md) · [Quick Start](#quick-start) · [Examples](examples/)
+[Documentation](docs/README.md) · [Quick Start](#quick-start) · [Examples](examples/)
 
 </div>
 
@@ -377,8 +377,6 @@ This project is licensed under the [MIT License](LICENSE).
 
 ## 🔗 Links
 
-- **Website**: [https://oiafed.cn](https://oiafed.cn)
-- **Documentation**: [https://docs.oiafed.cn](https://docs.oiafed.cn)
 - **GitHub**: [https://github.com/oiafed/oiafed](https://github.com/oiafed/oiafed)
 - **PyPI**: [https://pypi.org/project/oiafed](https://pypi.org/project/oiafed)
 

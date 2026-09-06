@@ -75,7 +75,6 @@
 ## 🔗 快速链接
 
 - **GitHub**: [https://github.com/oiafed/oiafed](https://github.com/oiafed/oiafed)
-- **官网**: [https://oiafed.cn](https://oiafed.cn)
 - **PyPI**: [https://pypi.org/project/oiafed](https://pypi.org/project/oiafed)
 
 ---

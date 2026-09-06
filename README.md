@@ -13,7 +13,7 @@
 
 [English](README_EN.md) | 简体中文
 
-[官网](https://oiafed.cn) · [文档](https://docs.oiafed.cn) · [快速开始](#-快速开始) · [API 示例](#-api-使用示例)
+[快速开始](#-快速开始) · [API 示例](#-api-使用示例)
 
 </div>
 
@@ -491,8 +491,6 @@ isort oiafed/
 
 | 资源 | 链接 |
 |------|------|
-| 官方网站 | [https://oiafed.cn](https://oiafed.cn) |
-| 完整文档 | [https://docs.oiafed.cn](https://docs.oiafed.cn) |
 | GitHub | [https://github.com/oiafed/oiafed](https://github.com/oiafed/oiafed) |
 | PyPI | [https://pypi.org/project/oiafed](https://pypi.org/project/oiafed) |
 | 示例代码 | [examples/](examples/) |
